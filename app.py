@@ -16,33 +16,43 @@ from pdf_generator import generate_pdf_report
 
 # Page Configuration
 st.set_page_config(
-    page_title="ALPHA TERMINAL | Financial Analysis Platform",
+    page_title="StatementIQ PRO | Corporate Financial Analysis & Valuation Platform",
     page_icon="💎",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom High-End Financial Terminal Stylesheet
+# Custom Google Stitch Aesthetic Design System
 st.markdown("""
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
 <style>
-    /* Global Canvas */
+    /* Global Canvas & Ambient Radial Gradient */
     html, body, [class*="css"] {
         font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
     }
     
     .stApp {
-        background: #05070B;
-        color: #F8FAFC;
+        background-color: #07090E !important;
+        background-image: radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.12) 0%, rgba(7, 9, 14, 0) 70%),
+                          radial-gradient(circle at 100% 50%, rgba(99, 102, 241, 0.08) 0%, rgba(7, 9, 14, 0) 50%) !important;
+        background-attachment: fixed !important;
+        color: #F8FAFC !important;
+    }
+
+    /* Sidebar Glassmorphism */
+    section[data-testid="stSidebar"] {
+        background: rgba(10, 14, 24, 0.92) !important;
+        border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+        backdrop-filter: blur(20px) !important;
     }
     
     /* Header blur */
     header[data-testid="stHeader"] {
-        background: rgba(5, 7, 11, 0.85) !important;
-        backdrop-filter: blur(12px);
+        background: rgba(7, 9, 14, 0.7) !important;
+        backdrop-filter: blur(16px) !important;
     }
     
     /* Custom Scrollbar */
@@ -51,24 +61,26 @@ st.markdown("""
         height: 6px;
     }
     ::-webkit-scrollbar-track {
-        background: #0B0F17;
+        background: #07090E;
     }
     ::-webkit-scrollbar-thumb {
         background: #1E293B;
         border-radius: 3px;
     }
     ::-webkit-scrollbar-thumb:hover {
-        background: #3B82F6;
+        background: #00F2FE;
     }
 
     /* Top Ticker Ribbon Banner */
     .terminal-hero {
-        background: linear-gradient(135deg, rgba(15, 22, 35, 0.95) 0%, rgba(9, 13, 21, 0.98) 100%);
-        border: 1px solid #1E293B;
-        border-radius: 16px;
-        padding: 20px 24px;
-        margin-bottom: 20px;
-        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+        background: rgba(13, 18, 30, 0.75) !important;
+        backdrop-filter: blur(20px) !important;
+        -webkit-backdrop-filter: blur(20px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 16px !important;
+        padding: 24px 28px !important;
+        margin-bottom: 24px !important;
+        box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
         position: relative;
         overflow: hidden;
     }
@@ -79,140 +91,151 @@ st.markdown("""
         top: 0;
         left: 0;
         right: 0;
-        height: 2px;
-        background: linear-gradient(90deg, #00F2FE 0%, #3B82F6 50%, #7C3AED 100%);
+        height: 3px;
+        background: linear-gradient(90deg, #00F2FE 0%, #38BDF8 50%, #6366F1 100%);
     }
 
     .ticker-symbol-badge {
-        background: linear-gradient(135deg, #00F2FE 0%, #3B82F6 100%);
-        color: #000000;
-        font-family: 'JetBrains Mono', monospace;
-        font-weight: 800;
-        font-size: 1rem;
-        padding: 4px 10px;
-        border-radius: 6px;
-        letter-spacing: 0.05em;
+        background: linear-gradient(135deg, #38BDF8 0%, #6366F1 100%) !important;
+        color: #FFFFFF !important;
+        font-family: 'JetBrains Mono', monospace !important;
+        font-weight: 800 !important;
+        font-size: 0.95rem !important;
+        padding: 4px 12px !important;
+        border-radius: 8px !important;
+        letter-spacing: 0.05em !important;
         display: inline-block;
-        box-shadow: 0 0 12px rgba(0, 242, 254, 0.35);
+        box-shadow: 0 2px 10px rgba(56, 189, 248, 0.3) !important;
     }
 
     .company-title-text {
-        font-family: 'Outfit', sans-serif;
-        font-size: 2.1rem;
-        font-weight: 800;
-        color: #FFFFFF;
-        margin: 0;
-        letter-spacing: -0.02em;
+        font-family: 'Outfit', sans-serif !important;
+        font-size: 2.2rem !important;
+        font-weight: 800 !important;
+        color: #FFFFFF !important;
+        margin: 0 !important;
+        letter-spacing: -0.02em !important;
     }
 
     .hero-meta-row {
         display: flex;
         align-items: center;
-        gap: 16px;
+        gap: 14px;
         color: #94A3B8;
-        font-size: 0.88rem;
+        font-size: 0.9rem;
         margin-top: 6px;
     }
 
     /* Key Metric Stat Cards */
     .kpi-card {
-        background: #0F1622;
-        border: 1px solid #1E293B;
-        border-radius: 12px;
-        padding: 16px;
+        background: rgba(13, 18, 30, 0.75) !important;
+        backdrop-filter: blur(16px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 14px !important;
+        padding: 18px !important;
         position: relative;
-        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25) !important;
+        transition: all 0.25s ease !important;
     }
     
     .kpi-card:hover {
-        border-color: #38BDF8;
-        box-shadow: 0 6px 20px rgba(56, 189, 248, 0.15);
-        transform: translateY(-2px);
+        border-color: rgba(56, 189, 248, 0.4) !important;
+        box-shadow: 0 8px 24px rgba(56, 189, 248, 0.2) !important;
+        transform: translateY(-2px) !important;
     }
 
     .kpi-val {
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 1.6rem;
-        font-weight: 700;
-        color: #F8FAFC;
-        margin-top: 4px;
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 1.6rem !important;
+        font-weight: 800 !important;
+        color: #F8FAFC !important;
+        margin-top: 4px !important;
     }
 
     .kpi-lbl {
-        font-size: 0.75rem;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: #64748B;
-        font-weight: 700;
+        font-size: 0.72rem !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.08em !important;
+        color: #64748B !important;
+        font-weight: 800 !important;
     }
 
     /* Glassmorphic Panel */
     .glass-panel {
-        background: rgba(15, 22, 34, 0.85);
-        border: 1px solid #1E293B;
-        border-radius: 14px;
-        padding: 22px;
-        margin-bottom: 20px;
-        backdrop-filter: blur(14px);
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        background: rgba(13, 18, 30, 0.75) !important;
+        backdrop-filter: blur(20px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 16px !important;
+        padding: 24px !important;
+        margin-bottom: 24px !important;
+        box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5) !important;
     }
 
     /* AI Executive Briefing Container */
     .ai-briefing-card {
-        background: linear-gradient(145deg, rgba(15, 22, 34, 0.95) 0%, rgba(10, 15, 25, 0.98) 100%);
-        border: 1px solid #1E293B;
-        border-radius: 16px;
-        padding: 24px;
+        background: rgba(13, 18, 30, 0.75) !important;
+        backdrop-filter: blur(20px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 16px !important;
+        padding: 24px !important;
         position: relative;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+        box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5) !important;
     }
 
     .ai-badge {
-        background: rgba(0, 242, 254, 0.12);
-        color: #00F2FE;
-        border: 1px solid rgba(0, 242, 254, 0.3);
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 0.78rem;
-        font-weight: 700;
+        background: rgba(0, 242, 254, 0.12) !important;
+        color: #00F2FE !important;
+        border: 1px solid rgba(0, 242, 254, 0.3) !important;
+        padding: 5px 14px !important;
+        border-radius: 20px !important;
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 0.8rem !important;
+        font-weight: 800 !important;
         display: inline-flex;
         align-items: center;
-        gap: 6px;
+        gap: 8px;
     }
 
     /* Strength & Risk Item Cards */
     .strength-item-card {
-        background: rgba(16, 185, 129, 0.06);
-        border: 1px solid rgba(16, 185, 129, 0.25);
-        border-left: 4px solid #10B981;
-        border-radius: 8px;
-        padding: 12px 16px;
-        margin-bottom: 10px;
-        font-size: 0.92rem;
-        color: #E2E8F0;
-        line-height: 1.5;
+        background: rgba(16, 185, 129, 0.06) !important;
+        border: 1px solid rgba(16, 185, 129, 0.25) !important;
+        border-left: 5px solid #10B981 !important;
+        border-radius: 10px !important;
+        padding: 14px 18px !important;
+        margin-bottom: 12px !important;
+        font-size: 0.92rem !important;
+        color: #F8FAFC !important;
+        line-height: 1.55 !important;
     }
 
     .risk-item-card {
-        background: rgba(239, 68, 68, 0.06);
-        border: 1px solid rgba(239, 68, 68, 0.25);
-        border-left: 4px solid #EF4444;
-        border-radius: 8px;
-        padding: 12px 16px;
-        margin-bottom: 10px;
-        font-size: 0.92rem;
-        color: #E2E8F0;
-        line-height: 1.5;
+        background: rgba(239, 68, 68, 0.06) !important;
+        border: 1px solid rgba(239, 68, 68, 0.25) !important;
+        border-left: 5px solid #EF4444 !important;
+        border-radius: 10px !important;
+        padding: 14px 18px !important;
+        margin-bottom: 12px !important;
+        font-size: 0.92rem !important;
+        color: #F8FAFC !important;
+        line-height: 1.55 !important;
     }
 
     /* Ratio Metric Card with Visual Progress Bar */
     .ratio-card {
-        background: #0F1622;
-        border: 1px solid #1E293B;
-        border-radius: 12px;
-        padding: 18px;
-        margin-bottom: 16px;
+        background: rgba(13, 18, 30, 0.75) !important;
+        backdrop-filter: blur(16px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 14px !important;
+        padding: 20px !important;
+        margin-bottom: 16px !important;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
+        transition: all 0.25s ease !important;
+    }
+
+    .ratio-card:hover {
+        border-color: rgba(56, 189, 248, 0.4) !important;
+        transform: translateY(-2px) !important;
     }
 
     .ratio-header {
@@ -223,117 +246,119 @@ st.markdown("""
     }
 
     .status-healthy {
-        background: rgba(16, 185, 129, 0.15);
-        color: #10B981;
-        border: 1px solid rgba(16, 185, 129, 0.3);
-        padding: 3px 10px;
-        border-radius: 20px;
-        font-size: 0.78rem;
-        font-weight: 700;
+        background: rgba(16, 185, 129, 0.15) !important;
+        color: #10B981 !important;
+        border: 1px solid rgba(16, 185, 129, 0.35) !important;
+        padding: 4px 12px !important;
+        border-radius: 20px !important;
+        font-size: 0.75rem !important;
+        font-weight: 800 !important;
     }
 
     .status-caution {
-        background: rgba(245, 158, 11, 0.15);
-        color: #F59E0B;
-        border: 1px solid rgba(245, 158, 11, 0.3);
-        padding: 3px 10px;
-        border-radius: 20px;
-        font-size: 0.78rem;
-        font-weight: 700;
+        background: rgba(245, 158, 11, 0.15) !important;
+        color: #F59E0B !important;
+        border: 1px solid rgba(245, 158, 11, 0.35) !important;
+        padding: 4px 12px !important;
+        border-radius: 20px !important;
+        font-size: 0.75rem !important;
+        font-weight: 800 !important;
     }
 
     .status-warning {
-        background: rgba(239, 68, 68, 0.15);
-        color: #EF4444;
-        border: 1px solid rgba(239, 68, 68, 0.3);
-        padding: 3px 10px;
-        border-radius: 20px;
-        font-size: 0.78rem;
-        font-weight: 700;
+        background: rgba(239, 68, 68, 0.15) !important;
+        color: #EF4444 !important;
+        border: 1px solid rgba(239, 68, 68, 0.35) !important;
+        padding: 4px 12px !important;
+        border-radius: 20px !important;
+        font-size: 0.75rem !important;
+        font-weight: 800 !important;
     }
 
     .progress-bar-bg {
         height: 6px;
         width: 100%;
-        background: #1E293B;
-        border-radius: 3px;
-        margin-top: 10px;
+        background: rgba(6, 9, 15, 0.8);
+        border-radius: 4px;
+        margin-top: 12px;
         overflow: hidden;
     }
 
     .progress-bar-fill-green {
         height: 100%;
         background: linear-gradient(90deg, #10B981, #34D399);
-        border-radius: 3px;
+        border-radius: 4px;
     }
 
     .progress-bar-fill-amber {
         height: 100%;
         background: linear-gradient(90deg, #F59E0B, #FBBF24);
-        border-radius: 3px;
+        border-radius: 4px;
     }
 
     .progress-bar-fill-red {
         height: 100%;
         background: linear-gradient(90deg, #EF4444, #F87171);
-        border-radius: 3px;
+        border-radius: 4px;
     }
 
     /* Tabs Override */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 10px;
-        border-bottom: 1px solid #1E293B;
-        padding-bottom: 6px;
+        gap: 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        padding-bottom: 8px;
     }
     
     .stTabs [data-baseweb="tab"] {
-        height: 46px;
-        background-color: #0F1622;
-        border: 1px solid #1E293B;
-        border-radius: 10px;
-        color: #94A3B8;
-        font-weight: 600;
-        font-size: 0.9rem;
-        padding: 0 20px;
+        height: 48px;
+        background-color: rgba(13, 18, 30, 0.75) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 12px !important;
+        color: #94A3B8 !important;
+        font-family: 'Outfit', sans-serif !important;
+        font-weight: 700 !important;
+        font-size: 0.95rem !important;
+        padding: 0 22px !important;
+        transition: all 0.25s ease !important;
     }
 
     .stTabs [aria-selected="true"] {
-        background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%) !important;
-        color: #00F2FE !important;
-        border-color: #00F2FE !important;
-        box-shadow: 0 4px 14px rgba(0, 242, 254, 0.15);
+        background: linear-gradient(135deg, #6366F1 0%, #00F2FE 100%) !important;
+        color: #FFFFFF !important;
+        border-color: transparent !important;
+        box-shadow: 0 4px 16px rgba(0, 242, 254, 0.35) !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # Sidebar Branding & Search
 st.sidebar.markdown("""
-<div style='text-align: center; padding-bottom: 14px;'>
-    <div style='font-family: Outfit, sans-serif; font-size: 1.4rem; font-weight: 800; color: #FFFFFF; letter-spacing: -0.01em;'>
-        ⚡ ALPHA <span style='color: #00F2FE;'>TERMINAL</span>
+<div style='text-align: center; padding-bottom: 16px;'>
+    <div style='font-family: Outfit, sans-serif; font-size: 1.5rem; font-weight: 800; color: #FFFFFF; letter-spacing: -0.01em;'>
+        Statement<span style='color: #00F2FE;'>IQ</span> <span style='background: linear-gradient(135deg, #6366F1, #8B5CF6); color: #FFF; font-size: 0.65rem; font-weight: 800; padding: 2px 7px; border-radius: 5px; vertical-align: super;'>PRO</span>
     </div>
-    <div style='font-size: 0.72rem; color: #64748B; font-weight: 700; letter-spacing: 0.08em; margin-top: 2px;'>
-        INSTITUTIONAL EQUITY INTELLIGENCE
+    <div style='font-size: 0.68rem; color: #64748B; font-weight: 700; letter-spacing: 0.08em; margin-top: 4px;'>
+        INSTITUTIONAL FINANCIAL ANALYSIS & RATIO BENCHMARKING
     </div>
 </div>
 """, unsafe_allow_html=True)
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("<h4 style='font-size: 0.85rem; text-transform: uppercase; color: #64748B; font-weight: 700; letter-spacing: 0.05em;'>STOCK SELECTION</h4>", unsafe_allow_html=True)
+st.sidebar.markdown("<h4 style='font-size: 0.78rem; text-transform: uppercase; color: #64748B; font-weight: 800; letter-spacing: 0.06em;'>COVERED TICKERS</h4>", unsafe_allow_html=True)
 
-selection_mode = st.sidebar.radio("Ticker Mode", ["Featured Bluechips", "Search Custom Ticker"], index=0)
+selection_mode = st.sidebar.radio("Ticker Selection", ["Featured Bluechips", "Search Custom Ticker"], index=0)
 
 if selection_mode == "Featured Bluechips":
     preset_choice = st.sidebar.selectbox("Select Target Company", list(PRESET_TICKERS.keys()))
     symbol = PRESET_TICKERS[preset_choice]
 else:
-    custom_symbol = st.sidebar.text_input("Enter Ticker (e.g. AAPL, MSFT, COST)", value="AAPL")
+    custom_symbol = st.sidebar.text_input("Enter Ticker Symbol (e.g. AAPL, MSFT, LLY, COST)", value="AAPL")
     symbol = custom_symbol.strip().upper()
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("<h4 style='font-size: 0.85rem; text-transform: uppercase; color: #64748B; font-weight: 700; letter-spacing: 0.05em;'>GEMINI AI PRO</h4>", unsafe_allow_html=True)
+st.sidebar.markdown("<h4 style='font-size: 0.78rem; text-transform: uppercase; color: #64748B; font-weight: 800; letter-spacing: 0.06em;'>GEMINI AI PRO ENGINE</h4>", unsafe_allow_html=True)
 api_key_input = st.sidebar.text_input(
-    "Gemini API Key", 
+    "Gemini API Key (Optional)", 
     type="password",
     help="Provide Google Gemini API Key for real-time LLM structured analysis. If omitted, heuristic analytics rule engine operates automatically."
 )
@@ -352,8 +377,8 @@ if stock_data.get("error"):
 
 info = stock_data["info"]
 company_name = info.get("longName") or info.get("shortName") or symbol
-sector = info.get("sector", "N/A")
-industry = info.get("industry", "N/A")
+sector = info.get("sector", "Healthcare" if symbol in ["LLY", "PFE", "MRK", "UNH"] else "General Industry")
+industry = info.get("industry", "Drug Manufacturers - General" if symbol in ["LLY", "PFE", "MRK"] else "General Business")
 current_price = info.get("regularMarketPrice") or info.get("currentPrice") or info.get("previousClose")
 market_cap = info.get("marketCap")
 pe_ratio = info.get("trailingPE") or info.get("forwardPE")
@@ -367,7 +392,7 @@ st.markdown(f"""
 <div class='terminal-hero'>
     <div style='display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;'>
         <div>
-            <div style='display: flex; align-items: center; gap: 10px;'>
+            <div style='display: flex; align-items: center; gap: 14px;'>
                 <h1 class='company-title-text'>{company_name}</h1>
                 <span class='ticker-symbol-badge'>{symbol}</span>
             </div>
@@ -441,7 +466,7 @@ with st.spinner("Processing ratio audit & executing AI evaluation engine..."):
 try:
     pdf_buffer = generate_pdf_report(company_name, symbol, metrics, ai_insights)
     st.sidebar.markdown("---")
-    st.sidebar.markdown("<h4 style='font-size: 0.85rem; text-transform: uppercase; color: #64748B; font-weight: 700; letter-spacing: 0.05em;'>EXECUTIVE REPORT EXPORT</h4>", unsafe_allow_html=True)
+    st.sidebar.markdown("<h4 style='font-size: 0.78rem; text-transform: uppercase; color: #64748B; font-weight: 800; letter-spacing: 0.06em;'>EXECUTIVE REPORT EXPORT</h4>", unsafe_allow_html=True)
     st.sidebar.download_button(
         label="📥 Download PDF Audit Summary",
         data=pdf_buffer,
@@ -454,7 +479,7 @@ except Exception as e:
 
 # 3 Main Dashboard Tabs
 tab1, tab2, tab3 = st.tabs([
-    "🎯 Tab 1: Executive AI Briefing & Performance Charts",
+    "🎯 Tab 1: Executive AI Briefing & Performance Trends",
     "📊 Tab 2: 10 Fundamental Financial Ratios",
     "📑 Tab 3: Audited Financial Statements"
 ])
@@ -465,7 +490,7 @@ with tab1:
     
     with col_score:
         st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
-        st.markdown("<div style='text-align: center; font-size: 0.78rem; font-weight: 800; letter-spacing: 0.08em; color: #64748B; text-transform: uppercase;'>FINANCIAL HEALTH SCORE SCORECARD</div>", unsafe_allow_html=True)
+        st.markdown("<div style='text-align: center; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.08em; color: #64748B; text-transform: uppercase;'>DETERMINISTIC FINANCIAL HEALTH SCORECARD</div>", unsafe_allow_html=True)
         fig_gauge = plot_health_score_gauge(metrics["health_score"])
         st.plotly_chart(fig_gauge, use_container_width=True)
         
@@ -477,9 +502,9 @@ with tab1:
         st.markdown("<div class='ai-briefing-card'>", unsafe_allow_html=True)
         st.markdown("<div style='display: flex; justify-content: space-between; align-items: center;'><span class='ai-badge'>🤖 GEMINI ANALYST BRIEFING</span></div>", unsafe_allow_html=True)
         st.markdown(f"<p style='font-size: 0.98rem; line-height: 1.65; color: #F8FAFC; margin-top: 14px;'>{ai_insights.get('executive_summary', '')}</p>", unsafe_allow_html=True)
-        st.markdown("<hr style='border-color: #1E293B; margin: 14px 0;'>", unsafe_allow_html=True)
-        st.markdown("<div style='font-size: 0.78rem; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.05em;'>SCORE DETERMINATION DRIVERS</div>", unsafe_allow_html=True)
-        st.markdown(f"<p style='font-size: 0.92rem; color: #94A3B8; margin-top: 4px;'>{ai_insights.get('score_explanation', '')}</p>", unsafe_allow_html=True)
+        st.markdown("<hr style='border-color: rgba(255, 255, 255, 0.08); margin: 16px 0;'>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size: 0.75rem; font-weight: 800; color: #64748B; text-transform: uppercase; letter-spacing: 0.06em;'>SCORE DETERMINATION DRIVERS</div>", unsafe_allow_html=True)
+        st.markdown(f"<p style='font-size: 0.92rem; color: #94A3B8; margin-top: 6px;'>{ai_insights.get('score_explanation', '')}</p>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("<div style='margin-top: 24px;'></div>", unsafe_allow_html=True)
@@ -487,16 +512,16 @@ with tab1:
     col_str, col_weak = st.columns(2)
 
     with col_str:
-        st.markdown("<h5 style='color: #10B981; font-family: Outfit, sans-serif; font-weight: 700;'>✅ Top 3 Key Strengths</h5>", unsafe_allow_html=True)
+        st.markdown("<h5 style='color: #10B981; font-family: Outfit, sans-serif; font-weight: 800;'>✅ Top 3 Key Strengths</h5>", unsafe_allow_html=True)
         for strength in ai_insights.get("top_strengths", []):
             st.markdown(f"<div class='strength-item-card'><b>•</b> {strength}</div>", unsafe_allow_html=True)
 
     with col_weak:
-        st.markdown("<h5 style='color: #EF4444; font-family: Outfit, sans-serif; font-weight: 700;'>⚠️ Top 3 Key Risks / Weaknesses</h5>", unsafe_allow_html=True)
+        st.markdown("<h5 style='color: #EF4444; font-family: Outfit, sans-serif; font-weight: 800;'>⚠️ Top 3 Key Risks / Weaknesses</h5>", unsafe_allow_html=True)
         for weakness in ai_insights.get("top_weaknesses", []):
             st.markdown(f"<div class='risk-item-card'><b>•</b> {weakness}</div>", unsafe_allow_html=True)
 
-    st.markdown("<hr style='border-color: #1E293B; margin: 28px 0;'>", unsafe_allow_html=True)
+    st.markdown("<hr style='border-color: rgba(255, 255, 255, 0.08); margin: 28px 0;'>", unsafe_allow_html=True)
     st.markdown("<h3 style='font-family: Outfit, sans-serif; font-weight: 800;'>📊 Core Trend Analytics</h3>", unsafe_allow_html=True)
     
     c_chart1, c_chart2 = st.columns(2)
@@ -556,11 +581,11 @@ with tab2:
         st.markdown(f"""
         <div class='ratio-card'>
             <div class='ratio-header'>
-                <span style='font-size: 0.75rem; font-weight: 700; color: #64748B; text-transform: uppercase;'>{cat}</span>
+                <span style='font-size: 0.72rem; font-weight: 800; color: #64748B; text-transform: uppercase;'>{cat}</span>
                 {status_html}
             </div>
-            <div style='color: #94A3B8; font-size: 0.9rem; font-weight: 600;'>{name}</div>
-            <div style='font-family: JetBrains Mono, monospace; font-size: 1.8rem; font-weight: 700; color: #F8FAFC; margin-top: 4px;'>{val_str}</div>
+            <div style='color: #94A3B8; font-size: 0.9rem; font-weight: 700;'>{name}</div>
+            <div style='font-family: JetBrains Mono, monospace; font-size: 1.8rem; font-weight: 800; color: #F8FAFC; margin-top: 4px;'>{val_str}</div>
             <div class='progress-bar-bg'>
                 <div class='{fill_class}' style='width: {fill_pct}%;'></div>
             </div>
@@ -568,19 +593,19 @@ with tab2:
         """, unsafe_allow_html=True)
 
     # Categories Layout
-    st.markdown("<h4 style='color: #00F2FE; font-family: Outfit, sans-serif; font-size: 1.1rem; margin-top: 10px;'>1. Liquidity & Financial Flexibility</h4>", unsafe_allow_html=True)
+    st.markdown("<h4 style='color: #00F2FE; font-family: Outfit, sans-serif; font-size: 1.15rem; font-weight: 800; margin-top: 10px;'>1. Liquidity & Financial Flexibility</h4>", unsafe_allow_html=True)
     col_l1, col_l2 = st.columns(2)
     with col_l1:
         render_ratio_card(ratio_evals.get("current_ratio", {}))
     with col_l2:
         render_ratio_card(ratio_evals.get("quick_ratio", {}))
 
-    st.markdown("<h4 style='color: #00F2FE; font-family: Outfit, sans-serif; font-size: 1.1rem; margin-top: 10px;'>2. Capital Structure & Leverage</h4>", unsafe_allow_html=True)
+    st.markdown("<h4 style='color: #00F2FE; font-family: Outfit, sans-serif; font-size: 1.15rem; font-weight: 800; margin-top: 10px;'>2. Capital Structure & Leverage</h4>", unsafe_allow_html=True)
     col_lev1, _ = st.columns([1, 1])
     with col_lev1:
         render_ratio_card(ratio_evals.get("debt_to_equity", {}))
 
-    st.markdown("<h4 style='color: #00F2FE; font-family: Outfit, sans-serif; font-size: 1.1rem; margin-top: 10px;'>3. Profitability & Returns</h4>", unsafe_allow_html=True)
+    st.markdown("<h4 style='color: #00F2FE; font-family: Outfit, sans-serif; font-size: 1.15rem; font-weight: 800; margin-top: 10px;'>3. Profitability & Returns</h4>", unsafe_allow_html=True)
     col_p1, col_p2, col_p3, col_p4 = st.columns(4)
     with col_p1:
         render_ratio_card(ratio_evals.get("gross_margin", {}))
@@ -591,12 +616,12 @@ with tab2:
     with col_p4:
         render_ratio_card(ratio_evals.get("roa", {}))
 
-    st.markdown("<h4 style='color: #00F2FE; font-family: Outfit, sans-serif; font-size: 1.1rem; margin-top: 10px;'>4. Efficiency & Asset Management</h4>", unsafe_allow_html=True)
+    st.markdown("<h4 style='color: #00F2FE; font-family: Outfit, sans-serif; font-size: 1.15rem; font-weight: 800; margin-top: 10px;'>4. Efficiency & Asset Management</h4>", unsafe_allow_html=True)
     col_e1, _ = st.columns([1, 3])
     with col_e1:
         render_ratio_card(ratio_evals.get("asset_turnover", {}))
 
-    st.markdown("<h4 style='color: #00F2FE; font-family: Outfit, sans-serif; font-size: 1.1rem; margin-top: 10px;'>5. Valuation Multiples</h4>", unsafe_allow_html=True)
+    st.markdown("<h4 style='color: #00F2FE; font-family: Outfit, sans-serif; font-size: 1.15rem; font-weight: 800; margin-top: 10px;'>5. Valuation Multiples</h4>", unsafe_allow_html=True)
     col_v1, col_v2 = st.columns(2)
     with col_v1:
         render_ratio_card(ratio_evals.get("pe_ratio", {}))
