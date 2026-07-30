@@ -2,14 +2,14 @@ import os
 import json
 import io
 import sys
+import threading
 import pandas as pd
 import numpy as np
 
-# Ensure local packages in user directory are accessible
 sys.path.append('/Users/tareklawand/Library/Python/3.9/lib/python/site-packages')
 
-from fastapi import FastAPI, Query, HTTPException, Response
-from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
+from fastapi import FastAPI, Query, HTTPException
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
@@ -24,6 +24,20 @@ app = FastAPI(title="Alpha Terminal Financial API")
 # Mount static files directory
 os.makedirs("static", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+def prewarm_cache():
+    """Background task to pre-fetch preset bluechip tickers on startup."""
+    print("⚡ Pre-warming financial data cache for preset tickers...")
+    for label, symbol in PRESET_TICKERS.items():
+        try:
+            fetch_stock_data(symbol)
+        except Exception:
+            pass
+    print("✅ Pre-warming complete!")
+
+@app.on_event("startup")
+def startup_event():
+    threading.Thread(target=prewarm_cache, daemon=True).start()
 
 @app.get("/", response_class=HTMLResponse)
 def read_root():
@@ -65,7 +79,6 @@ def analyze_ticker(ticker: str = Query(..., description="Stock Ticker Symbol"), 
         api_key=api_key
     )
 
-    # Process chart data for frontend Plotly.js / Chart.js
     income_stmt = stock_data.get("income_stmt", pd.DataFrame())
     balance_sheet = stock_data.get("balance_sheet", pd.DataFrame())
     
@@ -79,12 +92,14 @@ def analyze_ticker(ticker: str = Query(..., description="Stock Ticker Symbol"), 
             "sector": info.get("sector", "N/A"),
             "industry": info.get("industry", "N/A"),
             "currency": info.get("currency", "USD"),
+            "exchange": info.get("exchange", "US NASDAQ/NYSE"),
             "price": info.get("regularMarketPrice") or info.get("currentPrice") or info.get("previousClose"),
             "market_cap": info.get("marketCap"),
             "pe_ratio": info.get("trailingPE") or info.get("forwardPE"),
             "ev_ebitda": info.get("enterpriseToEbitda"),
             "fifty_two_high": info.get("fiftyTwoWeekHigh"),
             "fifty_two_low": info.get("fiftyTwoWeekLow"),
+            "dividend_yield": info.get("dividendYield"),
             "target_price": info.get("targetMeanPrice"),
         },
         "metrics": metrics,
@@ -216,4 +231,4 @@ def prepare_statements_data(income_stmt: pd.DataFrame, balance_sheet: pd.DataFra
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8888, reload=True)

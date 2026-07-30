@@ -23,7 +23,6 @@ function setupEventListeners() {
         themeIcon.setAttribute("data-lucide", currentTheme === "dark" ? "sun" : "moon");
         lucide.createIcons();
 
-        // Re-render charts with updated theme colors
         if (currentData) {
             renderGaugeChart(currentData.metrics.health_score);
             renderCharts();
@@ -96,7 +95,15 @@ async function fetchPresets() {
                 const pill = document.createElement("div");
                 pill.className = `ticker-pill ${symbol === currentSymbol ? 'active' : ''}`;
                 pill.innerText = symbol;
-                pill.addEventListener("click", () => loadTickerData(symbol));
+                pill.addEventListener("click", () => {
+                    // Optimistic UI Update: Highlight immediately & set input text
+                    document.querySelectorAll(".ticker-pill").forEach(p => p.classList.remove("active"));
+                    pill.classList.add("active");
+                    document.getElementById("tickerSearchInput").value = symbol;
+                    
+                    // Trigger load data asynchronously
+                    loadTickerData(symbol);
+                });
                 ribbon.appendChild(pill);
             });
         }
@@ -107,12 +114,26 @@ async function fetchPresets() {
 
 // Load Stock Data from API
 async function loadTickerData(symbol) {
+    const targetSymbol = symbol.trim().upper();
+    
+    // Instant input box update
+    document.getElementById("tickerSearchInput").value = targetSymbol;
+    
+    // Highlight matching pill immediately
+    document.querySelectorAll(".ticker-pill").forEach(pill => {
+        if (pill.innerText === targetSymbol) {
+            pill.classList.add("active");
+        } else {
+            pill.classList.remove("active");
+        }
+    });
+
     const searchBtn = document.getElementById("searchBtn");
     searchBtn.disabled = true;
-    searchBtn.innerText = "FETCHING...";
+    searchBtn.innerText = "LOADING...";
 
     const apiKey = document.getElementById("geminiApiKey").value.trim();
-    let url = `/api/analyze?ticker=${encodeURIComponent(symbol)}`;
+    let url = `/api/analyze?ticker=${encodeURIComponent(targetSymbol)}`;
     if (apiKey) {
         url += `&api_key=${encodeURIComponent(apiKey)}`;
     }
@@ -121,23 +142,14 @@ async function loadTickerData(symbol) {
         const res = await fetch(url);
         if (!res.ok) {
             const errData = await res.json();
-            alert(errData.detail || `Failed to fetch data for ${symbol}`);
+            alert(errData.detail || `Failed to fetch data for ${targetSymbol}`);
             return;
         }
 
         currentData = await res.json();
         currentSymbol = currentData.symbol;
 
-        // Update Pill Active States
-        document.querySelectorAll(".ticker-pill").forEach(pill => {
-            if (pill.innerText === currentSymbol) {
-                pill.classList.add("active");
-            } else {
-                pill.classList.remove("active");
-            }
-        });
-
-        // Render UI Sections
+        // Render UI Sections smoothly
         renderHeroBanner();
         renderKPIs();
         renderAIBriefing();
@@ -149,7 +161,7 @@ async function loadTickerData(symbol) {
 
     } catch (err) {
         console.error("Error loading ticker data:", err);
-        alert(`Network error fetching data for ${symbol}`);
+        alert(`Network error fetching data for ${targetSymbol}`);
     } finally {
         searchBtn.disabled = false;
         searchBtn.innerText = "ANALYZE";
@@ -214,18 +226,17 @@ function renderPillarsMatrix() {
 
     const ratioEvals = currentData.metrics.ratio_evaluations;
 
-    // Pillar Scores
     const pillars = [
-        { name: "Liquidity", key: "current_ratio", target: 100 },
-        { name: "Leverage", key: "debt_to_equity", target: 100 },
-        { name: "Profitability", key: "net_margin", target: 100 },
-        { name: "Efficiency", key: "asset_turnover", target: 100 },
-        { name: "Valuation", key: "pe_ratio", target: 100 }
+        { name: "Liquidity", key: "current_ratio" },
+        { name: "Leverage", key: "debt_to_equity" },
+        { name: "Profitability", key: "net_margin" },
+        { name: "Efficiency", key: "asset_turnover" },
+        { name: "Valuation", key: "pe_ratio" }
     ];
 
     pillars.forEach(p => {
         const evalItem = ratioEvals[p.key] || {};
-        let score = 80;
+        let score = 85;
         let color = "#10B981";
 
         if (evalItem.status === "Caution") {
