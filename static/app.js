@@ -114,7 +114,8 @@ async function fetchPresets() {
 
 // Load Stock Data from API
 async function loadTickerData(symbol) {
-    const targetSymbol = symbol.trim().upper();
+    if (!symbol) return;
+    const targetSymbol = symbol.trim().toUpperCase();
     
     // Instant input box update
     document.getElementById("tickerSearchInput").value = targetSymbol;
