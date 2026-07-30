@@ -20,24 +20,82 @@ PRESET_TICKERS = {
 }
 
 KNOWN_SECTORS = {
+    # Healthcare
     "LLY": ("Healthcare", "Drug Manufacturers - General", "Eli Lilly and Company"),
+    "JNJ": ("Healthcare", "Drug Manufacturers - General", "Johnson & Johnson"),
     "PFE": ("Healthcare", "Drug Manufacturers - General", "Pfizer Inc."),
     "MRK": ("Healthcare", "Drug Manufacturers - General", "Merck & Co., Inc."),
     "ABBV": ("Healthcare", "Drug Manufacturers - General", "AbbVie Inc."),
     "UNH": ("Healthcare", "Healthcare Plans", "UnitedHealth Group Incorporated"),
-    "XOM": ("Energy", "Oil & Gas Integrated", "Exxon Mobil Corporation"),
-    "CVX": ("Energy", "Oil & Gas Integrated", "Chevron Corporation"),
-    "WMT": ("Consumer Staples", "Discount Stores", "Walmart Inc."),
-    "COST": ("Consumer Staples", "Discount Stores", "Costco Wholesale Corporation"),
-    "PG": ("Consumer Staples", "Household & Personal Products", "Procter & Gamble Company"),
-    "HD": ("Consumer Cyclical", "Home Improvement Retail", "The Home Depot, Inc."),
-    "V": ("Financial Services", "Credit Services", "Visa Inc."),
-    "MA": ("Financial Services", "Credit Services", "Mastercard Incorporated"),
-    "BAC": ("Financial Services", "Banks - Diversified", "Bank of America Corporation"),
+    "BMY": ("Healthcare", "Drug Manufacturers - General", "Bristol-Myers Squibb Company"),
+    "AMGN": ("Healthcare", "Drug Manufacturers - General", "Amgen Inc."),
+    "GILD": ("Healthcare", "Drug Manufacturers - General", "Gilead Sciences, Inc."),
+    "CVS": ("Healthcare", "Healthcare Plans", "CVS Health Corporation"),
+    "CI": ("Healthcare", "Healthcare Plans", "The Cigna Group"),
+
+    # Technology
+    "AAPL": ("Technology", "Consumer Electronics", "Apple Inc."),
+    "MSFT": ("Technology", "Software - Infrastructure", "Microsoft Corporation"),
+    "NVDA": ("Technology", "Semiconductors", "NVIDIA Corporation"),
+    "AMD": ("Technology", "Semiconductors", "Advanced Micro Devices, Inc."),
+    "INTC": ("Technology", "Semiconductors", "Intel Corporation"),
+    "AVGO": ("Technology", "Semiconductors", "Broadcom Inc."),
+    "QCOM": ("Technology", "Semiconductors", "QUALCOMM Incorporated"),
+    "CRM": ("Technology", "Software - Application", "Salesforce, Inc."),
+    "ORCL": ("Technology", "Software - Infrastructure", "Oracle Corporation"),
+    "CSCO": ("Technology", "Communication Equipment", "Cisco Systems, Inc."),
+    "ADBE": ("Technology", "Software - Infrastructure", "Adobe Inc."),
+
+    # Communication Services
+    "GOOGL": ("Communication Services", "Internet Content & Information", "Alphabet Inc. (Google)"),
+    "GOOG": ("Communication Services", "Internet Content & Information", "Alphabet Inc. (Google)"),
+    "META": ("Communication Services", "Internet Content & Information", "Meta Platforms, Inc."),
     "DIS": ("Communication Services", "Entertainment", "The Walt Disney Company"),
     "NFLX": ("Communication Services", "Entertainment", "Netflix, Inc."),
-    "AMD": ("Technology", "Semiconductors", "Advanced Micro Devices, Inc."),
-    "INTC": ("Technology", "Semiconductors", "Intel Corporation")
+    "TMUS": ("Communication Services", "Telecom Services", "T-Mobile US, Inc."),
+    "VZ": ("Communication Services", "Telecom Services", "Verizon Communications Inc."),
+    "T": ("Communication Services", "Telecom Services", "AT&T Inc."),
+
+    # Consumer Cyclical
+    "AMZN": ("Consumer Cyclical", "Internet Retail", "Amazon.com, Inc."),
+    "TSLA": ("Consumer Cyclical", "Auto Manufacturers", "Tesla, Inc."),
+    "HD": ("Consumer Cyclical", "Home Improvement Retail", "The Home Depot, Inc."),
+    "LOW": ("Consumer Cyclical", "Home Improvement Retail", "Lowe's Companies, Inc."),
+    "NKE": ("Consumer Cyclical", "Footwear & Accessories", "NIKE, Inc."),
+    "MCD": ("Consumer Cyclical", "Restaurants", "McDonald's Corporation"),
+    "SBUX": ("Consumer Cyclical", "Restaurants", "Starbucks Corporation"),
+
+    # Consumer Staples
+    "WMT": ("Consumer Staples", "Discount Stores", "Walmart Inc."),
+    "COST": ("Consumer Staples", "Discount Stores", "Costco Wholesale Corporation"),
+    "PG": ("Consumer Staples", "Household & Personal Products", "The Procter & Gamble Company"),
+    "KO": ("Consumer Staples", "Beverages - Non-Alcoholic", "The Coca-Cola Company"),
+    "PEP": ("Consumer Staples", "Beverages - Non-Alcoholic", "PepsiCo, Inc."),
+    "PM": ("Consumer Staples", "Tobacco", "Philip Morris International Inc."),
+
+    # Financial Services
+    "JPM": ("Financial Services", "Banks - Diversified", "JPMorgan Chase & Co."),
+    "BAC": ("Financial Services", "Banks - Diversified", "Bank of America Corporation"),
+    "WFC": ("Financial Services", "Banks - Diversified", "Wells Fargo & Company"),
+    "C": ("Financial Services", "Banks - Diversified", "Citigroup Inc."),
+    "GS": ("Financial Services", "Capital Markets", "The Goldman Sachs Group, Inc."),
+    "MS": ("Financial Services", "Capital Markets", "Morgan Stanley"),
+    "BRK-B": ("Financial Services", "Financial - Conglomerates", "Berkshire Hathaway Inc."),
+    "V": ("Financial Services", "Credit Services", "Visa Inc."),
+    "MA": ("Financial Services", "Credit Services", "Mastercard Incorporated"),
+
+    # Energy
+    "XOM": ("Energy", "Oil & Gas Integrated", "Exxon Mobil Corporation"),
+    "CVX": ("Energy", "Oil & Gas Integrated", "Chevron Corporation"),
+    "COP": ("Energy", "Oil & Gas E&P", "ConocoPhillips"),
+
+    # Industrials
+    "CAT": ("Industrials", "Farm & Heavy Construction Machinery", "Caterpillar Inc."),
+    "DE": ("Industrials", "Farm & Heavy Construction Machinery", "Deere & Company"),
+    "GE": ("Industrials", "Specialty Industrial Machinery", "General Electric Company"),
+    "HON": ("Industrials", "Conglomerates", "Honeywell International Inc."),
+    "BA": ("Industrials", "Aerospace & Defense", "The Boeing Company"),
+    "RTX": ("Industrials", "Aerospace & Defense", "RTX Corporation")
 }
 
 # 100% Reconciled Preset Profiles for Instant Switching
@@ -445,6 +503,14 @@ def fetch_stock_data(ticker_symbol: str) -> Dict[str, Any]:
                 cash_flow = ticker.cashflow if ticker.cashflow is not None and not ticker.cashflow.empty else ticker.cash_flow
                 history = ticker.history(period="1y")
 
+                # Override missing sector or industry if present in KNOWN_SECTORS
+                if symbol in KNOWN_SECTORS:
+                    sec, ind, long_n = KNOWN_SECTORS[symbol]
+                    info["sector"] = sec
+                    info["industry"] = ind
+                    if not info.get("longName"):
+                        info["longName"] = long_n
+
                 if income_stmt is not None and not income_stmt.empty and balance_sheet is not None and not balance_sheet.empty:
                     result = {
                         "symbol": symbol,
@@ -471,7 +537,7 @@ def build_from_company_profile(symbol: str) -> Dict[str, Any]:
         # Determine correct sector and industry for non-preset tickers
         sector, industry, company_long_name = KNOWN_SECTORS.get(
             symbol, 
-            ("Technology" if symbol in ["AMD", "INTC", "CRM", "ORCL"] else "General Sector", "General Industry", f"{symbol} Corporation")
+            ("Technology" if symbol in ["AMD", "INTC", "CRM", "ORCL"] else "General Business Sector", "General Business Industry", f"{symbol} Corporation")
         )
 
         hash_val = sum(ord(c) for c in symbol)
