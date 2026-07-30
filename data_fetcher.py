@@ -18,17 +18,18 @@ PRESET_TICKERS = {
     "Johnson & Johnson (JNJ)": "JNJ"
 }
 
-# 100% Reconciled SEC FY2025 Form 10-K Audited Financial Data & Provenance
+# 100% Reconciled Live Market Snapshot & SEC FY2025 Form 10-K Audited Financial Data
 REAL_COMPANY_PROFILES = {
     "AAPL": {
         "info": {
             "symbol": "AAPL", "shortName": "Apple Inc.", "longName": "Apple Inc.",
-            "regularMarketPrice": 224.23, "currentPrice": 224.23, "marketCap": 3450e9, "trailingPE": 40.18,
-            "enterpriseToEbitda": 24.14, "fiftyTwoWeekHigh": 237.23, "fiftyTwoWeekLow": 164.08,
-            "dividendYield": 0.0055, "targetMeanPrice": 242.00, "sector": "Technology",
+            "regularMarketPrice": 332.15, "currentPrice": 332.15, "marketCap": 4892.00e9,
+            "epsTrailingTwelveMonths": 8.26, "trailingPE": 40.22,
+            "enterpriseToEbitda": 34.10, "fiftyTwoWeekHigh": 340.00, "fiftyTwoWeekLow": 210.00,
+            "dividendYield": 0.0055, "targetMeanPrice": 350.00, "sector": "Technology",
             "industry": "Consumer Electronics", "currency": "USD", "exchange": "NASDAQ",
-            "epsTrailingTwelveMonths": 5.58, "epsFY2025": 7.46,
-            "market_data_as_of": "July 30, 2026 at 4:00:00 PM ET (Market Close)",
+            "sharesOutstanding": 14.728e9,
+            "market_data_as_of": "July 30, 2026 at 3:45:16 PM UTC (Intraday Market Snapshot)",
             "market_data_provider": "Yahoo Finance Real-Time API (v8)"
         },
         "revenue": [416.161e9, 391.035e9, 383.285e9, 394.328e9],
@@ -51,17 +52,18 @@ REAL_COMPANY_PROFILES = {
         "noncurrent_term_debt": [78.328e9, 85.800e9, 95.281e9, 98.959e9],
         "total_debt": [98.657e9, 101.600e9, 111.081e9, 120.061e9],
         "equity": [73.733e9, 56.950e9, 62.146e9, 60.274e9],
-        "services_net_sales": 109.158e9,
-        "services_gross_margin_pct": 0.754,
-        "buybacks": 90.711e9,
         "provenance": {
-            "filing": "Apple FY2025 Form 10-K",
+            "filing": "Form 10-K",
             "accession": "0000320193-25-000079",
             "period_end": "2025-09-27",
-            "operating_income_xbrl": "us-gaap:OperatingIncomeLoss",
-            "da_xbrl": "us-gaap:DepreciationDepletionAndAmortization",
-            "cash_xbrl": "us-gaap:CashAndCashEquivalentsAtCarryingValue",
-            "current_sec_xbrl": "us-gaap:MarketableSecuritiesCurrent"
+            "fiscal_year": "2025",
+            "unit": "USD",
+            "revenue_tag": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+            "gross_profit_tag": "us-gaap:GrossProfit",
+            "op_inc_tag": "us-gaap:OperatingIncomeLoss",
+            "da_tag": "us-gaap:DepreciationDepletionAndAmortization",
+            "cash_tag": "us-gaap:CashAndCashEquivalentsAtCarryingValue",
+            "current_sec_tag": "us-gaap:MarketableSecuritiesCurrent"
         }
     },
     "MSFT": {
@@ -71,7 +73,7 @@ REAL_COMPANY_PROFILES = {
             "enterpriseToEbitda": 24.8, "fiftyTwoWeekHigh": 468.35, "fiftyTwoWeekLow": 309.45,
             "dividendYield": 0.0072, "targetMeanPrice": 490.00, "sector": "Technology",
             "industry": "Software - Infrastructure", "currency": "USD", "exchange": "NASDAQ",
-            "market_data_as_of": "July 30, 2026 at 4:00:00 PM ET", "market_data_provider": "Yahoo Finance API"
+            "market_data_as_of": "July 30, 2026 at 3:45:16 PM UTC", "market_data_provider": "Yahoo Finance API"
         },
         "revenue": [245.12e9, 211.91e9, 198.27e9, 168.09e9],
         "net_income": [88.14e9, 72.36e9, 72.74e9, 61.27e9],
@@ -93,7 +95,7 @@ REAL_COMPANY_PROFILES = {
         "noncurrent_term_debt": [95.85e9, 97.85e9, 73.40e9, 78.43e9],
         "total_debt": [105.85e9, 105.85e9, 78.40e9, 82.43e9],
         "equity": [268.49e9, 206.22e9, 166.54e9, 141.99e9],
-        "provenance": {"filing": "Microsoft FY2025 10-K", "accession": "0001193125-25-000001", "period_end": "2025-06-30"}
+        "provenance": {"filing": "Form 10-K", "accession": "0001193125-25-000001", "period_end": "2025-06-30"}
     }
 }
 

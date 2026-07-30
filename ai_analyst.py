@@ -13,9 +13,9 @@ COMPANY_SPECIFIC_INTELLIGENCE = {
         "top_weaknesses": [
             "Current Ratio of 0.89 and Strict Quick Ratio of 0.77 ($127.65B Strict Quick Assets / $165.63B Current Liabilities) with negative working capital of -$17.67B.",
             "Debt-to-Equity ratio of 1.34 ($98.66B Total Disclosed Borrowings / $73.73B Shareholders Equity).",
-            "TTM P/E valuation multiple of 40.18x (as of July 30, 2026 4:00 PM ET) exceeds the model valuation benchmark (25.0x)."
+            "TTM P/E valuation multiple of 40.22x and EV/EBITDA of 34.10x (as of July 30, 2026 3:45:16 PM UTC) exceed model valuation benchmarks."
         ],
-        "score_explanation": "The Financial Health and Valuation Score of 72/100 is calculated via a deterministic quantitative model weighing 10 ratios (Healthy=1.0, Caution=0.6, Warning=0.2). Apple scores Healthy on Net Margin (26.9%), ROE (171.4%), ROA (30.9%), Asset Turnover (1.15x), Gross Margin (46.9%), and Debt-to-Equity (1.34), Caution on EV/EBITDA (24.14x), and Warning on Current Ratio (0.89), Strict Quick Ratio (0.77), and P/E (40.18x)."
+        "score_explanation": "The Financial Health and Valuation Score of 68/100 is calculated via a 100% deterministic quantitative model weighing 10 ratios (Healthy=1.0, Caution=0.6, Warning=0.2). Apple scores Healthy on Net Margin (26.9%), ROE (171.4%), ROA (30.9%), Asset Turnover (1.15x), Gross Margin (46.9%), and Debt-to-Equity (1.34), and Warning on Current Ratio (0.89), Strict Quick Ratio (0.77), TTM P/E (40.22x), and EV/EBITDA (34.10x)."
     }
 }
 
@@ -68,7 +68,7 @@ Return ONLY raw JSON.
 
     if symbol in COMPANY_SPECIFIC_INTELLIGENCE:
         res = COMPANY_SPECIFIC_INTELLIGENCE[symbol].copy()
-        res["score_explanation"] = f"The Financial Health and Valuation Score of {health_score}/100 is calculated via a 100% deterministic quantitative model weighing 10 ratios based on audited SEC FY2025 Form 10-K filings."
+        res["score_explanation"] = f"The Financial Health and Valuation Score of {health_score}/100 is calculated via a 100% deterministic quantitative model weighing 10 ratios based on audited SEC FY2025 Form 10-K filings and intraday market quotes."
         return res
 
     return generate_custom_ticker_insights(company_name, symbol, health_score, ratios_summary)

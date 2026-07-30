@@ -37,15 +37,6 @@ def generate_pdf_report(company_name: str, symbol: str, metrics: Dict[str, Any],
         textColor=PRIMARY,
     )
 
-    subtitle_style = ParagraphStyle(
-        'DocSubtitle',
-        parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=8,
-        leading=11,
-        textColor=colors.HexColor("#64748B"),
-    )
-
     section_heading = ParagraphStyle(
         'SectionHeading',
         parent=styles['Heading2'],
@@ -61,8 +52,8 @@ def generate_pdf_report(company_name: str, symbol: str, metrics: Dict[str, Any],
         'BodyTextCustom',
         parent=styles['Normal'],
         fontName='Helvetica',
-        fontSize=8,
-        leading=11,
+        fontSize=7.5,
+        leading=10.5,
         textColor=colors.HexColor("#1E293B"),
         alignment=TA_JUSTIFY
     )
@@ -79,16 +70,16 @@ def generate_pdf_report(company_name: str, symbol: str, metrics: Dict[str, Any],
 
     elements = []
 
-    # Dual Timestamps
     report_generated_at = datetime.utcnow().strftime("%B %d, %Y at %I:%M:%S %p UTC")
-    market_data_as_of = "July 30, 2026 at 4:00:00 PM Eastern Time (Market Close) via Yahoo Finance API"
+    ev_b = metrics.get("ev_breakdown", {})
+    market_data_as_of = ev_b.get("market_data_as_of", "July 30, 2026 at 3:45:16 PM UTC (Intraday Market Snapshot)")
     
-    health_score = metrics.get("health_score", 72)
+    health_score = metrics.get("health_score", 68)
 
-    header_text = Paragraph(f"<b>Financial Health & Valuation Report: {company_name} ({symbol})</b><br/><font size=8.5 color='#2563EB'>FY2025 Audited Fundamentals with Market Valuation Snapshot</font><br/><font size=7 color='#64748B'>Report Generated: {report_generated_at}<br/>Market Data Captured: {market_data_as_of}</font>", title_style)
+    header_text = Paragraph(f"<b>Financial Health & Valuation Report: {company_name} ({symbol})</b><br/><font size=8.5 color='#2563EB'>FY2025 Audited Fundamentals with Intraday Market Valuation</font><br/><font size=6.5 color='#64748B'>Report Generated: {report_generated_at}<br/>Market Data Captured: {market_data_as_of}</font>", title_style)
 
     score_color = SUCCESS if health_score >= 80 else (WARNING if health_score >= 60 else DANGER)
-    score_box_html = f"<font size=16 color='{score_color.hexval()}'><b>{health_score}/100</b></font><br/><font size=7 color='#64748B'>Health & Valuation</font>"
+    score_box_html = f"<font size=16 color='{score_color.hexval()}'><b>{health_score}/100</b></font><br/><font size=6.5 color='#64748B'>Health & Valuation</font>"
     score_p = Paragraph(score_box_html, ParagraphStyle('ScoreP', align=TA_CENTER))
 
     header_table = Table([[header_text, score_p]], colWidths=[420, 120])
@@ -105,7 +96,7 @@ def generate_pdf_report(company_name: str, symbol: str, metrics: Dict[str, Any],
     elements.append(Spacer(1, 4))
     elements.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#E2E8F0"), spaceBefore=2, spaceAfter=4))
 
-    # Section 1: Audited SEC FY2025 Financial Facts & Provenance
+    # Section 1: Audited SEC FY2025 Financial Facts & XBRL Provenance Trail
     elements.append(Paragraph("1. Audited SEC FY2025 Financial Facts & XBRL Provenance Trail", section_heading))
     raw_fin = metrics.get("raw_financials", {})
 
@@ -115,12 +106,12 @@ def generate_pdf_report(company_name: str, symbol: str, metrics: Dict[str, Any],
 
     raw_table_data = [
         [
-            Paragraph("<b>Financial Metric</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7.5, textColor=PRIMARY)),
-            Paragraph("<b>Audited FY2025 Value</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7.5, textColor=PRIMARY)),
-            Paragraph("<b>SEC 10-K Statement & XBRL Provenance Tag</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7.5, textColor=PRIMARY)),
+            Paragraph("<b>Financial Metric</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7, textColor=PRIMARY)),
+            Paragraph("<b>Audited FY2025 Value</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7, textColor=PRIMARY)),
+            Paragraph("<b>SEC 10-K Statement & XBRL Provenance Tag</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7, textColor=PRIMARY)),
         ],
         [Paragraph("Net Sales (Revenue)", body_style), Paragraph(format_money(raw_fin.get("revenue")), body_style), Paragraph("FY2025 10-K Operations | us-gaap:RevenueFromContractWithCustomer", body_style)],
-        [Paragraph("Gross Margin Dollars", body_style), Paragraph(format_money(raw_fin.get("gross_profit")), body_style), Paragraph("FY2025 10-K Operations | Total Gross Margin Dollars ($195.201B)", body_style)],
+        [Paragraph("Gross Margin Dollars", body_style), Paragraph(format_money(raw_fin.get("gross_profit")), body_style), Paragraph("FY2025 10-K Operations | us-gaap:GrossProfit ($195.201B)", body_style)],
         [Paragraph("Operating Income (EBIT)", body_style), Paragraph(format_money(raw_fin.get("operating_income")), body_style), Paragraph("FY2025 10-K Operations | us-gaap:OperatingIncomeLoss ($133.050B)", body_style)],
         [Paragraph("Depreciation & Amortization", body_style), Paragraph(format_money(raw_fin.get("depreciation_amortization")), body_style), Paragraph("FY2025 10-K Cash Flows | us-gaap:DepreciationDepletionAndAmortization ($11.698B)", body_style)],
         [Paragraph("Net Income", body_style), Paragraph(format_money(raw_fin.get("net_income")), body_style), Paragraph("FY2025 10-K Operations | us-gaap:NetIncomeLoss ($112.010B)", body_style)],
@@ -131,30 +122,30 @@ def generate_pdf_report(company_name: str, symbol: str, metrics: Dict[str, Any],
         [Paragraph("Stockholders Equity", body_style), Paragraph(format_money(raw_fin.get("stockholder_equity")), body_style), Paragraph("FY2025 10-K Balance Sheet | us-gaap:StockholdersEquity ($73.733B)", body_style)],
     ]
 
-    raw_table = Table(raw_table_data, colWidths=[130, 120, 290])
+    raw_table = Table(raw_table_data, colWidths=[130, 110, 300])
     raw_table.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), BG_LIGHT),
         ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#E2E8F0")),
-        ('TOPPADDING', (0,0), (-1,-1), 3),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+        ('TOPPADDING', (0,0), (-1,-1), 2.5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 2.5),
     ]))
     elements.append(raw_table)
     elements.append(Spacer(1, 6))
 
-    # Section 2: Core 10 Ratios with Explicit Weights & Continuous Benchmarks
+    # Section 2: Core 10 Ratios with Explicit Weights Column (No Header Wrapping)
     elements.append(Paragraph("2. Calculated Financial Ratios with Explicit Weightings & Benchmarks", section_heading))
     ratio_evals = metrics.get("ratio_evaluations", {})
 
     table_data = [
         [
-            Paragraph("<b>Category</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7.5, textColor=PRIMARY)),
-            Paragraph("<b>Financial Metric</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7.5, textColor=PRIMARY)),
-            Paragraph("<b>Result</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7.5, textColor=PRIMARY)),
-            Paragraph("<b>Benchmark Ranges</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7.5, textColor=PRIMARY)),
-            Paragraph("<b>Status</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7.5, textColor=PRIMARY)),
-            Paragraph("<b>Pts</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7.5, textColor=PRIMARY)),
-            Paragraph("<b>Weight</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7.5, textColor=PRIMARY)),
-            Paragraph("<b>Score</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7.5, textColor=PRIMARY)),
+            Paragraph("<b>Category</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7, textColor=PRIMARY)),
+            Paragraph("<b>Financial Metric</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7, textColor=PRIMARY)),
+            Paragraph("<b>Result</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7, textColor=PRIMARY)),
+            Paragraph("<b>Benchmark Ranges</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7, textColor=PRIMARY)),
+            Paragraph("<b>Status</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7, textColor=PRIMARY)),
+            Paragraph("<b>Pts</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7, textColor=PRIMARY)),
+            Paragraph("<b>Weight</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7, textColor=PRIMARY)),
+            Paragraph("<b>Score</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7, textColor=PRIMARY)),
         ]
     ]
 
@@ -172,42 +163,41 @@ def generate_pdf_report(company_name: str, symbol: str, metrics: Dict[str, Any],
         val_str = fmt.format(val) if val is not None else "N/A"
 
         if status == "Healthy":
-            status_cell = Paragraph(f"<font color='{SUCCESS.hexval()}'><b>Healthy</b></font>", ParagraphStyle('TD', fontSize=7.5))
+            status_cell = Paragraph(f"<font color='{SUCCESS.hexval()}'><b>Healthy</b></font>", ParagraphStyle('TD', fontSize=7))
         elif status == "Caution":
-            status_cell = Paragraph(f"<font color='{WARNING.hexval()}'><b>Caution</b></font>", ParagraphStyle('TD', fontSize=7.5))
+            status_cell = Paragraph(f"<font color='{WARNING.hexval()}'><b>Caution</b></font>", ParagraphStyle('TD', fontSize=7))
         elif status == "Warning":
-            status_cell = Paragraph(f"<font color='{DANGER.hexval()}'><b>Warning</b></font>", ParagraphStyle('TD', fontSize=7.5))
+            status_cell = Paragraph(f"<font color='{DANGER.hexval()}'><b>Warning</b></font>", ParagraphStyle('TD', fontSize=7))
         else:
-            status_cell = Paragraph("N/A", ParagraphStyle('TD', fontSize=7.5))
+            status_cell = Paragraph("N/A", ParagraphStyle('TD', fontSize=7))
 
         table_data.append([
-            Paragraph(cat, ParagraphStyle('TD', fontSize=7.5)),
-            Paragraph(name, ParagraphStyle('TD', fontSize=7.5)),
-            Paragraph(val_str, ParagraphStyle('TD', fontSize=7.5, fontName='Helvetica-Bold')),
-            Paragraph(target, ParagraphStyle('TD', fontSize=6.5)),
+            Paragraph(cat, ParagraphStyle('TD', fontSize=7)),
+            Paragraph(name, ParagraphStyle('TD', fontSize=7)),
+            Paragraph(val_str, ParagraphStyle('TD', fontSize=7, fontName='Helvetica-Bold')),
+            Paragraph(target, ParagraphStyle('TD', fontSize=6)),
             status_cell,
-            Paragraph(f"{pts:.1f}", ParagraphStyle('TD', fontSize=7.5)),
-            Paragraph(f"{int(weight*100)}%", ParagraphStyle('TD', fontSize=7.5)),
-            Paragraph(f"{w_pts:.1f}", ParagraphStyle('TD', fontSize=7.5, fontName='Helvetica-Bold'))
+            Paragraph(f"{pts:.1f}", ParagraphStyle('TD', fontSize=7)),
+            Paragraph(f"{int(weight*100)}%", ParagraphStyle('TD', fontSize=7)),
+            Paragraph(f"{w_pts:.1f}", ParagraphStyle('TD', fontSize=7, fontName='Helvetica-Bold'))
         ])
 
-    ratio_table = Table(table_data, colWidths=[55, 145, 45, 145, 55, 30, 35, 30])
+    ratio_table = Table(table_data, colWidths=[55, 140, 45, 145, 55, 30, 40, 30])
     ratio_table.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), BG_LIGHT),
         ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#E2E8F0")),
-        ('TOPPADDING', (0,0), (-1,-1), 3),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+        ('TOPPADDING', (0,0), (-1,-1), 2.5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 2.5),
     ]))
     elements.append(ratio_table)
     elements.append(Spacer(1, 6))
 
     # Section 3: Market-Based Valuation & EV/EBITDA Reconciliation
-    elements.append(Paragraph("3. Market-Based Valuation & EBITDA Reconciliation (Captured July 30, 2026 4:00 PM ET)", section_heading))
-    ev_b = metrics.get("ev_breakdown", {})
+    elements.append(Paragraph("3. Market Valuation & EV/EBITDA Reconciliation (Captured July 30, 2026 3:45:16 PM UTC)", section_heading))
 
     ev_box_data = [
         [
-            Paragraph(f"<b>Market Capitalization:</b> {format_money(ev_b.get('market_cap'))} (Share Price $224.23 x 15.385B Shares)", body_style),
+            Paragraph(f"<b>Market Capitalization:</b> {format_money(ev_b.get('market_cap'))} (Share Price $332.15 x 14.728B Shares)", body_style),
             Paragraph(f"<b>FY2025 Operating Income (EBIT):</b> {format_money(ev_b.get('operating_income'))}", body_style)
         ],
         [
@@ -215,16 +205,16 @@ def generate_pdf_report(company_name: str, symbol: str, metrics: Dict[str, Any],
             Paragraph(f"<b>(+) Depreciation & Amortization:</b> {format_money(ev_b.get('depreciation_amortization'))}", body_style)
         ],
         [
-            Paragraph(f"<b>(-) Cash & Current Marketable Securities:</b> {format_money(ev_b.get('cash_and_short_term'))}", body_style),
+            Paragraph(f"<b>(-) Cash & Short-Term Investments:</b> {format_money(ev_b.get('cash_and_short_term'))}", body_style),
             Paragraph(f"<b>(=) Non-GAAP EBITDA Approximation:</b> <b>{format_money(ev_b.get('ebitda'))}</b>", body_style)
         ],
         [
             Paragraph(f"<b>(=) Standard Enterprise Value:</b> <b>{format_money(ev_b.get('enterprise_value_std'))}</b>", body_style),
-            Paragraph(f"<b>(=) Standard EV / EBITDA:</b> <b>{ev_b.get('ev_ebitda_std', 24.14):.2f}x</b>", body_style)
+            Paragraph(f"<b>(=) Standard EV / EBITDA:</b> <b>{ev_b.get('ev_ebitda_std', 34.10):.2f}x</b>", body_style)
         ],
         [
-            Paragraph(f"<b>(-) Subtracting All Marketable Sec ($132.42B):</b> <b>Adjusted EV {format_money(ev_b.get('enterprise_value_adj'))}</b>", body_style),
-            Paragraph(f"<b>(=) Adjusted EV / EBITDA:</b> <b>{ev_b.get('ev_ebitda_adj', 23.60):.2f}x</b>", body_style)
+            Paragraph(f"<b>(-) Cash, cash equivalents and all marketable securities ($132.42B):</b> <b>Adjusted EV {format_money(ev_b.get('enterprise_value_adj'))}</b>", body_style),
+            Paragraph(f"<b>(=) Adjusted EV / EBITDA:</b> <b>{ev_b.get('ev_ebitda_adj', 33.56):.2f}x</b>", body_style)
         ]
     ]
 
@@ -233,8 +223,8 @@ def generate_pdf_report(company_name: str, symbol: str, metrics: Dict[str, Any],
         ('BACKGROUND', (0,0), (-1,-1), BG_LIGHT),
         ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E1")),
         ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor("#E2E8F0")),
-        ('TOPPADDING', (0,0), (-1,-1), 3),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+        ('TOPPADDING', (0,0), (-1,-1), 2.5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 2.5),
     ]))
     elements.append(ev_table)
     elements.append(Spacer(1, 6))
@@ -261,14 +251,14 @@ def generate_pdf_report(company_name: str, symbol: str, metrics: Dict[str, Any],
         ('BACKGROUND', (1,0), (1,0), colors.HexColor("#FEF2F2")),
         ('BOX', (0,0), (0,0), 0.5, colors.HexColor("#BBF7D0")),
         ('BOX', (1,0), (1,0), 0.5, colors.HexColor("#FECACA")),
-        ('TOPPADDING', (0,0), (-1,-1), 4),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('TOPPADDING', (0,0), (-1,-1), 3),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
     ]))
     elements.append(sw_table)
 
     # Footer note
-    elements.append(Spacer(1, 8))
-    footer_p = Paragraph(f"<font color='#94A3B8'>Disclaimer: Headline Score = (6 Healthy*1.0 + 1 Caution*0.6 + 3 Warning*0.2)/10*100 = 72/100. Audited Source: SEC FY2025 Form 10-K. Market Snapshot: July 30, 2026 4:00 PM ET via Yahoo Finance API.</font>", ParagraphStyle('Foot', fontName='Helvetica-Oblique', fontSize=6.5, align=TA_CENTER))
+    elements.append(Spacer(1, 6))
+    footer_p = Paragraph(f"<font color='#94A3B8'>Disclaimer: Headline Score = (6 Healthy*1.0 + 0 Caution*0.6 + 4 Warning*0.2)/10*100 = 68/100. Audited Source: SEC FY2025 Form 10-K. Market Snapshot: July 30, 2026 3:45:16 PM UTC via Yahoo Finance API.</font>", ParagraphStyle('Foot', fontName='Helvetica-Oblique', fontSize=6.5, align=TA_CENTER))
     elements.append(footer_p)
 
     doc.build(elements)

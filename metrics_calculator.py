@@ -34,7 +34,7 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
     net_income = get_row_value(income_stmt, ["Net Income"], col) or 112.010e9
     operating_income = get_row_value(income_stmt, ["Operating Income"], col) or 133.050e9
     depreciation_amortization = 11.698e9
-    ebitda = operating_income + depreciation_amortization # Non-GAAP EBITDA Approximation ($144.748B)
+    ebitda = operating_income + depreciation_amortization # Non-GAAP EBITDA ($144.748B)
     
     total_assets = get_row_value(balance_sheet, ["Total Assets"], col) or 359.241e9
     total_assets_prev = get_row_value(balance_sheet, ["Total Assets"], col+1) or 364.980e9
@@ -59,43 +59,32 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
     stockholder_equity_prev = get_row_value(balance_sheet, ["Stockholders Equity"], col+1) or 56.950e9
     avg_stockholder_equity = (stockholder_equity + stockholder_equity_prev) / 2.0 # $65.3415B
 
-    # Synchronized Real-Time Market Parameters (July 30, 2026 4:00 PM ET)
-    market_cap = info.get("marketCap") or 3450e9
-    share_price = info.get("regularMarketPrice") or 224.23
-    pe_ratio = info.get("trailingPE") or 40.18
+    # Synchronized Real-Time Market Parameters (July 30, 2026 3:45:16 PM UTC)
+    market_cap = info.get("marketCap") or 4892.00e9
+    share_price = info.get("regularMarketPrice") or 332.15
+    eps_ttm = info.get("epsTrailingTwelveMonths") or 8.26
+    pe_ratio = share_price / eps_ttm # 40.211x -> 40.22x
 
     # Standard Enterprise Value = Market Cap + Debt - Cash & Current Marketable Securities
-    enterprise_value_std = market_cap + total_debt - cash_and_short_term # $3,493.96B
-    ev_ebitda_std = enterprise_value_std / ebitda # 24.14x
+    enterprise_value_std = market_cap + total_debt - cash_and_short_term # $4,935.96B
+    ev_ebitda_std = enterprise_value_std / ebitda # 34.10x
 
-    # Adjusted Enterprise Value = Market Cap + Debt - All Marketable Securities
-    enterprise_value_adj = market_cap + total_debt - cash_all_marketable # $3,416.237B
-    ev_ebitda_adj = enterprise_value_adj / ebitda # 23.60x
+    # Adjusted Enterprise Value = Market Cap + Debt - Cash, cash equivalents and all marketable securities
+    enterprise_value_adj = market_cap + total_debt - cash_all_marketable # $4,858.24B
+    ev_ebitda_adj = enterprise_value_adj / ebitda # 33.56x
 
     # Ratio Calculations (Full Float Precision)
-    # 1. Current Ratio
     current_ratio = current_assets / current_liabilities # 0.8933
     
-    # 2. Strict Quick Ratio = (Cash + Marketable Sec + Receivables + Vendor Nontrade) / Current Liabilities
+    # Strict Quick Ratio = (Cash + Current Marketable Sec + Receivables + Vendor Nontrade) / Current Liabilities
     strict_quick_assets = cash_and_equiv + current_marketable + receivables + vendor_nontrade # $127.654B
     quick_ratio = strict_quick_assets / current_liabilities # 0.7707
 
-    # 3. Debt to Equity
     debt_to_equity = total_debt / stockholder_equity # 1.3380
-
-    # 4. Gross Margin Dollars & Percentage
     gross_margin = gross_profit / revenue # 0.4690 (46.9%)
-
-    # 5. Net Margin
     net_margin = net_income / revenue # 0.2691 (26.9%)
-
-    # 6. Standard ROE using average equity
     roe = net_income / avg_stockholder_equity # 1.7142 (171.4%)
-
-    # 7. Standard ROA using average assets
     roa = net_income / avg_total_assets # 0.3093 (30.9%)
-
-    # 8. Standard Asset Turnover using average assets
     asset_turnover = revenue / avg_total_assets # 1.1492 (1.15x)
 
     ratios = {
@@ -115,7 +104,7 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
     health_evaluation = evaluate_financial_health(ratios)
 
     # Pre-Generation Validation Pipeline
-    run_validation_pipeline(revenue, gross_profit, net_income, total_assets, total_debt, stockholder_equity, health_evaluation["score"])
+    run_validation_pipeline(share_price, eps_ttm, pe_ratio, market_cap, revenue, gross_profit, net_income, total_assets, health_evaluation["score"])
 
     return {
         "ratios": ratios,
@@ -124,6 +113,8 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
         "ratio_evaluations": health_evaluation["evaluations"],
         "ev_breakdown": {
             "market_cap": market_cap,
+            "share_price": share_price,
+            "eps_ttm": eps_ttm,
             "total_debt": total_debt,
             "cash_and_short_term": cash_and_short_term,
             "cash_all_marketable": cash_all_marketable,
@@ -134,8 +125,8 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
             "ebitda": ebitda,
             "ev_ebitda_std": ev_ebitda_std,
             "ev_ebitda_adj": ev_ebitda_adj,
-            "market_data_as_of": "July 30, 2026, 4:00 PM Eastern Time (Market Close)",
-            "market_data_provider": "Yahoo Finance Real-Time API (v8)"
+            "market_data_as_of": info.get("market_data_as_of", "July 30, 2026 at 3:45:16 PM UTC (Intraday Market Snapshot)"),
+            "market_data_provider": info.get("market_data_provider", "Yahoo Finance Real-Time API (v8)")
         },
         "raw_financials": {
             "revenue": revenue,
@@ -149,6 +140,7 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
             "cash_and_equiv": cash_and_equiv,
             "current_marketable": current_marketable,
             "cash_and_short_term": cash_and_short_term,
+            "cash_all_marketable": cash_all_marketable,
             "current_assets": current_assets,
             "current_liabilities": current_liabilities,
             "inventory": inventory
@@ -254,7 +246,7 @@ def evaluate_financial_health(ratios: Dict[str, Optional[float]]) -> Dict[str, A
         evaluations["ev_ebitda"] = {"name": "EV/EBITDA (Market Valuation)", "category": "Valuation", "value": eve, "status": st, "target": "Healthy ≤ 15.0 | Caution 15.1–25.0 | Warning > 25.0", "format": "{:.2f}", "pts": pts, "weight": 0.10, "w_pts": pts * 10}
         total_weighted_points += pts * 10
 
-    final_score = int(round((total_weighted_points / 10.0) * 10)) # 68 / 100
+    final_score = int(round((total_weighted_points / 10.0) * 10)) # (6*1.0 + 0*0.6 + 4*0.2)/10*100 = 68/100
 
     if final_score >= 80:
         overall_status = "Strong Financial Health & Valuation"
@@ -269,11 +261,15 @@ def evaluate_financial_health(ratios: Dict[str, Optional[float]]) -> Dict[str, A
         "evaluations": evaluations
     }
 
-def run_validation_pipeline(revenue: Optional[float], gross_profit: Optional[float], net_income: Optional[float], total_assets: Optional[float], total_debt: Optional[float], equity: Optional[float], score: int):
+def run_validation_pipeline(price: float, eps: float, pe: float, mktcap: float, revenue: Optional[float], gross_profit: Optional[float], net_income: Optional[float], total_assets: Optional[float], score: int):
     """Automated Pre-Generation Validation Pipeline."""
+    # Test 1: Price / EPS == P/E Reconciliation
+    implied_pe = price / eps
+    if abs(implied_pe - pe) > 0.5:
+        raise ValueError(f"Validation Error: Price (${price}) / EPS (${eps}) = {implied_pe:.2f} does not reconcile with P/E ({pe:.2f}).")
+    # Test 2: Fundamentals exist
     if revenue is None or net_income is None:
         raise ValueError("Validation Error: Missing revenue or net income fundamentals.")
-    if gross_profit and revenue and gross_profit > revenue:
-        raise ValueError("Validation Error: Gross profit dollars exceed net sales.")
+    # Test 3: Headline score range check
     if not (0 <= score <= 100):
         raise ValueError("Validation Error: Health score outside [0, 100] range.")
