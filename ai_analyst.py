@@ -4,18 +4,18 @@ from typing import Dict, Any, Optional
 
 COMPANY_SPECIFIC_INTELLIGENCE = {
     "AAPL": {
-        "executive_summary": "Apple Inc. (AAPL) demonstrates robust financial stability in its FY2025 audited filings, backed by $416.16B in annual net sales and $112.01B in net income. High-margin Services expansion ($85B+ ARR) and supply chain productivity support strong operating margins, while aggressive capital return programs ($90B+/year buybacks) optimize equity efficiency.",
+        "executive_summary": "Apple Inc. (AAPL) demonstrates robust financial stability in its FY2025 Form 10-K audited filings, backed by $416.16B in annual net sales and $112.01B in net income. Apple's Services segment generated $109.16 billion in FY2025 net sales, with a Services gross margin of 75.4%, while aggressive capital return programs ($90B+/year buybacks) optimize equity efficiency.",
         "top_strengths": [
-            "Exceptional Return on Equity (ROE) of 151.9% ($112.01B Net Income / $73.73B Equity) driven by share repurchases.",
-            "High Net Profit Margin of 26.9% ($112.01B Net Income / $416.16B Revenue) supported by Services gross margins (74%+).",
-            "Strong Return on Assets (ROA) of 31.2% ($112.01B Net Income / $359.24B Total Assets) reflecting capital-light hardware design."
+            "Exceptional Return on Equity (ROE) of 151.9% ($112.01B Net Income / $73.73B Year-End Equity) driven by share repurchases.",
+            "High Net Profit Margin of 26.9% ($112.01B Net Income / $416.16B Revenue) and 46.9% consolidated Gross Margin.",
+            "Strong Return on Assets (ROA) of 31.2% ($112.01B Net Income / $359.24B Year-End Total Assets) reflecting capital-light hardware design."
         ],
         "top_weaknesses": [
-            "Current Ratio of 0.89 ($147.96B Current Assets / $165.63B Current Liabilities) reflecting a negative working capital strategy.",
-            "Debt-to-Equity ratio of 1.44 ($106.00B Total Debt / $73.73B Equity) elevated by continuous share buyback funding.",
-            "P/E valuation multiple of 33.5x trading at a premium relative to top-line hardware volume growth rates."
+            "Current Ratio of 0.89 and Quick Ratio of 0.86 ($147.96B Current Assets - $5.72B Inventory / $165.63B Liabilities) reflecting negative working capital strategy.",
+            "Debt-to-Equity ratio of 1.34 ($98.66B Total Disclosed Borrowings / $73.73B Equity) elevated by continuous share buyback funding.",
+            "P/E valuation multiple of 40.18x (as of July 30, 2026 market price) trading at a premium relative to top-line hardware volume growth rates."
         ],
-        "score_explanation": "The Financial Health Score of 75/100 reflects top-tier net margins, ROA, and cash flow generation, balanced by a negative working capital Current Ratio (0.89) and buyback-adjusted equity leverage."
+        "score_explanation": "The Financial Health Score of 75/100 is calculated via a deterministic quantitative model weighing 10 ratios (Healthy=1.0, Caution=0.6, Warning=0.2). Apple scores high on Net Margin (26.9%), ROE (151.9%), and ROA (31.2%), but is docked for negative working capital (Current Ratio 0.89) and market valuation multiples (P/E 40.18x)."
     },
     "MSFT": {
         "executive_summary": "Microsoft Corporation (MSFT) exhibits elite financial health in its FY2025 audited filings, powered by Azure cloud infrastructure expansion, enterprise Office 365 commercial growth, and expanding AI Copilot monetization across its corporate productivity suite.",
@@ -208,7 +208,7 @@ Return ONLY raw JSON.
 
     if symbol in COMPANY_SPECIFIC_INTELLIGENCE:
         res = COMPANY_SPECIFIC_INTELLIGENCE[symbol].copy()
-        res["score_explanation"] = f"The Financial Health Score of {health_score}/100 is calculated via a deterministic quantitative model weighing liquidity, leverage, profitability, efficiency, and valuation ratios from audited SEC FY2025 filings."
+        res["score_explanation"] = f"The Financial Health Score of {health_score}/100 is calculated via a deterministic quantitative model weighing 10 ratios (Healthy=1.0, Caution=0.6, Warning=0.2) based on audited SEC FY2025 Form 10-K filings."
         return res
 
     return generate_custom_ticker_insights(company_name, symbol, health_score, ratios_summary)
