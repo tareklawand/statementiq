@@ -4,16 +4,17 @@ import pandas as pd
 import numpy as np
 from typing import Dict, Any
 
-# Elite Dark Palette
-DARK_CANVAS = "#080B11"
-CARD_BG = "#0F1622"
-CARD_BORDER = "#1E293B"
+# Elite Dark Palette & Glassmorphic Transparency
+DARK_CANVAS = "#07090E"
+CARD_BG = "rgba(0,0,0,0)"
+CARD_BORDER = "rgba(255, 255, 255, 0.08)"
 TEXT_MAIN = "#F8FAFC"
 TEXT_MUTED = "#94A3B8"
 
 COLOR_CYAN = "#00F2FE"
 COLOR_EMERALD = "#10B981"
-COLOR_BLUE = "#3B82F6"
+COLOR_BLUE = "#38BDF8"
+COLOR_INDIGO = "#6366F1"
 COLOR_PURPLE = "#8B5CF6"
 COLOR_AMBER = "#F59E0B"
 COLOR_CRIMSON = "#EF4444"
@@ -33,7 +34,7 @@ def plot_health_score_gauge(score: int) -> go.Figure:
         domain={'x': [0, 1], 'y': [0, 1]},
         number={
             'suffix': " / 100",
-            'font': {'size': 42, 'color': TEXT_MAIN, 'family': "Outfit, sans-serif", 'weight': 700}
+            'font': {'size': 42, 'color': TEXT_MAIN, 'family': "Outfit, sans-serif", 'weight': 800}
         },
         gauge={
             'axis': {
@@ -44,13 +45,13 @@ def plot_health_score_gauge(score: int) -> go.Figure:
                 'tickfont': {'size': 11, 'color': TEXT_MUTED}
             },
             'bar': {'color': accent, 'thickness': 0.85},
-            'bgcolor': "#182232",
+            'bgcolor': "rgba(10, 14, 24, 0.6)",
             'borderwidth': 1,
             'bordercolor': CARD_BORDER,
             'steps': [
-                {'range': [0, 60], 'color': "rgba(239, 68, 68, 0.1)"},
-                {'range': [60, 80], 'color': "rgba(245, 158, 11, 0.1)"},
-                {'range': [80, 100], 'color': "rgba(16, 185, 129, 0.1)"}
+                {'range': [0, 60], 'color': "rgba(239, 68, 68, 0.12)"},
+                {'range': [60, 80], 'color': "rgba(245, 158, 11, 0.12)"},
+                {'range': [80, 100], 'color': "rgba(16, 185, 129, 0.12)"}
             ],
         }
     ))
@@ -58,7 +59,7 @@ def plot_health_score_gauge(score: int) -> go.Figure:
     fig.update_layout(
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
-        font={'color': TEXT_MAIN, 'family': "Inter, sans-serif"},
+        font={'color': TEXT_MAIN, 'family': "Plus Jakarta Sans, sans-serif"},
         margin=dict(l=20, r=20, t=20, b=10),
         height=220
     )
@@ -99,7 +100,7 @@ def plot_revenue_net_income(income_stmt: pd.DataFrame) -> go.Figure:
             y=rev_vals,
             name="Total Revenue ($B)",
             marker=dict(
-                color="rgba(59, 130, 246, 0.8)",
+                color="rgba(56, 189, 248, 0.75)",
                 line=dict(color=COLOR_BLUE, width=1.5),
                 cornerradius=6
             ),
@@ -121,16 +122,16 @@ def plot_revenue_net_income(income_stmt: pd.DataFrame) -> go.Figure:
 
     fig.update_layout(
         title=dict(
-            text="<span style='font-weight:700; color:#F8FAFC;'>Revenue Growth & Profitability</span> <span style='font-weight:400; color:#94A3B8; font-size:13px;'>(4-Year Trend)</span>",
+            text="<span style='font-weight:800; color:#F8FAFC;'>Revenue Growth & Profitability</span> <span style='font-weight:400; color:#94A3B8; font-size:13px;'>(4-Year Trend)</span>",
             font=dict(size=15, family="Outfit, sans-serif")
         ),
-        paper_bgcolor=CARD_BG,
-        plot_bgcolor=CARD_BG,
-        font=dict(color=TEXT_MAIN, family="Inter, sans-serif"),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(color=TEXT_MAIN, family="Plus Jakarta Sans, sans-serif"),
         xaxis=dict(showgrid=False, linecolor=CARD_BORDER, tickfont=dict(color=TEXT_MUTED, size=11)),
         yaxis=dict(
             showgrid=True,
-            gridcolor="rgba(255, 255, 255, 0.05)",
+            gridcolor="rgba(255, 255, 255, 0.06)",
             gridwidth=1,
             title=dict(text="USD ($ Billions)", font=dict(color=TEXT_MUTED, size=11)),
             tickfont=dict(color=TEXT_MUTED, size=11)
@@ -196,17 +197,17 @@ def plot_cash_vs_debt(balance_sheet: pd.DataFrame) -> go.Figure:
 
     fig.update_layout(
         title=dict(
-            text="<span style='font-weight:700; color:#F8FAFC;'>Balance Sheet Liquidity</span> <span style='font-weight:400; color:#94A3B8; font-size:13px;'>(Cash vs Debt)</span>",
+            text="<span style='font-weight:800; color:#F8FAFC;'>Balance Sheet Liquidity</span> <span style='font-weight:400; color:#94A3B8; font-size:13px;'>(Cash vs Debt)</span>",
             font=dict(size=15, family="Outfit, sans-serif")
         ),
         barmode='group',
-        paper_bgcolor=CARD_BG,
-        plot_bgcolor=CARD_BG,
-        font=dict(color=TEXT_MAIN, family="Inter, sans-serif"),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(color=TEXT_MAIN, family="Plus Jakarta Sans, sans-serif"),
         xaxis=dict(showgrid=False, linecolor=CARD_BORDER, tickfont=dict(color=TEXT_MUTED, size=11)),
         yaxis=dict(
             showgrid=True,
-            gridcolor="rgba(255, 255, 255, 0.05)",
+            gridcolor="rgba(255, 255, 255, 0.06)",
             gridwidth=1,
             title=dict(text="USD ($ Billions)", font=dict(color=TEXT_MUTED, size=11)),
             tickfont=dict(color=TEXT_MUTED, size=11)
@@ -259,7 +260,7 @@ def plot_margins_trend(income_stmt: pd.DataFrame) -> go.Figure:
                     
             if pd.notna(rev) and float(rev) != 0:
                 gm_val = (float(gp) / float(rev)) * 100 if pd.notna(gp) else 0.0
-                nm_val = (float(ni) / float(rev)) * 100 if pd.notna(ni) else 0.0
+                nm_val = (float(ni) / float(rev)) * 100 if pd.notna(nm) if pd.notna(ni) else 0.0
             else:
                 gm_val, nm_val = 0.0, 0.0
                 
@@ -288,16 +289,16 @@ def plot_margins_trend(income_stmt: pd.DataFrame) -> go.Figure:
 
     fig.update_layout(
         title=dict(
-            text="<span style='font-weight:700; color:#F8FAFC;'>Operating Margin Dynamics</span> <span style='font-weight:400; color:#94A3B8; font-size:13px;'>(Gross vs Net Margin)</span>",
+            text="<span style='font-weight:800; color:#F8FAFC;'>Operating Margin Dynamics</span> <span style='font-weight:400; color:#94A3B8; font-size:13px;'>(Gross vs Net Margin)</span>",
             font=dict(size=15, family="Outfit, sans-serif")
         ),
-        paper_bgcolor=CARD_BG,
-        plot_bgcolor=CARD_BG,
-        font=dict(color=TEXT_MAIN, family="Inter, sans-serif"),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(color=TEXT_MAIN, family="Plus Jakarta Sans, sans-serif"),
         xaxis=dict(showgrid=False, linecolor=CARD_BORDER, tickfont=dict(color=TEXT_MUTED, size=11)),
         yaxis=dict(
             showgrid=True,
-            gridcolor="rgba(255, 255, 255, 0.05)",
+            gridcolor="rgba(255, 255, 255, 0.06)",
             gridwidth=1,
             title=dict(text="Percentage (%)", font=dict(color=TEXT_MUTED, size=11)),
             tickfont=dict(color=TEXT_MUTED, size=11)
