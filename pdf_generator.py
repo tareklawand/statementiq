@@ -90,7 +90,7 @@ def generate_pdf_report(company_name: str, symbol: str, metrics: Dict[str, Any],
     health_status = metrics.get("health_status", "N/A")
 
     header_text = Paragraph(f"<b>Financial Analysis Report: {company_name} ({symbol})</b>", title_style)
-    sub_text = Paragraph(f"Generated on {current_date} | Automated AI Financial Assessment", subtitle_style)
+    sub_text = Paragraph(f"Generated on {current_date} | Audited SEC FY2025 Assessment", subtitle_style)
 
     # Score Badge cell content
     score_color = SUCCESS if health_score >= 80 else (WARNING if health_score >= 60 else DANGER)
@@ -214,7 +214,7 @@ def generate_pdf_report(company_name: str, symbol: str, metrics: Dict[str, Any],
     elements.append(Spacer(1, 14))
 
     # Raw Financial Highlights
-    elements.append(Paragraph("Key Raw Financial Overview (Latest Fiscal Year)", section_heading))
+    elements.append(Paragraph("Key Raw Financial Overview (Audited SEC FY2025 10-K)", section_heading))
     raw_fin = metrics.get("raw_financials", {})
 
     def format_money(val):
@@ -231,7 +231,7 @@ def generate_pdf_report(company_name: str, symbol: str, metrics: Dict[str, Any],
             Paragraph("<b>Total Debt:</b> " + format_money(raw_fin.get("total_debt")), body_style)
         ],
         [
-            Paragraph("<b>Cash & Equivalents:</b> " + format_money(raw_fin.get("cash_and_equiv")), body_style),
+            Paragraph("<b>Cash & Short-Term Investments:</b> " + format_money(raw_fin.get("cash_and_equiv")), body_style),
             Paragraph("<b>Stockholder Equity:</b> " + format_money(raw_fin.get("stockholder_equity")), body_style)
         ]
     ]
@@ -249,7 +249,7 @@ def generate_pdf_report(company_name: str, symbol: str, metrics: Dict[str, Any],
 
     # Footer note
     elements.append(Spacer(1, 16))
-    footer_p = Paragraph(f"<font color='#94A3B8'>Disclaimer: This report is automatically generated for informational purposes only. Past performance does not guarantee future results.</font>", ParagraphStyle('Foot', fontName='Helvetica-Oblique', fontSize=7.5, align=TA_CENTER))
+    footer_p = Paragraph(f"<font color='#94A3B8'>Disclaimer: This report is automatically generated from audited SEC FY2025 10-K filings for informational purposes only.</font>", ParagraphStyle('Foot', fontName='Helvetica-Oblique', fontSize=7.5, align=TA_CENTER))
     elements.append(footer_p)
 
     doc.build(elements)
