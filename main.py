@@ -19,7 +19,7 @@ from metrics_calculator import compute_metrics
 from ai_analyst import generate_ai_insights
 from pdf_generator import generate_pdf_report
 
-app = FastAPI(title="Alpha Terminal Financial API")
+app = FastAPI(title="StatementIQ Financial API")
 
 # Mount static files directory
 os.makedirs("static", exist_ok=True)
@@ -41,12 +41,13 @@ def startup_event():
 
 @app.get("/", response_class=HTMLResponse)
 def read_root():
-    """Serves the main custom web application frontend."""
+    """Serves the main custom web application frontend with cache-busting headers."""
     index_path = os.path.join("static", "index.html")
     if os.path.exists(index_path):
         with open(index_path, "r", encoding="utf-8") as f:
-            return f.read()
-    return "<h1>Alpha Terminal UI loading...</h1>"
+            headers = {"Cache-Control": "no-cache, no-store, must-revalidate, max-age=0"}
+            return HTMLResponse(content=f.read(), headers=headers)
+    return "<h1>StatementIQ UI loading...</h1>"
 
 @app.get("/api/presets")
 def get_presets():
@@ -89,8 +90,8 @@ def analyze_ticker(ticker: str = Query(..., description="Stock Ticker Symbol"), 
         "symbol": symbol,
         "company_name": company_name,
         "info": {
-            "sector": info.get("sector", "N/A"),
-            "industry": info.get("industry", "N/A"),
+            "sector": info.get("sector", "General Industry"),
+            "industry": info.get("industry", "General Business"),
             "currency": info.get("currency", "USD"),
             "exchange": info.get("exchange", "US NASDAQ/NYSE"),
             "price": info.get("regularMarketPrice") or info.get("currentPrice") or info.get("previousClose"),
