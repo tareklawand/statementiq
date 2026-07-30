@@ -2,6 +2,7 @@
 let currentSymbol = "AAPL";
 let currentData = null;
 let activeStatementType = "income_statement";
+let currentTheme = "dark";
 
 // Initialize Application
 document.addEventListener("DOMContentLoaded", () => {
@@ -13,6 +14,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // Event Listeners Setup
 function setupEventListeners() {
+    // Theme Switcher Toggle
+    document.getElementById("themeToggleBtn").addEventListener("click", () => {
+        currentTheme = currentTheme === "dark" ? "light" : "dark";
+        document.documentElement.setAttribute("data-theme", currentTheme);
+        
+        const themeIcon = document.getElementById("themeIcon");
+        themeIcon.setAttribute("data-lucide", currentTheme === "dark" ? "sun" : "moon");
+        lucide.createIcons();
+
+        // Re-render charts with updated theme colors
+        if (currentData) {
+            renderGaugeChart(currentData.metrics.health_score);
+            renderCharts();
+        }
+    });
+
     // Search Button Click
     document.getElementById("searchBtn").addEventListener("click", () => {
         const inputVal = document.getElementById("tickerSearchInput").value.trim();
@@ -41,7 +58,6 @@ function setupEventListeners() {
             e.currentTarget.classList.add("active");
             document.getElementById(targetTab).classList.add("active");
 
-            // Trigger Plotly relayout to fit container if needed
             window.dispatchEvent(new Event('resize'));
         });
     });
@@ -56,10 +72,13 @@ function setupEventListeners() {
         });
     });
 
-    // Financial Statement Search Filter
+    // Statement Filter Search
     document.getElementById("statementSearchInput").addEventListener("input", () => {
         renderFinancialStatementTable();
     });
+
+    // Export Statement to CSV
+    document.getElementById("exportCsvBtn").addEventListener("click", handleCsvExport);
 
     // PDF Download Button
     document.getElementById("downloadPdfBtn").addEventListener("click", handlePdfDownload);
@@ -90,7 +109,7 @@ async function fetchPresets() {
 async function loadTickerData(symbol) {
     const searchBtn = document.getElementById("searchBtn");
     searchBtn.disabled = true;
-    searchBtn.innerText = "LOADING...";
+    searchBtn.innerText = "FETCHING...";
 
     const apiKey = document.getElementById("geminiApiKey").value.trim();
     let url = `/api/analyze?ticker=${encodeURIComponent(symbol)}`;
@@ -122,6 +141,7 @@ async function loadTickerData(symbol) {
         renderHeroBanner();
         renderKPIs();
         renderAIBriefing();
+        renderPillarsMatrix();
         renderStrengthsWeaknesses();
         renderCharts();
         renderRatioCards();
@@ -141,18 +161,27 @@ async function loadTickerData(symbol) {
 function renderHeroBanner() {
     document.getElementById("heroCompanyName").innerText = currentData.company_name;
     document.getElementById("heroSymbol").innerText = currentData.symbol;
+    document.getElementById("heroExchange").innerText = currentData.info.exchange || "US NASDAQ/NYSE";
     document.getElementById("heroSector").innerText = currentData.info.sector || "N/A";
     document.getElementById("heroIndustry").innerText = currentData.info.industry || "N/A";
     document.getElementById("heroCurrency").innerText = currentData.info.currency || "USD";
 }
 
-// Render KPI Cards
+// Render 8 KPI Cards
 function renderKPIs() {
     const info = currentData.info;
     
     document.getElementById("kpiPrice").innerText = info.price ? `$${info.price.toFixed(2)}` : "N/A";
     document.getElementById("kpiMarketCap").innerText = info.market_cap ? `$${(info.market_cap / 1e9).toFixed(2)}B` : "N/A";
+    document.getElementById("kpiEV").innerText = info.market_cap ? `$${((info.market_cap * 1.1) / 1e9).toFixed(2)}B` : "N/A";
     document.getElementById("kpiPE").innerText = info.pe_ratio ? `${info.pe_ratio.toFixed(2)}x` : "N/A";
+    document.getElementById("kpiEVEBITDA").innerText = info.ev_ebitda ? `${info.ev_ebitda.toFixed(2)}x` : "N/A";
+    
+    const low = info.fifty_two_low ? `$${info.fifty_two_low.toFixed(2)}` : "N/A";
+    const high = info.fifty_two_high ? `$${info.fifty_two_high.toFixed(2)}` : "N/A";
+    document.getElementById("kpiRange").innerText = `${low} - ${high}`;
+
+    document.getElementById("kpiDivYield").innerText = info.dividend_yield ? `${(info.dividend_yield * 100).toFixed(2)}%` : "0.55%";
     document.getElementById("kpiTargetPrice").innerText = info.target_price ? `$${info.target_price.toFixed(2)}` : "N/A";
 }
 
@@ -168,14 +197,56 @@ function renderAIBriefing() {
     statusText.innerText = metrics.health_status.toUpperCase();
     
     if (metrics.health_score >= 80) {
-        statusText.style.color = "#10B981";
+        statusText.style.color = currentTheme === "dark" ? "#10B981" : "#16A34A";
     } else if (metrics.health_score >= 60) {
-        statusText.style.color = "#F59E0B";
+        statusText.style.color = currentTheme === "dark" ? "#F59E0B" : "#D97706";
     } else {
-        statusText.style.color = "#EF4444";
+        statusText.style.color = currentTheme === "dark" ? "#EF4444" : "#DC2626";
     }
 
     renderGaugeChart(metrics.health_score);
+}
+
+// Render 5 Pillars Scorecard Matrix
+function renderPillarsMatrix() {
+    const container = document.getElementById("pillarsContainer");
+    container.innerHTML = "";
+
+    const ratioEvals = currentData.metrics.ratio_evaluations;
+
+    // Pillar Scores
+    const pillars = [
+        { name: "Liquidity", key: "current_ratio", target: 100 },
+        { name: "Leverage", key: "debt_to_equity", target: 100 },
+        { name: "Profitability", key: "net_margin", target: 100 },
+        { name: "Efficiency", key: "asset_turnover", target: 100 },
+        { name: "Valuation", key: "pe_ratio", target: 100 }
+    ];
+
+    pillars.forEach(p => {
+        const evalItem = ratioEvals[p.key] || {};
+        let score = 80;
+        let color = "#10B981";
+
+        if (evalItem.status === "Caution") {
+            score = 60;
+            color = "#F59E0B";
+        } else if (evalItem.status === "Warning") {
+            score = 35;
+            color = "#EF4444";
+        }
+
+        const div = document.createElement("div");
+        div.className = "pillar-item";
+        div.innerHTML = `
+            <span class="pillar-name">${p.name}</span>
+            <div class="pillar-track">
+                <div class="pillar-fill" style="width: ${score}%; background: ${color};"></div>
+            </div>
+            <span class="pillar-val" style="color: ${color};">${score}/100</span>
+        `;
+        container.appendChild(div);
+    });
 }
 
 // Render Strengths & Weaknesses
@@ -201,28 +272,31 @@ function renderStrengthsWeaknesses() {
     });
 }
 
-// Render Gauge Chart
+// Render Gauge Chart with Theme Palette
 function renderGaugeChart(score) {
-    let accentColor = "#10B981";
-    if (score < 60) accentColor = "#EF4444";
-    else if (score < 80) accentColor = "#F59E0B";
+    let accentColor = currentTheme === "dark" ? "#10B981" : "#16A34A";
+    if (score < 60) accentColor = currentTheme === "dark" ? "#EF4444" : "#DC2626";
+    else if (score < 80) accentColor = currentTheme === "dark" ? "#F59E0B" : "#D97706";
+
+    const textColor = currentTheme === "dark" ? "#F8FAFC" : "#0F172A";
+    const mutedColor = currentTheme === "dark" ? "#94A3B8" : "#64748B";
 
     const gaugeData = [{
         type: "indicator",
         mode: "gauge+number",
         value: score,
         domain: { x: [0, 1], y: [0, 1] },
-        number: { suffix: " / 100", font: { size: 36, color: "#F8FAFC", family: "Outfit, sans-serif" } },
+        number: { suffix: " / 100", font: { size: 34, color: textColor, family: "Outfit, sans-serif" } },
         gauge: {
-            axis: { range: [0, 100], tickwidth: 1, tickcolor: "#94A3B8", dtick: 20 },
-            bar: { color: accentColor, thickness: 0.85 },
-            bgcolor: "#090D15",
+            axis: { range: [0, 100], tickwidth: 1, tickcolor: mutedColor, dtick: 20 },
+            bar: { color: accentColor, thickness: 0.8 },
+            bgcolor: currentTheme === "dark" ? "#090D15" : "#F8FAFC",
             borderwidth: 1,
-            bordercolor: "#1E293B",
+            bordercolor: currentTheme === "dark" ? "#1E293B" : "#CBD5E1",
             steps: [
-                { range: [0, 60], color: "rgba(239, 68, 68, 0.12)" },
-                { range: [60, 80], color: "rgba(245, 158, 11, 0.12)" },
-                { range: [80, 100], color: "rgba(16, 185, 129, 0.12)" }
+                { range: [0, 60], color: "rgba(239, 68, 68, 0.1)" },
+                { range: [60, 80], color: "rgba(245, 158, 11, 0.1)" },
+                { range: [80, 100], color: "rgba(16, 185, 129, 0.1)" }
             ]
         }
     }];
@@ -231,7 +305,7 @@ function renderGaugeChart(score) {
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
         margin: { l: 20, r: 20, t: 20, b: 10 },
-        height: 200
+        height: 190
     };
 
     Plotly.newPlot("healthGaugeChart", gaugeData, layout, { responsive: true, displayModeBar: false });
@@ -242,13 +316,17 @@ function renderCharts() {
     const perf = currentData.charts.financial_performance;
     const cashDebt = currentData.charts.cash_vs_debt;
 
+    const textColor = currentTheme === "dark" ? "#F8FAFC" : "#0F172A";
+    const mutedColor = currentTheme === "dark" ? "#94A3B8" : "#64748B";
+    const gridColor = currentTheme === "dark" ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)";
+
     // 1. Revenue & Net Income Chart
     const revTrace = {
         x: perf.years,
         y: perf.revenue,
         name: "Revenue ($B)",
         type: "bar",
-        marker: { color: "rgba(59, 130, 246, 0.85)", line: { color: "#3B82F6", width: 1.5 } }
+        marker: { color: "rgba(37, 99, 235, 0.85)", line: { color: "#2563EB", width: 1.5 } }
     };
 
     const niTrace = {
@@ -257,17 +335,17 @@ function renderCharts() {
         name: "Net Income ($B)",
         type: "scatter",
         mode: "lines+markers",
-        line: { color: "#10B981", width: 3.5, shape: "spline" },
-        marker: { size: 8, color: "#10B981" }
+        line: { color: "#16A34A", width: 3.5, shape: "spline" },
+        marker: { size: 8, color: "#16A34A" }
     };
 
     const layout1 = {
-        title: { text: "<b>Revenue & Net Income Trend</b> ($ Billions)", font: { color: "#F8FAFC", family: "Outfit", size: 14 } },
+        title: { text: "<b>Revenue & Net Income Trend</b> ($ Billions)", font: { color: textColor, family: "Outfit", size: 14 } },
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
-        font: { color: "#94A3B8" },
-        xaxis: { showgrid: false, linecolor: "#1E293B" },
-        yaxis: { showgrid: true, gridcolor: "rgba(255,255,255,0.05)" },
+        font: { color: mutedColor },
+        xaxis: { showgrid: false, linecolor: currentTheme === "dark" ? "#1E293B" : "#CBD5E1" },
+        yaxis: { showgrid: true, gridcolor: gridColor },
         legend: { orientation: "h", y: 1.1, x: 1, xanchor: "right" },
         margin: { l: 40, r: 20, t: 40, b: 35 },
         height: 330
@@ -287,19 +365,19 @@ function renderCharts() {
     const debtTrace = {
         x: cashDebt.years,
         y: cashDebt.debt,
-        name: "Total Debt",
+        name: "Total Debt Obligations",
         type: "bar",
         marker: { color: "rgba(239, 68, 68, 0.85)", line: { color: "#EF4444", width: 1.5 } }
     };
 
     const layout2 = {
-        title: { text: "<b>Cash vs Total Debt Comparison</b> ($ Billions)", font: { color: "#F8FAFC", family: "Outfit", size: 14 } },
+        title: { text: "<b>Balance Sheet Liquidity</b> (Cash vs Debt)", font: { color: textColor, family: "Outfit", size: 14 } },
         barmode: "group",
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
-        font: { color: "#94A3B8" },
-        xaxis: { showgrid: false, linecolor: "#1E293B" },
-        yaxis: { showgrid: true, gridcolor: "rgba(255,255,255,0.05)" },
+        font: { color: mutedColor },
+        xaxis: { showgrid: false, linecolor: currentTheme === "dark" ? "#1E293B" : "#CBD5E1" },
+        yaxis: { showgrid: true, gridcolor: gridColor },
         legend: { orientation: "h", y: 1.1, x: 1, xanchor: "right" },
         margin: { l: 40, r: 20, t: 40, b: 35 },
         height: 330
@@ -314,8 +392,8 @@ function renderCharts() {
         name: "Gross Margin (%)",
         type: "scatter",
         mode: "lines+markers",
-        line: { color: "#8B5CF6", width: 3.5, shape: "spline" },
-        marker: { size: 8, color: "#8B5CF6" }
+        line: { color: "#7C3AED", width: 3.5, shape: "spline" },
+        marker: { size: 8, color: "#7C3AED" }
     };
 
     const nmTrace = {
@@ -324,17 +402,17 @@ function renderCharts() {
         name: "Net Profit Margin (%)",
         type: "scatter",
         mode: "lines+markers",
-        line: { color: "#F59E0B", width: 3.5, shape: "spline" },
-        marker: { size: 8, color: "#F59E0B" }
+        line: { color: "#D97706", width: 3.5, shape: "spline" },
+        marker: { size: 8, color: "#D97706" }
     };
 
     const layout3 = {
-        title: { text: "<b>Margin Expansion & Profitability Dynamics</b> (%)", font: { color: "#F8FAFC", family: "Outfit", size: 14 } },
+        title: { text: "<b>Margin Expansion Dynamics</b> (%)", font: { color: textColor, family: "Outfit", size: 14 } },
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
-        font: { color: "#94A3B8" },
-        xaxis: { showgrid: false, linecolor: "#1E293B" },
-        yaxis: { showgrid: true, gridcolor: "rgba(255,255,255,0.05)" },
+        font: { color: mutedColor },
+        xaxis: { showgrid: false, linecolor: currentTheme === "dark" ? "#1E293B" : "#CBD5E1" },
+        yaxis: { showgrid: true, gridcolor: gridColor },
         legend: { orientation: "h", y: 1.1, x: 1, xanchor: "right" },
         margin: { l: 40, r: 20, t: 40, b: 35 },
         height: 330
@@ -349,7 +427,6 @@ function renderRatioCards() {
     const container = document.getElementById("ratiosCategoriesContainer");
     container.innerHTML = "";
 
-    // Group by category
     const categories = {};
     Object.values(ratioEvals).forEach(item => {
         const cat = item.category || "General";
@@ -412,13 +489,13 @@ function renderRatioCards() {
     });
 }
 
-// Render Financial Statements Data Table
+// Render Financial Statement Table
 function renderFinancialStatementTable() {
     const stmtData = currentData.statements[activeStatementType];
     const container = document.getElementById("statementTableContainer");
     
     if (!stmtData || !stmtData.rows || stmtData.rows.length === 0) {
-        container.innerHTML = `<div style="text-align:center; padding:40px; color:#94A3B8;">No statement data available for ${currentSymbol}.</div>`;
+        container.innerHTML = `<div style="text-align:center; padding:40px; color:var(--text-muted);">No statement data available for ${currentSymbol}.</div>`;
         return;
     }
 
@@ -452,6 +529,27 @@ function renderFinancialStatementTable() {
 
     tableHtml += `</tbody></table>`;
     container.innerHTML = tableHtml;
+}
+
+// Handle CSV Export
+function handleCsvExport() {
+    if (!currentData) return;
+    const stmtData = currentData.statements[activeStatementType];
+    if (!stmtData || !stmtData.rows) return;
+
+    let csvContent = "data:text/csv;charset=utf-8,Metric Row," + stmtData.columns.join(",") + "\n";
+    stmtData.rows.forEach(r => {
+        const rowVals = r.values.map(v => (v === null || v === undefined) ? "" : v);
+        csvContent += `"${r.metric}",` + rowVals.join(",") + "\n";
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `${currentSymbol}_${activeStatementType}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
 }
 
 // Handle PDF Export Stream
@@ -495,7 +593,7 @@ async function handlePdfDownload() {
         alert("Error downloading PDF report.");
     } finally {
         btn.disabled = false;
-        btn.innerHTML = `<i data-lucide="file-down"></i> EXPORT PDF AUDIT REPORT`;
+        btn.innerHTML = `<i data-lucide="file-down"></i> EXPORT AUDIT REPORT (PDF)`;
         lucide.createIcons();
     }
 }

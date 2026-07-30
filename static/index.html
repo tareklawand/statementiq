@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ALPHA TERMINAL | Institutional Equity Intelligence</title>
+    <title>ALPHA TERMINAL | Corporate Grade Financial Analysis Platform</title>
     
-    <!-- Script to unregister any stale service worker from previously run projects on this port -->
+    <!-- Script to unregister any stale service worker -->
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.getRegistrations().then(function(registrations) {
@@ -19,7 +19,7 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,700;1,400&family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,600;0,700;1,400&family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
     <!-- Plotly.js CDN -->
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
@@ -31,20 +31,21 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <!-- App Container -->
     <div class="app-layout">
         
-        <!-- Top Navigation / Search Header -->
+        <!-- Top Institutional Header -->
         <header class="top-navbar">
             <div class="brand-container">
-                <div class="brand-logo-icon">⚡</div>
+                <div class="brand-logo-icon">
+                    <i data-lucide="line-chart"></i>
+                </div>
                 <div>
-                    <div class="brand-title">ALPHA <span class="accent-cyan">TERMINAL</span></div>
-                    <div class="brand-subtitle">INSTITUTIONAL EQUITY INTELLIGENCE</div>
+                    <div class="brand-title">ALPHA <span class="accent-cyan">TERMINAL</span> <span class="pro-tag">PRO</span></div>
+                    <div class="brand-subtitle">INSTITUTIONAL FINANCIAL ANALYSIS & RATIO BENCHMARKING</div>
                 </div>
             </div>
 
-            <!-- Ticker Search Bar & Controls -->
+            <!-- Search Controls & Theme Toggle -->
             <div class="search-controls">
                 <div class="search-input-wrapper">
                     <i data-lucide="search" class="search-icon"></i>
@@ -56,12 +57,17 @@
                     <i data-lucide="key" class="key-icon"></i>
                     <input type="password" id="geminiApiKey" placeholder="Gemini API Key (Optional)" />
                 </div>
+
+                <!-- Theme Switcher -->
+                <button id="themeToggleBtn" class="btn-theme-toggle" title="Toggle Theme (Dark / Light)">
+                    <i data-lucide="sun" id="themeIcon"></i>
+                </button>
             </div>
         </header>
 
         <!-- Preset Ticker Selector Ribbon -->
         <div class="ticker-ribbon" id="tickerRibbon">
-            <span class="ribbon-label"><i data-lucide="trending-up" class="inline-icon"></i> PRESET BLUECHIPS:</span>
+            <span class="ribbon-label"><i data-lucide="globe" class="inline-icon"></i> COVERED BLUECHIPS:</span>
             <!-- Dynamically loaded pills -->
         </div>
 
@@ -74,6 +80,7 @@
                     <div class="company-title-row">
                         <h1 class="company-name" id="heroCompanyName">Apple Inc.</h1>
                         <span class="symbol-badge" id="heroSymbol">AAPL</span>
+                        <span class="exchange-badge" id="heroExchange">NASDAQ</span>
                     </div>
                     <div class="meta-row">
                         <span>Sector: <b id="heroSector">Technology</b></span>
@@ -87,12 +94,12 @@
                 <!-- Export Report Action -->
                 <div class="hero-actions">
                     <button id="downloadPdfBtn" class="btn-export-pdf">
-                        <i data-lucide="file-down"></i> EXPORT PDF AUDIT REPORT
+                        <i data-lucide="file-down"></i> EXPORT AUDIT REPORT (PDF)
                     </button>
                 </div>
             </section>
 
-            <!-- Key Performance Indicator Cards Row -->
+            <!-- Key Performance Indicator Cards Row (8 Metric Grid) -->
             <section class="kpi-grid">
                 <div class="kpi-card">
                     <div class="kpi-header">
@@ -112,7 +119,15 @@
 
                 <div class="kpi-card">
                     <div class="kpi-header">
-                        <span class="kpi-label">P/E RATIO (TRAILING)</span>
+                        <span class="kpi-label">ENTERPRISE VALUE</span>
+                        <i data-lucide="layers" class="kpi-icon"></i>
+                    </div>
+                    <div class="kpi-value" id="kpiEV">$0.00B</div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-header">
+                        <span class="kpi-label">P/E RATIO</span>
                         <i data-lucide="activity" class="kpi-icon"></i>
                     </div>
                     <div class="kpi-value" id="kpiPE">0.00x</div>
@@ -120,7 +135,31 @@
 
                 <div class="kpi-card">
                     <div class="kpi-header">
-                        <span class="kpi-label">ANALYST TARGET PRICE</span>
+                        <span class="kpi-label">EV / EBITDA</span>
+                        <i data-lucide="trending-up" class="kpi-icon"></i>
+                    </div>
+                    <div class="kpi-value" id="kpiEVEBITDA">0.00x</div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-header">
+                        <span class="kpi-label">52-WEEK RANGE</span>
+                        <i data-lucide="range" class="kpi-icon"></i>
+                    </div>
+                    <div class="kpi-value-sm" id="kpiRange">$0.00 - $0.00</div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-header">
+                        <span class="kpi-label">DIVIDEND YIELD</span>
+                        <i data-lucide="percent" class="kpi-icon"></i>
+                    </div>
+                    <div class="kpi-value" id="kpiDivYield">0.00%</div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-header">
+                        <span class="kpi-label">ANALYST TARGET</span>
                         <i data-lucide="target" class="kpi-icon"></i>
                     </div>
                     <div class="kpi-value accent-green" id="kpiTargetPrice">$0.00</div>
@@ -130,7 +169,7 @@
             <!-- Navigation Tabs -->
             <div class="dashboard-tabs-nav">
                 <button class="tab-btn active" data-tab="tab1">
-                    <i data-lucide="brain-circuit"></i> Tab 1: Executive AI Briefing & Trend Charts
+                    <i data-lucide="brain-circuit"></i> Tab 1: Executive AI Briefing & Performance Trends
                 </button>
                 <button class="tab-btn" data-tab="tab2">
                     <i data-lucide="sliders"></i> Tab 2: 10 Fundamental Financial Ratios
@@ -147,34 +186,41 @@
                 <div class="tab-pane active" id="tab1">
                     <div class="ai-overview-grid">
                         
-                        <!-- Health Score Panel -->
+                        <!-- Health Score Panel & Sub-Pillars Breakdown -->
                         <div class="glass-card score-panel">
-                            <div class="card-subtitle">FINANCIAL HEALTH SCORECARD</div>
+                            <div class="card-subtitle">DETERMINISTIC FINANCIAL HEALTH SCORE</div>
                             <div id="healthGaugeChart" class="gauge-container"></div>
                             <div class="health-status-badge" id="healthStatusText">STRONG FINANCIAL HEALTH</div>
+                            
+                            <hr class="card-divider" />
+                            
+                            <!-- 5 Pillars Matrix -->
+                            <div class="pillars-container" id="pillarsContainer">
+                                <!-- Populated dynamically -->
+                            </div>
                         </div>
 
                         <!-- Executive AI Analyst Briefing -->
                         <div class="glass-card ai-briefing-card">
                             <div class="ai-card-header">
-                                <span class="ai-chip"><i data-lucide="sparkles"></i> GEMINI ANALYST BRIEFING</span>
+                                <span class="ai-chip"><i data-lucide="sparkles"></i> GEMINI ANALYST EXECUTIVE BRIEFING</span>
                             </div>
-                            <p class="ai-summary-text" id="aiExecutiveSummary">Loading AI analysis...</p>
+                            <p class="ai-summary-text" id="aiExecutiveSummary">Loading financial assessment...</p>
                             <hr class="card-divider" />
-                            <div class="ai-section-title">KEY FINANCIAL HEALTH DRIVERS</div>
-                            <p class="ai-rationale-text" id="aiScoreExplanation">Loading health score explanation...</p>
+                            <div class="ai-section-title">PRIMARY SCORE DETERMINATION FACTORS</div>
+                            <p class="ai-rationale-text" id="aiScoreExplanation">Loading evaluation drivers...</p>
                         </div>
                     </div>
 
                     <!-- Strategic Strengths & Key Risks -->
                     <div class="strengths-risks-grid">
                         <div class="glass-card">
-                            <h3 class="card-title text-green"><i data-lucide="check-circle-2"></i> Top 3 Key Strengths</h3>
+                            <h3 class="card-title text-green"><i data-lucide="check-circle-2"></i> Key Operational & Financial Strengths</h3>
                             <div id="strengthsContainer"></div>
                         </div>
 
                         <div class="glass-card">
-                            <h3 class="card-title text-red"><i data-lucide="alert-triangle"></i> Top 3 Key Risks & Weaknesses</h3>
+                            <h3 class="card-title text-red"><i data-lucide="alert-triangle"></i> Key Risk Exposures & Vulnerabilities</h3>
                             <div id="weaknessesContainer"></div>
                         </div>
                     </div>
@@ -202,12 +248,12 @@
                     <div class="section-header-row">
                         <div>
                             <h2 class="section-heading" style="margin:0;"><i data-lucide="bar-chart-3"></i> Categorized 10 Financial Ratios & Benchmark Audit</h2>
-                            <p class="section-subheading">Each ratio is dynamically benchmarked against standard healthy corporate targets with visual progress indicators.</p>
+                            <p class="section-subheading">Ratio metrics benchmarked against standard healthy corporate targets with visual progress indicators.</p>
                         </div>
                     </div>
 
                     <div id="ratiosCategoriesContainer">
-                        <!-- Dynamically populated ratio cards grouped by category -->
+                        <!-- Dynamically populated ratio cards -->
                     </div>
                 </div>
 
@@ -220,9 +266,14 @@
                             <button class="stmt-btn" data-stmt="cash_flow">Cash Flow Statement</button>
                         </div>
 
-                        <div class="table-search-input">
-                            <i data-lucide="filter" class="inline-icon"></i>
-                            <input type="text" id="statementSearchInput" placeholder="Filter statement row metrics (e.g. Revenue, Operating Income, Cash)..." />
+                        <div class="statement-right-actions">
+                            <div class="table-search-input">
+                                <i data-lucide="filter" class="inline-icon"></i>
+                                <input type="text" id="statementSearchInput" placeholder="Filter metrics (e.g. Revenue, Operating Income, Cash)..." />
+                            </div>
+                            <button id="exportCsvBtn" class="btn-csv-export">
+                                <i data-lucide="download"></i> Export CSV
+                            </button>
                         </div>
                     </div>
 
