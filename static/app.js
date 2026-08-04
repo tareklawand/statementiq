@@ -5,12 +5,18 @@ let activeStatementType = "income_statement";
 let currentTheme = "dark";
 
 // Initialize Application
-document.addEventListener("DOMContentLoaded", () => {
+function initApp() {
     lucide.createIcons();
     fetchPresets();
     loadTickerData("AAPL");
     setupEventListeners();
-});
+}
+
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initApp);
+} else {
+    initApp();
+}
 
 // Event Listeners Setup
 function setupEventListeners() {

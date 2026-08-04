@@ -523,11 +523,7 @@
         </main>
     </div>
 
-    <!-- Dynamic Cache-Busting Script Loader -->
-    <script>
-        const script = document.createElement('script');
-        script.src = '/static/app.js?t=' + Date.now();
-        document.body.appendChild(script);
-    </script>
+    <!-- Script Entry -->
+    <script src="/static/app.js?v=final_fix_v100"></script>
 </body>
 </html>
