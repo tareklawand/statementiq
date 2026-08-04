@@ -6,10 +6,10 @@ let currentTheme = "dark";
 
 // Initialize Application
 function initApp() {
-    lucide.createIcons();
-    fetchPresets();
-    loadTickerData("AAPL");
+    try { lucide.createIcons(); } catch(e){}
     setupEventListeners();
+    try { fetchPresets(); } catch(e){}
+    loadTickerData("AAPL");
 }
 
 if (document.readyState === "loading") {
@@ -18,40 +18,52 @@ if (document.readyState === "loading") {
     initApp();
 }
 
-// Event Listeners Setup
+// Event Listeners Setup (Ultra-Defensive)
 function setupEventListeners() {
     // Theme Switcher Toggle
-    document.getElementById("themeToggleBtn").addEventListener("click", () => {
-        currentTheme = currentTheme === "dark" ? "light" : "dark";
-        document.documentElement.setAttribute("data-theme", currentTheme);
-        
-        const themeIcon = document.getElementById("themeIcon");
-        themeIcon.setAttribute("data-lucide", currentTheme === "dark" ? "sun" : "moon");
-        lucide.createIcons();
+    const themeBtn = document.getElementById("themeToggleBtn");
+    if (themeBtn) {
+        themeBtn.addEventListener("click", () => {
+            currentTheme = currentTheme === "dark" ? "light" : "dark";
+            document.documentElement.setAttribute("data-theme", currentTheme);
+            
+            const themeIcon = document.getElementById("themeIcon");
+            if (themeIcon) {
+                themeIcon.setAttribute("data-lucide", currentTheme === "dark" ? "sun" : "moon");
+                try { lucide.createIcons(); } catch(e){}
+            }
 
-        if (currentData) {
-            renderGaugeChart(currentData.metrics.health_score);
-            renderCharts();
-        }
-    });
+            if (currentData) {
+                try { renderGaugeChart(currentData.metrics.health_score); } catch(e){}
+                try { renderCharts(); } catch(e){}
+            }
+        });
+    }
 
     // Search Button Click
-    document.getElementById("searchBtn").addEventListener("click", () => {
-        const inputVal = document.getElementById("tickerSearchInput").value.trim();
-        if (inputVal) {
-            loadTickerData(inputVal);
-        }
-    });
-
-    // Enter Key Search Input
-    document.getElementById("tickerSearchInput").addEventListener("keypress", (e) => {
-        if (e.key === "Enter") {
-            const inputVal = e.target.value.trim();
+    const searchBtn = document.getElementById("searchBtn");
+    if (searchBtn) {
+        searchBtn.addEventListener("click", () => {
+            const inputEl = document.getElementById("tickerSearchInput");
+            const inputVal = inputEl ? inputEl.value.trim() : "";
             if (inputVal) {
                 loadTickerData(inputVal);
             }
-        }
-    });
+        });
+    }
+
+    // Enter Key Search Input
+    const searchInput = document.getElementById("tickerSearchInput");
+    if (searchInput) {
+        searchInput.addEventListener("keypress", (e) => {
+            if (e.key === "Enter") {
+                const inputVal = e.target.value.trim();
+                if (inputVal) {
+                    loadTickerData(inputVal);
+                }
+            }
+        });
+    }
 
     // Tabs Switch
     document.querySelectorAll(".tab-btn").forEach(btn => {
@@ -61,7 +73,8 @@ function setupEventListeners() {
             
             const targetTab = e.currentTarget.getAttribute("data-tab");
             e.currentTarget.classList.add("active");
-            document.getElementById(targetTab).classList.add("active");
+            const pane = document.getElementById(targetTab);
+            if (pane) pane.classList.add("active");
 
             window.dispatchEvent(new Event('resize'));
         });
@@ -78,15 +91,24 @@ function setupEventListeners() {
     });
 
     // Statement Filter Search
-    document.getElementById("statementSearchInput").addEventListener("input", () => {
-        renderFinancialStatementTable();
-    });
+    const stmtSearch = document.getElementById("statementSearchInput");
+    if (stmtSearch) {
+        stmtSearch.addEventListener("input", () => {
+            renderFinancialStatementTable();
+        });
+    }
 
     // Export Statement to CSV
-    document.getElementById("exportCsvBtn").addEventListener("click", handleCsvExport);
+    const csvBtn = document.getElementById("exportCsvBtn");
+    if (csvBtn) {
+        csvBtn.addEventListener("click", handleCsvExport);
+    }
 
     // PDF Download Button
-    document.getElementById("downloadPdfBtn").addEventListener("click", handlePdfDownload);
+    const pdfBtn = document.getElementById("downloadPdfBtn");
+    if (pdfBtn) {
+        pdfBtn.addEventListener("click", handlePdfDownload);
+    }
 }
 
 // Fetch Preset Bluechips
@@ -95,8 +117,10 @@ async function fetchPresets() {
         const res = await fetch("/api/presets");
         const data = await res.json();
         const ribbon = document.getElementById("tickerRibbon");
+        if (!ribbon) return;
         
         if (data.presets) {
+            ribbon.innerHTML = `<span class="ribbon-label"><i data-lucide="globe" class="inline-icon"></i> COVERED BLUECHIPS:</span>`;
             Object.entries(data.presets).forEach(([label, symbol]) => {
                 const pill = document.createElement("div");
                 pill.className = `ticker-pill ${symbol === currentSymbol ? 'active' : ''}`;
@@ -104,11 +128,13 @@ async function fetchPresets() {
                 pill.addEventListener("click", () => {
                     document.querySelectorAll(".ticker-pill").forEach(p => p.classList.remove("active"));
                     pill.classList.add("active");
-                    document.getElementById("tickerSearchInput").value = symbol;
+                    const searchInput = document.getElementById("tickerSearchInput");
+                    if (searchInput) searchInput.value = symbol;
                     loadTickerData(symbol);
                 });
                 ribbon.appendChild(pill);
             });
+            try { lucide.createIcons(); } catch(e){}
         }
     } catch (err) {
         console.error("Failed to load preset tickers:", err);
@@ -118,13 +144,16 @@ async function fetchPresets() {
 // Main Data Fetcher
 async function loadTickerData(symbol) {
     const searchBtn = document.getElementById("searchBtn");
-    const targetSymbol = symbol.trim().toUpperCase();
+    const targetSymbol = (symbol || "AAPL").trim().toUpperCase();
 
-    searchBtn.disabled = true;
-    searchBtn.innerText = "LOADING...";
+    if (searchBtn) {
+        searchBtn.disabled = true;
+        searchBtn.innerText = "LOADING...";
+    }
 
     try {
-        const geminiKey = document.getElementById("geminiApiKey").value.trim();
+        const keyInput = document.getElementById("geminiApiKey");
+        const geminiKey = keyInput ? keyInput.value.trim() : "";
         let url = `/api/analyze?ticker=${encodeURIComponent(targetSymbol)}`;
         if (geminiKey) {
             url += `&api_key=${encodeURIComponent(geminiKey)}`;
@@ -140,71 +169,81 @@ async function loadTickerData(symbol) {
         currentData = await res.json();
         currentSymbol = currentData.symbol;
 
-        // Render UI Sections smoothly
-        renderHeroBanner();
-        renderKPIs();
-        renderAIBriefing();
-        renderPillarsMatrix();
-        renderStrengthsWeaknesses();
-        renderCharts();
-        renderRatioCards();
-        renderFinancialStatementTable();
+        // Render UI Sections smoothly with isolation
+        try { renderHeroBanner(); } catch(e){ console.error("Hero render error:", e); }
+        try { renderKPIs(); } catch(e){ console.error("KPI render error:", e); }
+        try { renderAIBriefing(); } catch(e){ console.error("AI Briefing render error:", e); }
+        try { renderPillarsMatrix(); } catch(e){ console.error("Pillars render error:", e); }
+        try { renderStrengthsWeaknesses(); } catch(e){ console.error("Strengths render error:", e); }
+        try { renderCharts(); } catch(e){ console.error("Charts render error:", e); }
+        try { renderRatioCards(); } catch(e){ console.error("Ratio Cards render error:", e); }
+        try { renderFinancialStatementTable(); } catch(e){ console.error("Statement Table render error:", e); }
 
     } catch (err) {
         console.error("Error loading ticker data:", err);
         alert(`Network error fetching data for ${targetSymbol}`);
     } finally {
-        searchBtn.disabled = false;
-        searchBtn.innerText = "ANALYZE";
-        lucide.createIcons();
+        if (searchBtn) {
+            searchBtn.disabled = false;
+            searchBtn.innerText = "ANALYZE";
+        }
+        try { lucide.createIcons(); } catch(e){}
     }
 }
 
 // Render Hero Banner Header
 function renderHeroBanner() {
-    document.getElementById("heroCompanyName").innerText = currentData.company_name;
-    document.getElementById("heroSymbol").innerText = currentData.symbol;
-    document.getElementById("heroExchange").innerText = currentData.info.exchange || "US NASDAQ/NYSE";
-    document.getElementById("heroSector").innerText = currentData.info.sector || "N/A";
-    document.getElementById("heroIndustry").innerText = currentData.info.industry || "N/A";
-    document.getElementById("heroCurrency").innerText = currentData.info.currency || "USD";
+    if (!currentData || !currentData.info) return;
+    const el = (id) => document.getElementById(id);
+
+    if (el("heroCompanyName")) el("heroCompanyName").innerText = currentData.company_name || "";
+    if (el("heroSymbol")) el("heroSymbol").innerText = currentData.symbol || "";
+    if (el("heroExchange")) el("heroExchange").innerText = currentData.info.exchange || "US NASDAQ/NYSE";
+    if (el("heroSector")) el("heroSector").innerText = currentData.info.sector || "N/A";
+    if (el("heroIndustry")) el("heroIndustry").innerText = currentData.info.industry || "N/A";
+    if (el("heroCurrency")) el("heroCurrency").innerText = currentData.info.currency || "USD";
 }
 
 // Render 8 KPI Cards
 function renderKPIs() {
+    if (!currentData || !currentData.info) return;
     const info = currentData.info;
+    const el = (id) => document.getElementById(id);
     
-    document.getElementById("kpiPrice").innerText = info.price ? `$${info.price.toFixed(2)}` : "N/A";
-    document.getElementById("kpiMarketCap").innerText = info.market_cap ? `$${(info.market_cap / 1e9).toFixed(2)}B` : "N/A";
-    document.getElementById("kpiEV").innerText = info.market_cap ? `$${((info.market_cap * 1.1) / 1e9).toFixed(2)}B` : "N/A";
-    document.getElementById("kpiPE").innerText = info.pe_ratio ? `${info.pe_ratio.toFixed(2)}x` : "N/A";
-    document.getElementById("kpiEVEBITDA").innerText = info.ev_ebitda ? `${info.ev_ebitda.toFixed(2)}x` : "N/A";
+    if (el("kpiPrice")) el("kpiPrice").innerText = info.price ? `$${info.price.toFixed(2)}` : "N/A";
+    if (el("kpiMarketCap")) el("kpiMarketCap").innerText = info.market_cap ? `$${(info.market_cap / 1e9).toFixed(2)}B` : "N/A";
+    if (el("kpiEV")) el("kpiEV").innerText = info.market_cap ? `$${((info.market_cap * 1.1) / 1e9).toFixed(2)}B` : "N/A";
+    if (el("kpiPE")) el("kpiPE").innerText = info.pe_ratio ? `${info.pe_ratio.toFixed(2)}x` : "N/A";
+    if (el("kpiEVEBITDA")) el("kpiEVEBITDA").innerText = info.ev_ebitda ? `${info.ev_ebitda.toFixed(2)}x` : "N/A";
     
     const low = info.fifty_two_low ? `$${info.fifty_two_low.toFixed(2)}` : "N/A";
     const high = info.fifty_two_high ? `$${info.fifty_two_high.toFixed(2)}` : "N/A";
-    document.getElementById("kpiRange").innerText = `${low} - ${high}`;
+    if (el("kpiRange")) el("kpiRange").innerText = `${low} - ${high}`;
 
-    document.getElementById("kpiDivYield").innerText = info.dividend_yield ? `${(info.dividend_yield * 100).toFixed(2)}%` : "0.55%";
-    document.getElementById("kpiTargetPrice").innerText = info.target_price ? `$${info.target_price.toFixed(2)}` : "N/A";
+    if (el("kpiDivYield")) el("kpiDivYield").innerText = info.dividend_yield ? `${(info.dividend_yield * 100).toFixed(2)}%` : "0.55%";
+    if (el("kpiTargetPrice")) el("kpiTargetPrice").innerText = info.target_price ? `$${info.target_price.toFixed(2)}` : "N/A";
 }
 
 // Render AI Briefing & Health Score Gauge
 function renderAIBriefing() {
+    if (!currentData || !currentData.ai_insights || !currentData.metrics) return;
     const ai = currentData.ai_insights;
     const metrics = currentData.metrics;
 
-    document.getElementById("aiExecutiveSummary").innerText = ai.executive_summary || "N/A";
-    document.getElementById("aiScoreExplanation").innerText = ai.score_explanation || "N/A";
+    const el = (id) => document.getElementById(id);
+    if (el("aiExecutiveSummary")) el("aiExecutiveSummary").innerText = ai.executive_summary || "N/A";
+    if (el("aiScoreExplanation")) el("aiScoreExplanation").innerText = ai.score_explanation || "N/A";
     
-    const statusText = document.getElementById("healthStatusText");
-    statusText.innerText = metrics.health_status.toUpperCase();
-    
-    if (metrics.health_score >= 80) {
-        statusText.style.color = currentTheme === "dark" ? "#10B981" : "#16A34A";
-    } else if (metrics.health_score >= 60) {
-        statusText.style.color = currentTheme === "dark" ? "#F59E0B" : "#D97706";
-    } else {
-        statusText.style.color = currentTheme === "dark" ? "#EF4444" : "#DC2626";
+    const statusText = el("healthStatusText");
+    if (statusText) {
+        statusText.innerText = (metrics.health_status || "ANALYZED").toUpperCase();
+        if (metrics.health_score >= 80) {
+            statusText.style.color = currentTheme === "dark" ? "#10B981" : "#16A34A";
+        } else if (metrics.health_score >= 60) {
+            statusText.style.color = currentTheme === "dark" ? "#F59E0B" : "#D97706";
+        } else {
+            statusText.style.color = currentTheme === "dark" ? "#EF4444" : "#DC2626";
+        }
     }
 
     renderGaugeChart(metrics.health_score);
@@ -213,9 +252,10 @@ function renderAIBriefing() {
 // Render 5 Pillars Scorecard Matrix
 function renderPillarsMatrix() {
     const container = document.getElementById("pillarsContainer");
+    if (!container || !currentData || !currentData.metrics) return;
     container.innerHTML = "";
 
-    const ratioEvals = currentData.metrics.ratio_evaluations;
+    const ratioEvals = currentData.metrics.ratio_evaluations || {};
 
     const pillars = [
         { name: "Liquidity", key: "current_ratio" },
@@ -253,29 +293,36 @@ function renderPillarsMatrix() {
 
 // Render Strengths & Weaknesses
 function renderStrengthsWeaknesses() {
+    if (!currentData || !currentData.ai_insights) return;
     const ai = currentData.ai_insights;
 
     const strContainer = document.getElementById("strengthsContainer");
-    strContainer.innerHTML = "";
-    (ai.top_strengths || []).forEach(s => {
-        const item = document.createElement("div");
-        item.className = "strength-item-card";
-        item.innerHTML = `<b>•</b> ${s}`;
-        strContainer.appendChild(item);
-    });
+    if (strContainer) {
+        strContainer.innerHTML = "";
+        (ai.top_strengths || []).forEach(s => {
+            const item = document.createElement("div");
+            item.className = "strength-item-card";
+            item.innerHTML = `<b>•</b> ${s}`;
+            strContainer.appendChild(item);
+        });
+    }
 
     const weakContainer = document.getElementById("weaknessesContainer");
-    weakContainer.innerHTML = "";
-    (ai.top_weaknesses || []).forEach(w => {
-        const item = document.createElement("div");
-        item.className = "weakness-item-card";
-        item.innerHTML = `<b>•</b> ${w}`;
-        weakContainer.appendChild(item);
-    });
+    if (weakContainer) {
+        weakContainer.innerHTML = "";
+        (ai.top_weaknesses || []).forEach(w => {
+            const item = document.createElement("div");
+            item.className = "weakness-item-card";
+            item.innerHTML = `<b>•</b> ${w}`;
+            weakContainer.appendChild(item);
+        });
+    }
 }
 
 // Render Gauge Chart with Theme Palette
 function renderGaugeChart(score) {
+    if (typeof Plotly === "undefined" || !document.getElementById("healthGaugeChart")) return;
+
     let accentColor = currentTheme === "dark" ? "#10B981" : "#16A34A";
     if (score < 60) accentColor = currentTheme === "dark" ? "#EF4444" : "#DC2626";
     else if (score < 80) accentColor = currentTheme === "dark" ? "#F59E0B" : "#D97706";
@@ -316,118 +363,128 @@ function renderGaugeChart(score) {
 
 // Render Plotly Trend Charts
 function renderCharts() {
-    const perf = currentData.charts.financial_performance;
-    const cashDebt = currentData.charts.cash_vs_debt;
+    if (typeof Plotly === "undefined" || !currentData || !currentData.charts) return;
+
+    const perf = currentData.charts.financial_performance || { years: [], revenue: [], net_income: [], gross_margin: [], net_margin: [] };
+    const cashDebt = currentData.charts.cash_vs_debt || { years: [], cash: [], debt: [] };
 
     const textColor = currentTheme === "dark" ? "#F8FAFC" : "#0F172A";
     const mutedColor = currentTheme === "dark" ? "#94A3B8" : "#64748B";
     const gridColor = currentTheme === "dark" ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)";
 
     // 1. Revenue & Net Income Chart
-    const revTrace = {
-        x: perf.years,
-        y: perf.revenue,
-        name: "Revenue ($B)",
-        type: "bar",
-        marker: { color: "rgba(56, 189, 248, 0.75)", line: { color: "#38BDF8", width: 1.5 } }
-    };
+    if (document.getElementById("chartRevenueNetIncome")) {
+        const revTrace = {
+            x: perf.years,
+            y: perf.revenue,
+            name: "Revenue ($B)",
+            type: "bar",
+            marker: { color: "rgba(56, 189, 248, 0.75)", line: { color: "#38BDF8", width: 1.5 } }
+        };
 
-    const niTrace = {
-        x: perf.years,
-        y: perf.net_income,
-        name: "Net Income ($B)",
-        type: "scatter",
-        mode: "lines+markers",
-        line: { color: "#10B981", width: 3.5, shape: "spline" },
-        marker: { size: 8, color: "#10B981" }
-    };
+        const niTrace = {
+            x: perf.years,
+            y: perf.net_income,
+            name: "Net Income ($B)",
+            type: "scatter",
+            mode: "lines+markers",
+            line: { color: "#10B981", width: 3.5, shape: "spline" },
+            marker: { size: 8, color: "#10B981" }
+        };
 
-    const layout1 = {
-        title: { text: "<b>Revenue & Net Income Trend</b> ($ Billions)", font: { color: textColor, family: "Outfit", size: 14 } },
-        paper_bgcolor: "rgba(0,0,0,0)",
-        plot_bgcolor: "rgba(0,0,0,0)",
-        font: { color: mutedColor },
-        xaxis: { showgrid: false, linecolor: currentTheme === "dark" ? "rgba(255,255,255,0.08)" : "#CBD5E1" },
-        yaxis: { showgrid: true, gridcolor: gridColor },
-        legend: { orientation: "h", y: 1.1, x: 1, xanchor: "right" },
-        margin: { l: 40, r: 20, t: 40, b: 35 },
-        height: 330
-    };
+        const layout1 = {
+            title: { text: "<b>Revenue & Net Income Trend</b> ($ Billions)", font: { color: textColor, family: "Outfit", size: 14 } },
+            paper_bgcolor: "rgba(0,0,0,0)",
+            plot_bgcolor: "rgba(0,0,0,0)",
+            font: { color: mutedColor },
+            xaxis: { showgrid: false, linecolor: currentTheme === "dark" ? "rgba(255,255,255,0.08)" : "#CBD5E1" },
+            yaxis: { showgrid: true, gridcolor: gridColor },
+            legend: { orientation: "h", y: 1.1, x: 1, xanchor: "right" },
+            margin: { l: 40, r: 20, t: 40, b: 35 },
+            height: 330
+        };
 
-    Plotly.newPlot("chartRevenueNetIncome", [revTrace, niTrace], layout1, { responsive: true, displayModeBar: false });
+        Plotly.newPlot("chartRevenueNetIncome", [revTrace, niTrace], layout1, { responsive: true, displayModeBar: false });
+    }
 
     // 2. Cash vs Debt Chart
-    const cashTrace = {
-        x: cashDebt.years,
-        y: cashDebt.cash,
-        name: "Cash & Equivalents",
-        type: "bar",
-        marker: { color: "rgba(16, 185, 129, 0.85)", line: { color: "#10B981", width: 1.5 } }
-    };
+    if (document.getElementById("chartCashVsDebt")) {
+        const cashTrace = {
+            x: cashDebt.years,
+            y: cashDebt.cash,
+            name: "Cash & Equivalents",
+            type: "bar",
+            marker: { color: "rgba(16, 185, 129, 0.85)", line: { color: "#10B981", width: 1.5 } }
+        };
 
-    const debtTrace = {
-        x: cashDebt.years,
-        y: cashDebt.debt,
-        name: "Total Debt Obligations",
-        type: "bar",
-        marker: { color: "rgba(239, 68, 68, 0.85)", line: { color: "#EF4444", width: 1.5 } }
-    };
+        const debtTrace = {
+            x: cashDebt.years,
+            y: cashDebt.debt,
+            name: "Total Debt Obligations",
+            type: "bar",
+            marker: { color: "rgba(239, 68, 68, 0.85)", line: { color: "#EF4444", width: 1.5 } }
+        };
 
-    const layout2 = {
-        title: { text: "<b>Balance Sheet Liquidity</b> (Cash vs Debt)", font: { color: textColor, family: "Outfit", size: 14 } },
-        barmode: "group",
-        paper_bgcolor: "rgba(0,0,0,0)",
-        plot_bgcolor: "rgba(0,0,0,0)",
-        font: { color: mutedColor },
-        xaxis: { showgrid: false, linecolor: currentTheme === "dark" ? "rgba(255,255,255,0.08)" : "#CBD5E1" },
-        yaxis: { showgrid: true, gridcolor: gridColor },
-        legend: { orientation: "h", y: 1.1, x: 1, xanchor: "right" },
-        margin: { l: 40, r: 20, t: 40, b: 35 },
-        height: 330
-    };
+        const layout2 = {
+            title: { text: "<b>Balance Sheet Liquidity</b> (Cash vs Debt)", font: { color: textColor, family: "Outfit", size: 14 } },
+            barmode: "group",
+            paper_bgcolor: "rgba(0,0,0,0)",
+            plot_bgcolor: "rgba(0,0,0,0)",
+            font: { color: mutedColor },
+            xaxis: { showgrid: false, linecolor: currentTheme === "dark" ? "rgba(255,255,255,0.08)" : "#CBD5E1" },
+            yaxis: { showgrid: true, gridcolor: gridColor },
+            legend: { orientation: "h", y: 1.1, x: 1, xanchor: "right" },
+            margin: { l: 40, r: 20, t: 40, b: 35 },
+            height: 330
+        };
 
-    Plotly.newPlot("chartCashVsDebt", [cashTrace, debtTrace], layout2, { responsive: true, displayModeBar: false });
+        Plotly.newPlot("chartCashVsDebt", [cashTrace, debtTrace], layout2, { responsive: true, displayModeBar: false });
+    }
 
     // 3. Margin Trend Chart
-    const gmTrace = {
-        x: perf.years,
-        y: perf.gross_margin,
-        name: "Gross Margin (%)",
-        type: "scatter",
-        mode: "lines+markers",
-        line: { color: "#8B5CF6", width: 3.5, shape: "spline" },
-        marker: { size: 8, color: "#8B5CF6" }
-    };
+    if (document.getElementById("chartMargins")) {
+        const gmTrace = {
+            x: perf.years,
+            y: perf.gross_margin,
+            name: "Gross Margin (%)",
+            type: "scatter",
+            mode: "lines+markers",
+            line: { color: "#8B5CF6", width: 3.5, shape: "spline" },
+            marker: { size: 8, color: "#8B5CF6" }
+        };
 
-    const nmTrace = {
-        x: perf.years,
-        y: perf.net_margin,
-        name: "Net Profit Margin (%)",
-        type: "scatter",
-        mode: "lines+markers",
-        line: { color: "#F59E0B", width: 3.5, shape: "spline" },
-        marker: { size: 8, color: "#F59E0B" }
-    };
+        const nmTrace = {
+            x: perf.years,
+            y: perf.net_margin,
+            name: "Net Profit Margin (%)",
+            type: "scatter",
+            mode: "lines+markers",
+            line: { color: "#F59E0B", width: 3.5, shape: "spline" },
+            marker: { size: 8, color: "#F59E0B" }
+        };
 
-    const layout3 = {
-        title: { text: "<b>Margin Expansion Dynamics</b> (%)", font: { color: textColor, family: "Outfit", size: 14 } },
-        paper_bgcolor: "rgba(0,0,0,0)",
-        plot_bgcolor: "rgba(0,0,0,0)",
-        font: { color: mutedColor },
-        xaxis: { showgrid: false, linecolor: currentTheme === "dark" ? "rgba(255,255,255,0.08)" : "#CBD5E1" },
-        yaxis: { showgrid: true, gridcolor: gridColor },
-        legend: { orientation: "h", y: 1.1, x: 1, xanchor: "right" },
-        margin: { l: 40, r: 20, t: 40, b: 35 },
-        height: 330
-    };
+        const layout3 = {
+            title: { text: "<b>Margin Expansion Dynamics</b> (%)", font: { color: textColor, family: "Outfit", size: 14 } },
+            paper_bgcolor: "rgba(0,0,0,0)",
+            plot_bgcolor: "rgba(0,0,0,0)",
+            font: { color: mutedColor },
+            xaxis: { showgrid: false, linecolor: currentTheme === "dark" ? "rgba(255,255,255,0.08)" : "#CBD5E1" },
+            yaxis: { showgrid: true, gridcolor: gridColor },
+            legend: { orientation: "h", y: 1.1, x: 1, xanchor: "right" },
+            margin: { l: 40, r: 20, t: 40, b: 35 },
+            height: 330
+        };
 
-    Plotly.newPlot("chartMargins", [gmTrace, nmTrace], layout3, { responsive: true, displayModeBar: false });
+        Plotly.newPlot("chartMargins", [gmTrace, nmTrace], layout3, { responsive: true, displayModeBar: false });
+    }
 }
 
 // Render Ratio Cards Grouped by Category with Clean Un-overlapped Headers
 function renderRatioCards() {
-    const ratioEvals = currentData.metrics.ratio_evaluations;
+    if (!currentData || !currentData.metrics) return;
+    const ratioEvals = currentData.metrics.ratio_evaluations || {};
     const container = document.getElementById("ratiosCategoriesContainer");
+    if (!container) return;
     container.innerHTML = "";
 
     const categories = {};
@@ -495,15 +552,18 @@ function renderRatioCards() {
 
 // Render Financial Statement Table
 function renderFinancialStatementTable() {
+    if (!currentData || !currentData.statements) return;
     const stmtData = currentData.statements[activeStatementType];
     const container = document.getElementById("statementTableContainer");
+    if (!container) return;
     
     if (!stmtData || !stmtData.rows || stmtData.rows.length === 0) {
         container.innerHTML = `<div style="text-align:center; padding:40px; color:var(--text-muted);">No statement data available for ${currentSymbol}.</div>`;
         return;
     }
 
-    const filterVal = document.getElementById("statementSearchInput").value.trim().toLowerCase();
+    const searchInput = document.getElementById("statementSearchInput");
+    const filterVal = searchInput ? searchInput.value.trim().toLowerCase() : "";
 
     let tableHtml = `<table class="financial-table"><thead><tr><th>Metric Row</th>`;
     stmtData.columns.forEach(col => {
@@ -538,6 +598,7 @@ function renderFinancialStatementTable() {
 
 // Export Table to CSV
 function handleCsvExport() {
+    if (!currentData || !currentData.statements) return;
     const stmtData = currentData.statements[activeStatementType];
     if (!stmtData || !stmtData.rows) return;
 
@@ -561,8 +622,10 @@ async function handlePdfDownload() {
     if (!currentData) return;
 
     const btn = document.getElementById("downloadPdfBtn");
-    btn.disabled = true;
-    btn.innerHTML = `<i data-lucide="loader" class="inline-icon spin"></i> GENERATING PDF...`;
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i data-lucide="loader" class="inline-icon spin"></i> GENERATING PDF...`;
+    }
 
     try {
         const response = await fetch("/api/download-pdf", {
@@ -593,8 +656,10 @@ async function handlePdfDownload() {
     } catch (err) {
         alert(`PDF export failed: ${err.message}`);
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = `<i data-lucide="file-down"></i> EXPORT AUDIT REPORT (PDF)`;
-        lucide.createIcons();
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<i data-lucide="file-down"></i> EXPORT AUDIT REPORT (PDF)`;
+            try { lucide.createIcons(); } catch(e){}
+        }
     }
 }
