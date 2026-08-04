@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>StatementIQ PRO | Corporate Financial Analysis & Valuation Platform</title>
     
     <!-- Google Fonts -->
@@ -520,7 +523,11 @@
         </main>
     </div>
 
-    <!-- Script Entry -->
-    <script src="/static/app.js?v=stitch_v12"></script>
+    <!-- Dynamic Cache-Busting Script Loader -->
+    <script>
+        const script = document.createElement('script');
+        script.src = '/static/app.js?t=' + Date.now();
+        document.body.appendChild(script);
+    </script>
 </body>
 </html>
