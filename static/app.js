@@ -96,54 +96,38 @@ async function fetchPresets() {
                 pill.className = `ticker-pill ${symbol === currentSymbol ? 'active' : ''}`;
                 pill.innerText = symbol;
                 pill.addEventListener("click", () => {
-                    // Optimistic UI Update: Highlight immediately & set input text
                     document.querySelectorAll(".ticker-pill").forEach(p => p.classList.remove("active"));
                     pill.classList.add("active");
                     document.getElementById("tickerSearchInput").value = symbol;
-                    
-                    // Trigger load data asynchronously
                     loadTickerData(symbol);
                 });
                 ribbon.appendChild(pill);
             });
         }
     } catch (err) {
-        console.error("Failed to fetch presets:", err);
+        console.error("Failed to load preset tickers:", err);
     }
 }
 
-// Load Stock Data from API
+// Main Data Fetcher
 async function loadTickerData(symbol) {
-    if (!symbol) return;
-    const targetSymbol = symbol.trim().toUpperCase();
-    
-    // Instant input box update
-    document.getElementById("tickerSearchInput").value = targetSymbol;
-    
-    // Highlight matching pill immediately
-    document.querySelectorAll(".ticker-pill").forEach(pill => {
-        if (pill.innerText === targetSymbol) {
-            pill.classList.add("active");
-        } else {
-            pill.classList.remove("active");
-        }
-    });
-
     const searchBtn = document.getElementById("searchBtn");
+    const targetSymbol = symbol.trim().upper();
+
     searchBtn.disabled = true;
     searchBtn.innerText = "LOADING...";
 
-    const apiKey = document.getElementById("geminiApiKey").value.trim();
-    let url = `/api/analyze?ticker=${encodeURIComponent(targetSymbol)}`;
-    if (apiKey) {
-        url += `&api_key=${encodeURIComponent(apiKey)}`;
-    }
-
     try {
+        const geminiKey = document.getElementById("geminiApiKey").value.trim();
+        let url = `/api/analyze?ticker=${encodeURIComponent(targetSymbol)}`;
+        if (geminiKey) {
+            url += `&api_key=${encodeURIComponent(geminiKey)}`;
+        }
+
         const res = await fetch(url);
         if (!res.ok) {
             const errData = await res.json();
-            alert(errData.detail || `Failed to fetch data for ${targetSymbol}`);
+            alert(errData.detail || `Error fetching data for ${targetSymbol}`);
             return;
         }
 
@@ -238,14 +222,14 @@ function renderPillarsMatrix() {
     pillars.forEach(p => {
         const evalItem = ratioEvals[p.key] || {};
         let score = 85;
-        let color = "#10B981";
+        let color = currentTheme === "dark" ? "#10B981" : "#16A34A";
 
         if (evalItem.status === "Caution") {
             score = 60;
-            color = "#F59E0B";
+            color = currentTheme === "dark" ? "#F59E0B" : "#D97706";
         } else if (evalItem.status === "Warning") {
             score = 35;
-            color = "#EF4444";
+            color = currentTheme === "dark" ? "#EF4444" : "#DC2626";
         }
 
         const div = document.createElement("div");
@@ -298,39 +282,40 @@ function renderGaugeChart(score) {
         mode: "gauge+number",
         value: score,
         domain: { x: [0, 1], y: [0, 1] },
-        number: { suffix: " / 100", font: { size: 34, color: textColor, family: "Outfit, sans-serif" } },
+        number: { suffix: " / 100", font: { size: 38, color: textColor, family: "Outfit" } },
         gauge: {
             axis: { range: [0, 100], tickwidth: 1, tickcolor: mutedColor, dtick: 20 },
-            bar: { color: accentColor, thickness: 0.8 },
-            bgcolor: currentTheme === "dark" ? "#090D15" : "#F8FAFC",
+            bar: { color: accentColor, thickness: 0.85 },
+            bgcolor: currentTheme === "dark" ? "rgba(10, 14, 24, 0.6)" : "rgba(241, 245, 249, 0.8)",
             borderwidth: 1,
-            bordercolor: currentTheme === "dark" ? "#1E293B" : "#CBD5E1",
+            bordercolor: currentTheme === "dark" ? "rgba(255, 255, 255, 0.08)" : "#CBD5E1",
             steps: [
-                { range: [0, 60], color: "rgba(239, 68, 68, 0.1)" },
-                { range: [60, 80], color: "rgba(245, 158, 11, 0.1)" },
-                { range: [80, 100], color: "rgba(16, 185, 129, 0.1)" }
+                { range: [0, 60], color: "rgba(239, 68, 68, 0.12)" },
+                { range: [60, 80], color: "rgba(245, 158, 11, 0.12)" },
+                { range: [80, 100], color: "rgba(16, 185, 129, 0.12)" }
             ]
         }
     }];
 
-    const layout = {
+    const gaugeLayout = {
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
+        font: { color: textColor, family: "Plus Jakarta Sans" },
         margin: { l: 20, r: 20, t: 20, b: 10 },
-        height: 190
+        height: 195
     };
 
-    Plotly.newPlot("healthGaugeChart", gaugeData, layout, { responsive: true, displayModeBar: false });
+    Plotly.newPlot("healthGaugeChart", gaugeData, gaugeLayout, { responsive: true, displayModeBar: false });
 }
 
-// Render Plotly Financial Performance Charts
+// Render Plotly Trend Charts
 function renderCharts() {
     const perf = currentData.charts.financial_performance;
     const cashDebt = currentData.charts.cash_vs_debt;
 
     const textColor = currentTheme === "dark" ? "#F8FAFC" : "#0F172A";
     const mutedColor = currentTheme === "dark" ? "#94A3B8" : "#64748B";
-    const gridColor = currentTheme === "dark" ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)";
+    const gridColor = currentTheme === "dark" ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)";
 
     // 1. Revenue & Net Income Chart
     const revTrace = {
@@ -338,7 +323,7 @@ function renderCharts() {
         y: perf.revenue,
         name: "Revenue ($B)",
         type: "bar",
-        marker: { color: "rgba(37, 99, 235, 0.85)", line: { color: "#2563EB", width: 1.5 } }
+        marker: { color: "rgba(56, 189, 248, 0.75)", line: { color: "#38BDF8", width: 1.5 } }
     };
 
     const niTrace = {
@@ -347,8 +332,8 @@ function renderCharts() {
         name: "Net Income ($B)",
         type: "scatter",
         mode: "lines+markers",
-        line: { color: "#16A34A", width: 3.5, shape: "spline" },
-        marker: { size: 8, color: "#16A34A" }
+        line: { color: "#10B981", width: 3.5, shape: "spline" },
+        marker: { size: 8, color: "#10B981" }
     };
 
     const layout1 = {
@@ -356,7 +341,7 @@ function renderCharts() {
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
         font: { color: mutedColor },
-        xaxis: { showgrid: false, linecolor: currentTheme === "dark" ? "#1E293B" : "#CBD5E1" },
+        xaxis: { showgrid: false, linecolor: currentTheme === "dark" ? "rgba(255,255,255,0.08)" : "#CBD5E1" },
         yaxis: { showgrid: true, gridcolor: gridColor },
         legend: { orientation: "h", y: 1.1, x: 1, xanchor: "right" },
         margin: { l: 40, r: 20, t: 40, b: 35 },
@@ -388,7 +373,7 @@ function renderCharts() {
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
         font: { color: mutedColor },
-        xaxis: { showgrid: false, linecolor: currentTheme === "dark" ? "#1E293B" : "#CBD5E1" },
+        xaxis: { showgrid: false, linecolor: currentTheme === "dark" ? "rgba(255,255,255,0.08)" : "#CBD5E1" },
         yaxis: { showgrid: true, gridcolor: gridColor },
         legend: { orientation: "h", y: 1.1, x: 1, xanchor: "right" },
         margin: { l: 40, r: 20, t: 40, b: 35 },
@@ -404,8 +389,8 @@ function renderCharts() {
         name: "Gross Margin (%)",
         type: "scatter",
         mode: "lines+markers",
-        line: { color: "#7C3AED", width: 3.5, shape: "spline" },
-        marker: { size: 8, color: "#7C3AED" }
+        line: { color: "#8B5CF6", width: 3.5, shape: "spline" },
+        marker: { size: 8, color: "#8B5CF6" }
     };
 
     const nmTrace = {
@@ -414,8 +399,8 @@ function renderCharts() {
         name: "Net Profit Margin (%)",
         type: "scatter",
         mode: "lines+markers",
-        line: { color: "#D97706", width: 3.5, shape: "spline" },
-        marker: { size: 8, color: "#D97706" }
+        line: { color: "#F59E0B", width: 3.5, shape: "spline" },
+        marker: { size: 8, color: "#F59E0B" }
     };
 
     const layout3 = {
@@ -423,7 +408,7 @@ function renderCharts() {
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
         font: { color: mutedColor },
-        xaxis: { showgrid: false, linecolor: currentTheme === "dark" ? "#1E293B" : "#CBD5E1" },
+        xaxis: { showgrid: false, linecolor: currentTheme === "dark" ? "rgba(255,255,255,0.08)" : "#CBD5E1" },
         yaxis: { showgrid: true, gridcolor: gridColor },
         legend: { orientation: "h", y: 1.1, x: 1, xanchor: "right" },
         margin: { l: 40, r: 20, t: 40, b: 35 },
@@ -433,7 +418,7 @@ function renderCharts() {
     Plotly.newPlot("chartMargins", [gmTrace, nmTrace], layout3, { responsive: true, displayModeBar: false });
 }
 
-// Render Ratio Cards Grouped by Category
+// Render Ratio Cards Grouped by Category with Clean Un-overlapped Headers
 function renderRatioCards() {
     const ratioEvals = currentData.metrics.ratio_evaluations;
     const container = document.getElementById("ratiosCategoriesContainer");
@@ -485,13 +470,14 @@ function renderRatioCards() {
             card.innerHTML = `
                 <div class="ratio-card-header">
                     <span class="ratio-cat-tag">${catName}</span>
-                    <span class="status-pill ${statusClass}">● ${item.status.toUpperCase()} (Target ${item.target})</span>
+                    <span class="status-pill ${statusClass}">● ${item.status.toUpperCase()}</span>
                 </div>
                 <div class="ratio-name">${item.name}</div>
                 <div class="ratio-val-large">${valStr}</div>
                 <div class="progress-track">
                     <div class="progress-fill ${fillClass}" style="width: ${pct}%;"></div>
                 </div>
+                <div class="ratio-target-caption">Benchmark Target: ${item.target}</div>
             `;
 
             grid.appendChild(card);
@@ -525,15 +511,16 @@ function renderFinancialStatementTable() {
         }
 
         tableHtml += `<tr><td>${row.metric}</td>`;
-        row.values.forEach(v => {
-            if (v === null || v === undefined) {
-                tableHtml += `<td>-</td>`;
-            } else if (typeof v === "number") {
-                const valClass = v < 0 ? "val-negative" : "val-positive";
-                const fmtVal = Math.abs(v) >= 1e6 ? `$${(v / 1e6).toLocaleString(undefined, {maximumFractionDigits: 0})}M` : `$${v.toLocaleString()}`;
-                tableHtml += `<td class="${valClass}">${fmtVal}</td>`;
+        row.values.forEach(val => {
+            if (val === null || val === undefined) {
+                tableHtml += `<td style="color: var(--text-dark);">-</td>`;
+            } else if (typeof val === "number") {
+                const isNeg = val < 0;
+                const formatted = Math.abs(val) >= 1e6 ? `$${(val / 1e6).toLocaleString('en-US', {maximumFractionDigits: 0})}M` : `$${val.toLocaleString('en-US')}`;
+                const valClass = isNeg ? "val-negative" : "val-positive";
+                tableHtml += `<td class="${valClass}">${formatted}</td>`;
             } else {
-                tableHtml += `<td>${v}</td>`;
+                tableHtml += `<td>${val}</td>`;
             }
         });
         tableHtml += `</tr>`;
@@ -543,16 +530,15 @@ function renderFinancialStatementTable() {
     container.innerHTML = tableHtml;
 }
 
-// Handle CSV Export
+// Export Table to CSV
 function handleCsvExport() {
-    if (!currentData) return;
     const stmtData = currentData.statements[activeStatementType];
     if (!stmtData || !stmtData.rows) return;
 
-    let csvContent = "data:text/csv;charset=utf-8,Metric Row," + stmtData.columns.join(",") + "\n";
-    stmtData.rows.forEach(r => {
-        const rowVals = r.values.map(v => (v === null || v === undefined) ? "" : v);
-        csvContent += `"${r.metric}",` + rowVals.join(",") + "\n";
+    let csvContent = "data:text/csv;charset=utf-8,Metric," + stmtData.columns.join(",") + "\n";
+    stmtData.rows.forEach(row => {
+        const line = [ `"${row.metric.replace(/"/g, '""')}"`, ...row.values.map(v => v === null ? "" : v) ].join(",");
+        csvContent += line + "\n";
     });
 
     const encodedUri = encodeURI(csvContent);
@@ -561,48 +547,45 @@ function handleCsvExport() {
     link.setAttribute("download", `${currentSymbol}_${activeStatementType}.csv`);
     document.body.appendChild(link);
     link.click();
-    link.remove();
+    document.body.removeChild(link);
 }
 
-// Handle PDF Export Stream
+// Download PDF Audit Report
 async function handlePdfDownload() {
     if (!currentData) return;
 
     const btn = document.getElementById("downloadPdfBtn");
     btn.disabled = true;
-    btn.innerText = "COMPILING PDF...";
+    btn.innerHTML = `<i data-lucide="loader" class="inline-icon spin"></i> GENERATING PDF...`;
 
     try {
-        const payload = {
-            symbol: currentData.symbol,
-            company_name: currentData.company_name,
-            metrics: currentData.metrics,
-            ai_insights: currentData.ai_insights
-        };
-
-        const res = await fetch("/api/download-pdf", {
+        const response = await fetch("/api/download-pdf", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({
+                symbol: currentData.symbol,
+                company_name: currentData.company_name,
+                metrics: currentData.metrics,
+                ai_insights: currentData.ai_insights
+            })
         });
 
-        if (!res.ok) {
-            alert("Failed to compile PDF report.");
-            return;
+        if (!response.ok) {
+            throw new Error("Failed to compile PDF report");
         }
 
-        const blob = await res.blob();
-        const downloadUrl = window.URL.createObjectURL(blob);
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
-        a.href = downloadUrl;
-        a.download = `${currentData.symbol}_Financial_Audit_Report.pdf`;
+        a.href = url;
+        a.download = `${currentData.symbol}_Institutional_Financial_Report.pdf`;
         document.body.appendChild(a);
         a.click();
         a.remove();
+        window.URL.revokeObjectURL(url);
 
     } catch (err) {
-        console.error("PDF Download error:", err);
-        alert("Error downloading PDF report.");
+        alert(`PDF export failed: ${err.message}`);
     } finally {
         btn.disabled = false;
         btn.innerHTML = `<i data-lucide="file-down"></i> EXPORT AUDIT REPORT (PDF)`;
