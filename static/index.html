@@ -6,8 +6,11 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>StatementIQ PRO | Corporate Financial Analysis & Valuation Platform</title>
+    <title>Xecute | Institutional Virtual Trading Platform</title>
     
+    <!-- Favicon SVG -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2310B981' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='22 7 13.5 15.5 8.5 10.5 2 17'/><polyline points='16 7 22 7 22 13'/></svg>">
+
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,402 +22,194 @@
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
 
-    <!-- Theme Switcher & Bulletproof Layout Stylesheet -->
-    <style>
-        html[data-theme="dark"] {
-            --bg-main: #07090E;
-            --bg-radial-1: rgba(56, 189, 248, 0.14);
-            --bg-radial-2: rgba(99, 102, 241, 0.1);
-            --card-bg: rgba(13, 18, 30, 0.75);
-            --card-bg-solid: #0D121E;
-            --card-border: rgba(255, 255, 255, 0.08);
-            --card-hover-border: rgba(56, 189, 248, 0.4);
-            --card-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5);
-            --input-bg: rgba(6, 9, 15, 0.8);
-            --input-border: rgba(255, 255, 255, 0.12);
-            --text-main: #F8FAFC;
-            --text-muted: #94A3B8;
-            --text-dark: #64748B;
-            --accent-cyan: #00F2FE;
-            --accent-blue: #38BDF8;
-            --accent-indigo: #6366F1;
-            --accent-purple: #8B5CF6;
-            --accent-green: #10B981;
-            --accent-amber: #F59E0B;
-            --accent-red: #EF4444;
-            --table-header-bg: rgba(10, 14, 24, 0.95);
-            --table-hover-bg: rgba(56, 189, 248, 0.06);
-        }
-
-        html[data-theme="light"] {
-            --bg-main: #F1F5F9;
-            --bg-radial-1: rgba(37, 99, 235, 0.06);
-            --bg-radial-2: rgba(124, 58, 237, 0.04);
-            --card-bg: #FFFFFF;
-            --card-bg-solid: #FFFFFF;
-            --card-border: #CBD5E1;
-            --card-hover-border: #2563EB;
-            --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
-            --input-bg: #F8FAFC;
-            --input-border: #CBD5E1;
-            --text-main: #0F172A;
-            --text-muted: #475569;
-            --text-dark: #64748B;
-            --accent-cyan: #0284C7;
-            --accent-blue: #2563EB;
-            --accent-indigo: #4F46E5;
-            --accent-purple: #7C3AED;
-            --accent-green: #16A34A;
-            --accent-amber: #D97706;
-            --accent-red: #DC2626;
-            --table-header-bg: #F1F5F9;
-            --table-hover-bg: rgba(37, 99, 235, 0.04);
-        }
-
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        
-        html, body {
-            background-color: var(--bg-main);
-            background-image: radial-gradient(circle at 50% 0%, var(--bg-radial-1) 0%, transparent 70%),
-                              radial-gradient(circle at 100% 50%, var(--bg-radial-2) 0%, transparent 50%);
-            background-attachment: fixed;
-            color: var(--text-main);
-            font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
-            font-size: 14px;
-            line-height: 1.5;
-            transition: background-color 0.3s ease, color 0.3s ease;
-            -webkit-font-smoothing: antialiased;
-        }
-
-        .app-layout { max-width: 1480px; margin: 0 auto; padding: 24px 32px; }
-
-        /* Top Navbar */
-        .top-navbar {
-            display: flex; justify-content: space-between; align-items: center;
-            background: var(--card-bg);
-            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-            border: 1px solid var(--card-border);
-            border-radius: 16px; padding: 16px 24px; margin-bottom: 16px;
-            box-shadow: var(--card-shadow);
-            flex-wrap: wrap; gap: 16px;
-        }
-
-        .brand-container { display: flex; align-items: center; gap: 14px; }
-        .brand-logo-icon {
-            width: 44px; height: 44px;
-            background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan));
-            color: #FFFFFF; border-radius: 12px;
-            display: flex; align-items: center; justify-content: center; font-size: 1.4rem;
-            box-shadow: 0 4px 14px rgba(0, 242, 254, 0.25);
-        }
-        .brand-title { font-family: 'Outfit', sans-serif; font-size: 1.45rem; font-weight: 800; color: var(--text-main); letter-spacing: -0.02em; }
-        .pro-tag { background: linear-gradient(135deg, var(--accent-indigo), var(--accent-purple)); color: #FFFFFF; font-size: 0.65rem; font-weight: 800; padding: 2px 7px; border-radius: 5px; vertical-align: super; }
-        .brand-subtitle { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; color: var(--text-dark); }
-
-        .accent-cyan { color: var(--accent-cyan); }
-        .accent-green { color: var(--accent-green); }
-        .accent-red { color: var(--accent-red); }
-
-        .search-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-        .search-input-wrapper { position: relative; display: flex; align-items: center; }
-        .search-icon { position: absolute; left: 14px; width: 16px; height: 16px; color: var(--text-muted); }
-        .search-input-wrapper input {
-            background: var(--input-bg); border: 1px solid var(--input-border);
-            border-radius: 10px; padding: 10px 14px 10px 40px; color: var(--text-main);
-            font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; width: 270px;
-        }
-        .search-input-wrapper input:focus { outline: none; border-color: var(--accent-cyan); box-shadow: 0 0 0 3px rgba(0, 242, 254, 0.15); }
-        .btn-search {
-            background: linear-gradient(135deg, var(--accent-blue), var(--accent-indigo)); color: #FFFFFF; border: none;
-            border-radius: 10px; padding: 10px 20px; font-family: 'Outfit', sans-serif;
-            font-weight: 800; font-size: 0.85rem; cursor: pointer; margin-left: 8px;
-            box-shadow: 0 4px 12px rgba(56, 189, 248, 0.25); transition: all 0.2s ease;
-        }
-        .btn-search:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(56, 189, 248, 0.35); }
-
-        .api-key-wrapper { position: relative; display: flex; align-items: center; }
-        .key-icon { position: absolute; left: 12px; width: 14px; height: 14px; color: var(--text-dark); }
-        .api-key-wrapper input { background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 10px; padding: 10px 12px 10px 34px; color: var(--text-main); font-size: 0.82rem; width: 200px; }
-        .btn-theme-toggle { background: var(--input-bg); border: 1px solid var(--input-border); color: var(--text-main); border-radius: 10px; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s ease; }
-        .btn-theme-toggle:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
-
-        /* Ticker Ribbon */
-        .ticker-ribbon { display: flex; align-items: center; gap: 8px; overflow-x: auto; padding: 8px 0; margin-bottom: 20px; scrollbar-width: none; }
-        .ticker-ribbon::-webkit-scrollbar { display: none; }
-        .ribbon-label { font-size: 0.72rem; font-weight: 800; color: var(--text-dark); letter-spacing: 0.06em; white-space: nowrap; display: flex; align-items: center; gap: 5px; }
-        .inline-icon { width: 14px; height: 14px; }
-        .ticker-pill {
-            background: var(--card-bg); backdrop-filter: blur(12px);
-            border: 1px solid var(--card-border); color: var(--text-muted); border-radius: 20px;
-            padding: 6px 14px; font-family: 'JetBrains Mono', monospace; font-size: 0.82rem;
-            font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.25s ease;
-        }
-        .ticker-pill:hover, .ticker-pill.active { background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan)); border-color: transparent; color: #FFFFFF; box-shadow: 0 4px 14px rgba(0, 242, 254, 0.3); }
-
-        /* Hero Section */
-        .hero-card {
-            background: var(--card-bg); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-            border: 1px solid var(--card-border); border-radius: 16px; padding: 24px 28px;
-            margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;
-            box-shadow: var(--card-shadow); position: relative; overflow: hidden;
-        }
-        .hero-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--accent-cyan) 0%, var(--accent-blue) 50%, var(--accent-indigo) 100%); }
-        .company-title-row { display: flex; align-items: center; gap: 14px; }
-        .company-name { font-family: 'Outfit', sans-serif; font-size: 2.2rem; font-weight: 800; letter-spacing: -0.02em; color: var(--text-main); }
-        .symbol-badge { background: linear-gradient(135deg, var(--accent-blue), var(--accent-indigo)); color: #FFFFFF; font-family: 'JetBrains Mono', monospace; font-weight: 800; font-size: 0.95rem; padding: 4px 12px; border-radius: 8px; box-shadow: 0 2px 10px rgba(56, 189, 248, 0.25); }
-        .exchange-badge { background: var(--input-bg); border: 1px solid var(--input-border); color: var(--text-dark); font-size: 0.75rem; font-weight: 700; padding: 4px 10px; border-radius: 6px; }
-        .meta-row { display: flex; align-items: center; gap: 12px; font-size: 0.88rem; color: var(--text-muted); margin-top: 6px; flex-wrap: wrap; }
-        .dot-separator { color: var(--text-dark); }
-        .btn-export-pdf { background: linear-gradient(135deg, var(--accent-green), #059669); color: #FFFFFF; border: none; border-radius: 12px; padding: 12px 24px; font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3); transition: all 0.2s ease; }
-        .btn-export-pdf:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4); }
-
-        /* KPI Cards Grid */
-        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 14px; margin-bottom: 24px; }
-        .kpi-card { background: var(--card-bg); backdrop-filter: blur(16px); border: 1px solid var(--card-border); border-radius: 14px; padding: 16px 18px; box-shadow: var(--card-shadow); transition: all 0.2s ease; }
-        .kpi-card:hover { border-color: var(--card-hover-border); transform: translateY(-2px); }
-        .kpi-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-        .kpi-label { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; color: var(--text-dark); }
-        .kpi-icon { width: 15px; height: 15px; color: var(--text-muted); }
-        .kpi-value { font-family: 'JetBrains Mono', monospace; font-size: 1.45rem; font-weight: 800; color: var(--text-main); }
-        .kpi-value-sm { font-family: 'JetBrains Mono', monospace; font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin-top: 4px; }
-
-        /* Tabs Navigation */
-        .dashboard-tabs-nav { display: flex; gap: 12px; border-bottom: 1px solid var(--card-border); padding-bottom: 12px; margin-bottom: 24px; flex-wrap: wrap; }
-        .tab-btn { background: var(--card-bg); backdrop-filter: blur(12px); border: 1px solid var(--card-border); color: var(--text-muted); border-radius: 12px; padding: 12px 22px; font-family: 'Outfit', sans-serif; font-size: 0.95rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: all 0.25s ease; }
-        .tab-btn:hover { color: var(--text-main); border-color: var(--card-hover-border); }
-        .tab-btn.active { background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan)); border-color: transparent; color: #FFFFFF; box-shadow: 0 4px 16px rgba(0, 242, 254, 0.25); }
-
-        .tab-pane { display: none; }
-        .tab-pane.active { display: block; }
-
-        /* Glass Panels */
-        .glass-card { background: var(--card-bg); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--card-border); border-radius: 16px; padding: 24px; margin-bottom: 20px; box-shadow: var(--card-shadow); }
-        .card-title { font-family: 'Outfit', sans-serif; font-size: 1.15rem; font-weight: 800; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
-        .card-subtitle { font-size: 0.75rem; font-weight: 800; letter-spacing: 0.08em; color: var(--text-dark); text-transform: uppercase; text-align: center; margin-bottom: 12px; }
-
-        .ai-overview-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 20px; margin-bottom: 24px; }
-        @media (max-width: 900px) { .ai-overview-grid { grid-template-columns: 1fr; } }
-        .gauge-container { height: 195px; }
-        .health-status-badge { font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.1rem; text-align: center; margin-top: 6px; }
-
-        .pillars-container { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
-        .pillar-item { display: flex; align-items: center; justify-content: space-between; font-size: 0.82rem; }
-        .pillar-name { font-weight: 700; color: var(--text-muted); width: 110px; }
-        .pillar-track { flex: 1; height: 7px; background: var(--input-bg); border-radius: 4px; margin: 0 12px; overflow: hidden; }
-        .pillar-fill { height: 100%; border-radius: 4px; }
-        .pillar-val { font-family: 'JetBrains Mono', monospace; font-weight: 800; width: 45px; text-align: right; }
-
-        .ai-briefing-card { background: var(--card-bg); border: 1px solid var(--card-border); }
-        .ai-chip { background: rgba(56, 189, 248, 0.12); color: var(--accent-blue); border: 1px solid rgba(56, 189, 248, 0.3); padding: 4px 14px; border-radius: 20px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 800; display: inline-flex; align-items: center; gap: 8px; }
-        .ai-summary-text { font-size: 0.98rem; line-height: 1.65; color: var(--text-main); margin-top: 14px; }
-        .card-divider { border: none; border-top: 1px solid var(--card-border); margin: 16px 0; }
-        .ai-section-title { font-size: 0.75rem; font-weight: 800; color: var(--text-dark); letter-spacing: 0.06em; margin-bottom: 6px; }
-        .ai-rationale-text { font-size: 0.92rem; color: var(--text-muted); line-height: 1.55; }
-
-        .strengths-risks-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
-        @media (max-width: 800px) { .strengths-risks-grid { grid-template-columns: 1fr; } }
-        .strength-item-card { background: rgba(16, 185, 129, 0.06); border: 1px solid rgba(16, 185, 129, 0.25); border-left: 5px solid var(--accent-green); border-radius: 10px; padding: 12px 16px; margin-bottom: 10px; font-size: 0.92rem; line-height: 1.5; }
-        .weakness-item-card { background: rgba(239, 68, 68, 0.06); border: 1px solid rgba(239, 68, 68, 0.25); border-left: 5px solid var(--accent-red); border-radius: 10px; padding: 12px 16px; margin-bottom: 10px; font-size: 0.92rem; line-height: 1.5; }
-
-        .section-heading { font-family: 'Outfit', sans-serif; font-size: 1.35rem; font-weight: 800; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; color: var(--text-main); }
-        .section-subheading { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 18px; }
-
-        .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
-        @media (max-width: 900px) { .charts-grid { grid-template-columns: 1fr; } }
-        .chart-card { padding: 18px; }
-        .plotly-chart { height: 350px; }
-
-        .category-title { font-family: 'Outfit', sans-serif; font-size: 1.15rem; font-weight: 800; color: var(--accent-cyan); margin: 24px 0 14px 0; }
-        .ratio-cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 16px; }
-        .ratio-card { background: var(--card-bg); backdrop-filter: blur(16px); border: 1px solid var(--card-border); border-radius: 14px; padding: 18px; transition: all 0.25s ease; }
-        .ratio-card:hover { border-color: var(--card-hover-border); transform: translateY(-2px); }
-        
-        .ratio-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        .ratio-cat-tag { font-size: 0.72rem; font-weight: 800; color: var(--text-dark); text-transform: uppercase; letter-spacing: 0.06em; }
-        .status-pill { font-size: 0.75rem; font-weight: 800; padding: 3px 10px; border-radius: 16px; white-space: nowrap; }
-        .status-pill.healthy { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); border: 1px solid rgba(16, 185, 129, 0.35); }
-        .status-pill.caution { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); border: 1px solid rgba(245, 158, 11, 0.35); }
-        .status-pill.warning { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); border: 1px solid rgba(239, 68, 68, 0.35); }
-        .ratio-name { color: var(--text-muted); font-size: 0.9rem; font-weight: 700; }
-        .ratio-val-large { font-family: 'JetBrains Mono', monospace; font-size: 1.8rem; font-weight: 800; color: var(--text-main); margin-top: 4px; }
-        .progress-track { height: 6px; width: 100%; background: var(--input-bg); border-radius: 4px; margin-top: 12px; overflow: hidden; }
-        .progress-fill { height: 100%; border-radius: 4px; }
-        .progress-fill.green { background: var(--accent-green); }
-        .progress-fill.amber { background: var(--accent-amber); }
-        .progress-fill.red { background: var(--accent-red); }
-        .ratio-target-caption { font-size: 0.75rem; font-weight: 600; color: var(--text-dark); margin-top: 10px; line-height: 1.3; }
-
-        .statements-controls-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 16px; }
-        .statement-selector { display: flex; background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 12px; padding: 4px; gap: 4px; }
-        .stmt-btn { background: transparent; border: none; color: var(--text-muted); border-radius: 8px; padding: 8px 16px; font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.88rem; cursor: pointer; transition: all 0.2s ease; }
-        .stmt-btn.active { background: linear-gradient(135deg, var(--accent-blue), var(--accent-indigo)); color: #FFFFFF; box-shadow: 0 2px 10px rgba(56, 189, 248, 0.25); }
-
-        .statement-right-actions { display: flex; align-items: center; gap: 12px; }
-        .btn-csv-export { background: var(--input-bg); border: 1px solid var(--input-border); color: var(--text-main); border-radius: 10px; padding: 9px 16px; font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 8px; }
-        .table-search-input { position: relative; display: flex; align-items: center; }
-        .table-search-input input { background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 10px; padding: 9px 14px 9px 36px; color: var(--text-main); font-size: 0.88rem; width: 290px; }
-        .table-search-input .inline-icon { position: absolute; left: 12px; color: var(--text-muted); }
-
-        .table-responsive { overflow-x: auto; max-height: 560px; border-radius: 12px; }
-        .financial-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; text-align: right; }
-        .financial-table th { background: var(--table-header-bg); color: var(--text-muted); font-family: 'Outfit', sans-serif; font-weight: 800; padding: 14px 16px; position: sticky; top: 0; border-bottom: 2px solid var(--card-border); z-index: 2; }
-        .financial-table th:first-child, .financial-table td:first-child { text-align: left; font-weight: 700; color: var(--text-main); position: sticky; left: 0; background: var(--card-bg-solid); z-index: 1; }
-        .financial-table td { padding: 12px 16px; border-bottom: 1px solid var(--card-border); font-family: 'JetBrains Mono', monospace; color: var(--text-main); }
-        .financial-table tr:hover td { background: var(--table-hover-bg); }
-        .val-positive { color: var(--accent-green); }
-        .val-negative { color: var(--accent-red); }
-    </style>
+    <!-- Custom CSS Stylesheet -->
+    <link rel="stylesheet" href="/static/style.css?v=xecute_v1">
 </head>
 <body>
-    <div class="app-layout">
+    <div class="app-container">
         
-        <!-- Top Institutional Header -->
-        <header class="top-navbar">
-            <div class="brand-container">
-                <div class="brand-logo-icon">
-                    <i data-lucide="line-chart"></i>
-                </div>
-                <div>
-                    <div class="brand-title">Statement<span class="accent-cyan">IQ</span> <span class="pro-tag">PRO</span></div>
-                    <div class="brand-subtitle">INSTITUTIONAL FINANCIAL ANALYSIS & RATIO BENCHMARKING</div>
-                </div>
-            </div>
-
-            <!-- Search Controls & Theme Toggle -->
-            <div class="search-controls">
-                <div class="search-input-wrapper">
-                    <i data-lucide="search" class="search-icon"></i>
-                    <input type="text" id="tickerSearchInput" placeholder="Search Ticker (e.g. AAPL, MSFT, NVDA)..." value="AAPL" autocomplete="off" />
-                    <button id="searchBtn" class="btn-search">ANALYZE</button>
-                </div>
-                
-                <div class="api-key-wrapper">
-                    <i data-lucide="key" class="key-icon"></i>
-                    <input type="password" id="geminiApiKey" placeholder="Gemini API Key (Optional)" />
+        <!-- Sticky Top Navigation Bar -->
+        <header class="sticky-nav">
+            <div class="nav-content">
+                <!-- Left: Compact Logo & Brand Name -->
+                <div class="brand-logo-group">
+                    <div class="logo-mark">
+                        <i data-lucide="trending-up"></i>
+                    </div>
+                    <span class="brand-name">Xecute</span>
+                    <span class="pro-badge">PRO</span>
                 </div>
 
-                <!-- Theme Switcher -->
-                <button id="themeToggleBtn" class="btn-theme-toggle" title="Toggle Theme (Dark / Light)">
-                    <i data-lucide="sun" id="themeIcon"></i>
-                </button>
+                <!-- Center: Navigation Links -->
+                <nav class="nav-center-links">
+                    <a href="#features" class="nav-link active">Features</a>
+                    <a href="#markets" class="nav-link">Markets</a>
+                    <a href="#simulator" class="nav-link">Simulator</a>
+                    <a href="#about" class="nav-link">About</a>
+                </nav>
+
+                <!-- Right: Action Buttons & Controls -->
+                <div class="nav-actions">
+                    <div class="search-compact">
+                        <i data-lucide="search" class="nav-search-icon"></i>
+                        <input type="text" id="tickerSearchInput" placeholder="Ticker (e.g. AAPL, NVDA)..." value="AAPL" autocomplete="off" />
+                        <button id="searchBtn" class="btn-compact-analyze">ANALYZE</button>
+                    </div>
+
+                    <button class="btn-secondary-login">Log In</button>
+                    <button class="btn-primary-emerald" id="startTradingBtn">Start Trading</button>
+                </div>
             </div>
         </header>
 
-        <!-- Preset Ticker Selector Ribbon -->
+        <!-- Covered Bluechips Quick Ribbon -->
         <div class="ticker-ribbon" id="tickerRibbon">
-            <span class="ribbon-label"><i data-lucide="globe" class="inline-icon"></i> COVERED BLUECHIPS:</span>
-            <!-- Dynamically loaded pills -->
+            <span class="ribbon-label"><i data-lucide="globe" class="inline-icon"></i> MARKETS:</span>
+            <!-- Dynamically populated ticker pills -->
         </div>
 
-        <!-- Main Dashboard View -->
-        <main class="main-dashboard" id="mainDashboard">
+        <!-- Main Content Area -->
+        <main class="main-layout">
             
-            <!-- Company Hero Header Banner -->
-            <section class="hero-card">
-                <div class="hero-header-left">
-                    <div class="company-title-row">
-                        <h1 class="company-name" id="heroCompanyName">Apple Inc.</h1>
-                        <span class="symbol-badge" id="heroSymbol">AAPL</span>
-                        <span class="exchange-badge" id="heroExchange">NASDAQ</span>
-                    </div>
-                    <div class="meta-row">
-                        <span>Sector: <b id="heroSector">Technology</b></span>
-                        <span class="dot-separator">•</span>
-                        <span>Industry: <b id="heroIndustry">Consumer Electronics</b></span>
-                        <span class="dot-separator">•</span>
-                        <span>Currency: <b class="accent-cyan" id="heroCurrency">USD</b></span>
-                    </div>
+            <!-- Hero Landing Section -->
+            <section class="hero-section">
+                <div class="hero-badge">
+                    <span class="pulse-dot"></span> INSTITUTIONAL VIRTUAL TRADING SIMULATOR
                 </div>
+                
+                <h1 class="hero-headline">
+                    Master the Stock Market with <span class="text-emerald">$100,000</span> Virtual Capital.
+                </h1>
+                
+                <p class="hero-subheadline">
+                    Real-time market quotes, order book depth, candlestick charts, watchlists, risk analytics, and guided learning modules — with zero financial risk.
+                </p>
 
-                <!-- Export Report Action -->
-                <div class="hero-actions">
-                    <button id="downloadPdfBtn" class="btn-export-pdf">
-                        <i data-lucide="file-down"></i> EXPORT AUDIT REPORT (PDF)
+                <!-- Primary CTAs -->
+                <div class="hero-cta-group">
+                    <button class="btn-hero-primary" id="mainCtaBtn">
+                        <i data-lucide="zap"></i> Sign in & Start Trading
+                    </button>
+                    <button class="btn-hero-secondary" id="guestCtaBtn">
+                        <i data-lucide="compass"></i> Explore Features as Guest
                     </button>
                 </div>
+
+                <!-- 4 Metrics Horizontal Stat Grid -->
+                <div class="hero-metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-title">VIRTUAL CAPITAL</span>
+                            <i data-lucide="wallet" class="metric-icon"></i>
+                        </div>
+                        <div class="metric-value text-emerald">$100,000</div>
+                        <div class="metric-sub">Zero Financial Exposure</div>
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-title">MARKET QUOTES</span>
+                            <i data-lucide="activity" class="metric-icon"></i>
+                        </div>
+                        <div class="metric-value">Real-Time</div>
+                        <div class="metric-sub">NYSE & NASDAQ Direct</div>
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-title">RISK ANALYTICS</span>
+                            <i data-lucide="shield-check" class="metric-icon"></i>
+                        </div>
+                        <div class="metric-value text-emerald">Institutional</div>
+                        <div class="metric-sub">10 Ratio Stress Test</div>
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-title">ORDER DEPTH</span>
+                            <i data-lucide="layers" class="metric-icon"></i>
+                        </div>
+                        <div class="metric-value">Level II</div>
+                        <div class="metric-sub">Order Book Simulation</div>
+                    </div>
+                </div>
+
+                <!-- Product Dashboard Preview Container (Above the Fold) -->
+                <div class="dashboard-preview-card">
+                    <div class="preview-header">
+                        <div class="preview-company-info">
+                            <h2 class="company-name" id="heroCompanyName">Apple Inc.</h2>
+                            <span class="symbol-badge" id="heroSymbol">AAPL</span>
+                            <span class="exchange-badge" id="heroExchange">NASDAQ</span>
+                            <span class="meta-tag">Sector: <b id="heroSector">Technology</b></span>
+                        </div>
+                        <div class="preview-actions">
+                            <button id="downloadPdfBtn" class="btn-export-pdf">
+                                <i data-lucide="file-down"></i> EXPORT INSTITUTIONAL REPORT (PDF)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 8 Key Financial Metrics Grid -->
+                    <div class="kpi-grid">
+                        <div class="kpi-card">
+                            <span class="kpi-label">SHARE PRICE</span>
+                            <div class="kpi-value text-emerald" id="kpiPrice">$0.00</div>
+                        </div>
+
+                        <div class="kpi-card">
+                            <span class="kpi-label">MARKET CAP</span>
+                            <div class="kpi-value" id="kpiMarketCap">$0.00B</div>
+                        </div>
+
+                        <div class="kpi-card">
+                            <span class="kpi-label">ENTERPRISE VALUE</span>
+                            <div class="kpi-value" id="kpiEV">$0.00B</div>
+                        </div>
+
+                        <div class="kpi-card">
+                            <span class="kpi-label">P/E RATIO</span>
+                            <div class="kpi-value" id="kpiPE">0.00x</div>
+                        </div>
+
+                        <div class="kpi-card">
+                            <span class="kpi-label">EV / EBITDA</span>
+                            <div class="kpi-value" id="kpiEVEBITDA">0.00x</div>
+                        </div>
+
+                        <div class="kpi-card">
+                            <span class="kpi-label">52-WK RANGE</span>
+                            <div class="kpi-value-sm" id="kpiRange">$0.00 - $0.00</div>
+                        </div>
+
+                        <div class="kpi-card">
+                            <span class="kpi-label">DIV YIELD</span>
+                            <div class="kpi-value" id="kpiDivYield">0.00%</div>
+                        </div>
+
+                        <div class="kpi-card">
+                            <span class="kpi-label">TARGET PRICE</span>
+                            <div class="kpi-value text-emerald" id="kpiTargetPrice">$0.00</div>
+                        </div>
+                    </div>
+                </div>
+
             </section>
 
-            <!-- Key Performance Indicator Cards Row (8 Metric Grid) -->
-            <section class="kpi-grid">
-                <div class="kpi-card">
-                    <div class="kpi-header">
-                        <span class="kpi-label">SHARE PRICE</span>
-                        <i data-lucide="dollar-sign" class="kpi-icon"></i>
-                    </div>
-                    <div class="kpi-value accent-cyan" id="kpiPrice">$0.00</div>
-                </div>
-
-                <div class="kpi-card">
-                    <div class="kpi-header">
-                        <span class="kpi-label">MARKET CAP</span>
-                        <i data-lucide="pie-chart" class="kpi-icon"></i>
-                    </div>
-                    <div class="kpi-value" id="kpiMarketCap">$0.00B</div>
-                </div>
-
-                <div class="kpi-card">
-                    <div class="kpi-header">
-                        <span class="kpi-label">ENTERPRISE VALUE</span>
-                        <i data-lucide="layers" class="kpi-icon"></i>
-                    </div>
-                    <div class="kpi-value" id="kpiEV">$0.00B</div>
-                </div>
-
-                <div class="kpi-card">
-                    <div class="kpi-header">
-                        <span class="kpi-label">P/E RATIO</span>
-                        <i data-lucide="activity" class="kpi-icon"></i>
-                    </div>
-                    <div class="kpi-value" id="kpiPE">0.00x</div>
-                </div>
-
-                <div class="kpi-card">
-                    <div class="kpi-header">
-                        <span class="kpi-label">EV / EBITDA</span>
-                        <i data-lucide="trending-up" class="kpi-icon"></i>
-                    </div>
-                    <div class="kpi-value" id="kpiEVEBITDA">0.00x</div>
-                </div>
-
-                <div class="kpi-card">
-                    <div class="kpi-header">
-                        <span class="kpi-label">52-WEEK RANGE</span>
-                        <i data-lucide="range" class="kpi-icon"></i>
-                    </div>
-                    <div class="kpi-value-sm" id="kpiRange">$0.00 - $0.00</div>
-                </div>
-
-                <div class="kpi-card">
-                    <div class="kpi-header">
-                        <span class="kpi-label">DIVIDEND YIELD</span>
-                        <i data-lucide="percent" class="kpi-icon"></i>
-                    </div>
-                    <div class="kpi-value" id="kpiDivYield">0.00%</div>
-                </div>
-
-                <div class="kpi-card">
-                    <div class="kpi-header">
-                        <span class="kpi-label">ANALYST TARGET</span>
-                        <i data-lucide="target" class="kpi-icon"></i>
-                    </div>
-                    <div class="kpi-value accent-green" id="kpiTargetPrice">$0.00</div>
-                </div>
-            </section>
-
-            <!-- Navigation Tabs -->
-            <div class="dashboard-tabs-nav">
+            <!-- Dashboard Navigation Tabs -->
+            <div class="dashboard-tabs-nav" id="features">
                 <button class="tab-btn active" data-tab="tab1">
-                    <i data-lucide="brain-circuit"></i> Tab 1: Executive AI Briefing & Performance Trends
+                    <i data-lucide="brain-circuit"></i> Executive AI Analyst & Market Trends
                 </button>
-                <button class="tab-btn" data-tab="tab2">
-                    <i data-lucide="sliders"></i> Tab 2: 10 Fundamental Financial Ratios
+                <button class="tab-btn" data-tab="tab2" id="simulator">
+                    <i data-lucide="sliders"></i> 10 Fundamental Financial Ratios
                 </button>
-                <button class="tab-btn" data-tab="tab3">
-                    <i data-lucide="table"></i> Tab 3: Audited Financial Statements
+                <button class="tab-btn" data-tab="tab3" id="markets">
+                    <i data-lucide="table"></i> Audited Financial Statements
                 </button>
             </div>
 
-            <!-- Tab Contents -->
+            <!-- Tab Content Panes -->
             <div class="tab-content-container">
                 
                 <!-- TAB 1: AI INSIGHTS & CHARTS -->
@@ -438,7 +233,7 @@
                         <!-- Executive AI Analyst Briefing -->
                         <div class="glass-card ai-briefing-card">
                             <div class="ai-card-header">
-                                <span class="ai-chip"><i data-lucide="sparkles"></i> GEMINI ANALYST EXECUTIVE BRIEFING</span>
+                                <span class="ai-chip"><i data-lucide="sparkles"></i> XECUTE ANALYST EXECUTIVE BRIEFING</span>
                             </div>
                             <p class="ai-summary-text" id="aiExecutiveSummary">Loading financial assessment...</p>
                             <hr class="card-divider" />
@@ -450,7 +245,7 @@
                     <!-- Strategic Strengths & Key Risks -->
                     <div class="strengths-risks-grid">
                         <div class="glass-card">
-                            <h3 class="card-title text-green"><i data-lucide="check-circle-2"></i> Key Operational & Financial Strengths</h3>
+                            <h3 class="card-title text-emerald"><i data-lucide="check-circle-2"></i> Key Operational & Financial Strengths</h3>
                             <div id="strengthsContainer"></div>
                         </div>
 
@@ -521,9 +316,23 @@
 
             </div>
         </main>
+
+        <!-- Footer -->
+        <footer class="site-footer" id="about">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <span class="brand-name">Xecute</span>
+                    <p>Institutional Virtual Trading Platform & Financial Analytics.</p>
+                </div>
+                <div class="footer-meta">
+                    © 2026 Xecute Inc. All rights reserved. Zero Financial Risk Virtual Trading Environment.
+                </div>
+            </div>
+        </footer>
+
     </div>
 
     <!-- Script Entry -->
-    <script src="/static/app.js?v=final_fix_v100"></script>
+    <script src="/static/app.js?v=xecute_v1"></script>
 </body>
 </html>

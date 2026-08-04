@@ -52,6 +52,37 @@ function setupEventListeners() {
         });
     }
 
+    // Hero CTAs & Header Action Handlers
+    const startTradingBtn = document.getElementById("startTradingBtn");
+    if (startTradingBtn) {
+        startTradingBtn.addEventListener("click", () => {
+            const inputEl = document.getElementById("tickerSearchInput");
+            if (inputEl) {
+                inputEl.focus();
+                inputEl.select();
+            }
+        });
+    }
+
+    const mainCtaBtn = document.getElementById("mainCtaBtn");
+    if (mainCtaBtn) {
+        mainCtaBtn.addEventListener("click", () => {
+            const inputEl = document.getElementById("tickerSearchInput");
+            if (inputEl) {
+                inputEl.focus();
+                inputEl.select();
+            }
+        });
+    }
+
+    const guestCtaBtn = document.getElementById("guestCtaBtn");
+    if (guestCtaBtn) {
+        guestCtaBtn.addEventListener("click", () => {
+            const featSec = document.getElementById("features");
+            if (featSec) featSec.scrollIntoView({ behavior: 'smooth' });
+        });
+    }
+
     // Enter Key Search Input
     const searchInput = document.getElementById("tickerSearchInput");
     if (searchInput) {
