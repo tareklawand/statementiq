@@ -260,7 +260,7 @@ def plot_margins_trend(income_stmt: pd.DataFrame) -> go.Figure:
                     
             if pd.notna(rev) and float(rev) != 0:
                 gm_val = (float(gp) / float(rev)) * 100 if pd.notna(gp) else 0.0
-                nm_val = (float(ni) / float(rev)) * 100 if pd.notna(nm) if pd.notna(ni) else 0.0
+                nm_val = (float(ni) / float(rev)) * 100 if pd.notna(ni) else 0.0
             else:
                 gm_val, nm_val = 0.0, 0.0
                 
