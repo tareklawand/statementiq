@@ -112,7 +112,7 @@ async function fetchPresets() {
 // Main Data Fetcher
 async function loadTickerData(symbol) {
     const searchBtn = document.getElementById("searchBtn");
-    const targetSymbol = symbol.trim().upper();
+    const targetSymbol = symbol.trim().toUpperCase();
 
     searchBtn.disabled = true;
     searchBtn.innerText = "LOADING...";
