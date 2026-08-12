@@ -519,10 +519,18 @@ function renderRatioCards() {
                 statusClass = "warning";
                 fillClass = "red";
                 pct = 30;
+            } else if (item.status === "N/M") {
+                statusClass = "nm";
+                fillClass = "amber";
+                pct = 0;
+            } else if (item.status === "N/A") {
+                statusClass = "na";
+                fillClass = "muted";
+                pct = 0;
             }
 
-            let valStr = "N/A";
-            if (item.value !== null && item.value !== undefined) {
+            let valStr = item.status === "N/M" ? "N/M" : "N/A";
+            if (item.value !== null && item.value !== undefined && !isNaN(item.value)) {
                 if (item.format === "{:.1%}") {
                     valStr = `${(item.value * 100).toFixed(1)}%`;
                 } else {
@@ -545,6 +553,7 @@ function renderRatioCards() {
 
             grid.appendChild(card);
         });
+
 
         container.appendChild(grid);
     });

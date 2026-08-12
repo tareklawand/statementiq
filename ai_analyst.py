@@ -84,25 +84,30 @@ def generate_custom_ticker_insights(company_name: str, symbol: str, health_score
         status = eval_data.get("status")
         target = eval_data.get("target", "")
 
-        if val is not None:
+        if status == "Healthy":
             try:
-                val_str = fmt.format(val)
+                val_str = fmt.format(val) if val is not None else "N/A"
             except Exception:
                 val_str = str(val)
+            strengths.append(f"{name} of {val_str} demonstrating strong alignment with model benchmark targets ({target}).")
+        elif status in ["Caution", "Warning"]:
+            try:
+                val_str = fmt.format(val) if val is not None else "N/A"
+            except Exception:
+                val_str = str(val)
+            weaknesses.append(f"{name} of {val_str} reflecting potential room for balance sheet or valuation optimization relative to target ({target}).")
+        elif status == "N/M":
+            weaknesses.append(f"{name} marked Not Meaningful (N/M) — {target}.")
+        elif status == "N/A":
+            pass
 
-            if status == "Healthy":
-                strengths.append(f"{name} of {val_str} demonstrating alignment with benchmark targets ({target}).")
-            elif status in ["Caution", "Warning"]:
-                weaknesses.append(f"{name} of {val_str} reflecting potential room for balance sheet optimization relative to target ({target}).")
+    if not strengths:
+        strengths.append(f"Stable operating baseline for {company_name} ({symbol}) across core reported business operations.")
+    if not weaknesses:
+        weaknesses.append(f"Macroeconomic sensitivity and competitive industry valuation dynamics for {company_name} ({symbol}).")
 
-    while len(strengths) < 3:
-        strengths.append(f"Balanced capital structure and disciplined asset allocation across core business operations.")
-
-    while len(weaknesses) < 3:
-        weaknesses.append(f"Macroeconomic sensitivity and competitive industry valuation dynamics.")
-
-    summary = f"{company_name} ({symbol}) financial report based on audited Form 10-K balance sheet statements and market parameters."
-    explanation = f"The Financial Health and Valuation Score of {health_score}/100 reflects a quantitative weighted scoring model."
+    summary = f"{company_name} ({symbol}) financial analysis based on audited Form 10-K balance sheet statements and market parameters. The company achieved a Financial Health & Valuation Score of {health_score}/100."
+    explanation = f"The Financial Health and Valuation Score of {health_score}/100 reflects a quantitative weighted scoring model evaluating 10 key liquidity, leverage, profitability, efficiency, and market valuation ratios."
 
     return {
         "executive_summary": summary,
@@ -110,3 +115,4 @@ def generate_custom_ticker_insights(company_name: str, symbol: str, health_score
         "top_weaknesses": weaknesses[:3],
         "score_explanation": explanation
     }
+

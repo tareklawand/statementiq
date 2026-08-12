@@ -49,10 +49,16 @@ def read_root():
             return HTMLResponse(content=f.read(), headers=headers)
     return "<h1>StatementIQ UI loading...</h1>"
 
+@app.get("/health")
+def health_check():
+    """Uptime health check endpoint for monitoring and Render deployment."""
+    return {"status": "healthy", "service": "StatementIQ Engine"}
+
 @app.get("/api/presets")
 def get_presets():
     """Returns preset tickers list."""
     return {"presets": PRESET_TICKERS}
+
 
 @app.get("/api/analyze")
 def analyze_ticker(ticker: str = Query(..., description="Stock Ticker Symbol"), api_key: Optional[str] = Query(None)):

@@ -511,9 +511,13 @@ def fetch_stock_data(ticker_symbol: str) -> Dict[str, Any]:
                     if not info.get("longName"):
                         info["longName"] = long_n
 
+                sec = info.get("sector", "")
+                is_fin = symbol in {"JPM", "BRK-B", "BAC", "WFC", "C", "GS", "MS", "V", "MA", "AXP", "BLK"} or any(kw in str(sec).lower() for kw in ["financial", "bank", "insurance"])
+
                 if income_stmt is not None and not income_stmt.empty and balance_sheet is not None and not balance_sheet.empty:
                     result = {
                         "symbol": symbol,
+                        "is_financial_sector": is_fin,
                         "info": info,
                         "income_stmt": income_stmt,
                         "balance_sheet": balance_sheet,
@@ -540,54 +544,38 @@ def build_from_company_profile(symbol: str) -> Dict[str, Any]:
             ("Technology" if symbol in ["AMD", "INTC", "CRM", "ORCL"] else "General Business Sector", "General Business Industry", f"{symbol} Corporation")
         )
 
-        hash_val = sum(ord(c) for c in symbol)
-        base_rev = (hash_val * 1e8) % 150e9 + 20e9
-        base_net = base_rev * 0.18
-        base_op = base_rev * 0.22
-        base_da = base_rev * 0.03
-        base_assets = base_rev * 1.5
-        base_liab = base_assets * 0.4
-        base_debt = base_assets * 0.25
-        base_cash = base_assets * 0.15
-        base_equity = base_assets - base_liab
-        price = (hash_val % 250) + 50.0
-        eps = price / 22.5
+        is_fin = symbol in {"JPM", "BRK-B", "BAC", "WFC", "C", "GS", "MS", "V", "MA", "AXP", "BLK"} or any(kw in str(sector).lower() for kw in ["financial", "bank", "insurance"])
 
-        prof = {
-            "info": {
-                "symbol": symbol, "shortName": f"{symbol} Inc.", "longName": company_long_name,
-                "regularMarketPrice": price, "currentPrice": price, "marketCap": price * 5e9,
-                "epsTrailingTwelveMonths": eps, "trailingPE": 22.5,
-                "enterpriseToEbitda": 14.5, "fiftyTwoWeekHigh": price * 1.2, "fiftyTwoWeekLow": price * 0.8,
-                "dividendYield": 0.015, "targetMeanPrice": price * 1.15, "sector": sector,
-                "industry": industry, "currency": "USD", "exchange": "NYSE/NASDAQ",
-                "sharesOutstanding": 5e9,
-                "market_data_as_of": "July 30, 2026 at 3:45:16 PM UTC", "market_data_provider": "StatementIQ Engine"
-            },
-            "revenue": [base_rev, base_rev*0.9, base_rev*0.8, base_rev*0.75],
-            "net_income": [base_net, base_net*0.9, base_net*0.8, base_net*0.75],
-            "gross_profit": [base_rev*0.45, base_rev*0.42, base_rev*0.40, base_rev*0.38],
-            "operating_income": [base_op, base_op*0.9, base_op*0.8, base_op*0.75],
-            "depreciation_amortization": [base_da, base_da*0.9, base_da*0.8, base_da*0.75],
-            "ebitda": [base_op+base_da, (base_op+base_da)*0.9, (base_op+base_da)*0.8, (base_op+base_da)*0.75],
-            "total_assets": [base_assets, base_assets*0.95, base_assets*0.9, base_assets*0.85],
-            "current_assets": [base_assets*0.35, base_assets*0.33, base_assets*0.3, base_assets*0.28],
-            "inventory": [base_assets*0.02, base_assets*0.02, base_assets*0.02, base_assets*0.02],
-            "cash_and_equiv": [base_cash*0.6, base_cash*0.55, base_cash*0.5, base_cash*0.45],
-            "current_marketable_securities": [base_cash*0.4, base_cash*0.35, base_cash*0.3, base_cash*0.25],
-            "noncurrent_marketable_securities": [base_cash*0.2, base_cash*0.2, base_cash*0.2, base_cash*0.2],
-            "accounts_receivable": [base_assets*0.08, base_assets*0.07, base_assets*0.06, base_assets*0.05],
-            "vendor_nontrade_receivables": [0.0, 0.0, 0.0, 0.0],
-            "current_liab": [base_liab*0.6, base_liab*0.55, base_liab*0.5, base_liab*0.45],
-            "commercial_paper": [0.0, 0.0, 0.0, 0.0],
-            "current_term_debt": [base_debt*0.1, base_debt*0.1, base_debt*0.1, base_debt*0.1],
-            "noncurrent_term_debt": [base_debt*0.9, base_debt*0.9, base_debt*0.9, base_debt*0.9],
-            "total_debt": [base_debt, base_debt*0.95, base_debt*0.9, base_debt*0.85],
-            "equity": [base_equity, base_equity*0.95, base_equity*0.9, base_equity*0.85],
-            "provenance": {"filing": "Form 10-K", "accession": f"0000{hash_val}-25-000001", "period_end": "2024-12-31"}
+        info = {
+            "symbol": symbol, "shortName": f"{symbol} Inc.", "longName": company_long_name,
+            "regularMarketPrice": None, "currentPrice": None, "marketCap": None,
+            "epsTrailingTwelveMonths": None, "trailingPE": None,
+            "enterpriseToEbitda": None, "fiftyTwoWeekHigh": None, "fiftyTwoWeekLow": None,
+            "dividendYield": None, "targetMeanPrice": None, "sector": sector,
+            "industry": industry, "currency": "USD", "exchange": "NYSE/NASDAQ",
+            "market_data_as_of": "Data Unavailable", "market_data_provider": "StatementIQ Engine"
+        }
+
+        years = [pd.Timestamp('2025-09-27'), pd.Timestamp('2024-09-28'), pd.Timestamp('2023-09-30'), pd.Timestamp('2022-09-24')]
+        income_stmt = pd.DataFrame(index=["Total Revenue", "Gross Profit", "Operating Income", "Net Income"], columns=years)
+        balance_sheet = pd.DataFrame(index=["Total Assets", "Current Assets", "Current Liabilities", "Total Debt", "Stockholders Equity"], columns=years)
+        cash_flow = pd.DataFrame(index=["Operating Cash Flow", "Free Cash Flow"], columns=years)
+
+        return {
+            "symbol": symbol,
+            "is_financial_sector": is_fin,
+            "info": info,
+            "income_stmt": income_stmt,
+            "balance_sheet": balance_sheet,
+            "cash_flow": cash_flow,
+            "history": pd.DataFrame(),
+            "error": f"Financial statement data for ticker {symbol} is currently unavailable."
         }
 
     info = prof["info"].copy()
+    sector = info.get("sector", "")
+    is_fin = symbol in {"JPM", "BRK-B", "BAC", "WFC", "C", "GS", "MS", "V", "MA", "AXP", "BLK"} or any(kw in str(sector).lower() for kw in ["financial", "bank", "insurance"])
+
     years = [pd.Timestamp('2025-09-27'), pd.Timestamp('2024-09-28'), pd.Timestamp('2023-09-30'), pd.Timestamp('2022-09-24')]
 
     income_stmt = pd.DataFrame(index=[
@@ -627,6 +615,7 @@ def build_from_company_profile(symbol: str) -> Dict[str, Any]:
 
     return {
         "symbol": symbol,
+        "is_financial_sector": is_fin,
         "info": info,
         "income_stmt": income_stmt,
         "balance_sheet": balance_sheet,
@@ -634,3 +623,4 @@ def build_from_company_profile(symbol: str) -> Dict[str, Any]:
         "history": pd.DataFrame(),
         "error": None
     }
+
