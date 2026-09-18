@@ -134,3 +134,36 @@ def test_missing_data_no_fabrication():
     evals = res["ratio_evaluations"]
     for key, eval_item in evals.items():
         assert eval_item["status"] in ["N/A", "N/M"]
+    assert res["health_score"] is None
+    assert res["health_status"] == "Insufficient Data"
+    assert res["ev_breakdown"]["total_debt"] is None
+    assert res["ev_breakdown"]["cash_and_short_term"] is None
+    assert res["ev_breakdown"]["enterprise_value_std"] is None
+    assert res["ev_breakdown"]["ebitda"] is None
+
+
+def test_missing_debt_and_da_do_not_become_zero():
+    data = {
+        "symbol": "NO_GUESSES",
+        "info": {
+            "symbol": "NO_GUESSES",
+            "sector": "Technology",
+            "regularMarketPrice": 10.0,
+            "marketCap": 1e9,
+            "epsTrailingTwelveMonths": 1.0,
+        },
+        "income_stmt": pd.DataFrame({
+            pd.Timestamp("2025-01-01"): [2e9, 0.8e9, 0.2e9, 0.1e9]
+        }, index=["Total Revenue", "Gross Profit", "Operating Income", "Net Income"]),
+        "balance_sheet": pd.DataFrame({
+            pd.Timestamp("2025-01-01"): [3e9, 1e9, 0.5e9, 0.2e9, 1.5e9]
+        }, index=["Total Assets", "Current Assets", "Current Liabilities", "Cash And Cash Equivalents", "Stockholders Equity"]),
+        "cash_flow": pd.DataFrame(),
+    }
+
+    res = compute_metrics(data)
+    assert res["ratios"]["debt_to_equity"] is None
+    assert res["ratios"]["quick_ratio"] is None
+    assert res["ratios"]["ev_ebitda"] is None
+    assert res["ev_breakdown"]["enterprise_value_std"] is None
+    assert res["ev_breakdown"]["ebitda"] is None

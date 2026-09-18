@@ -1,5 +1,6 @@
 import pytest
-from data_fetcher import fetch_stock_data, PRESET_TICKERS, REAL_COMPANY_PROFILES
+import data_fetcher
+from data_fetcher import fetch_stock_data, PRESET_TICKERS
 
 def test_fetch_preset_tickers():
     for label, symbol in PRESET_TICKERS.items():
@@ -24,3 +25,18 @@ def test_unmapped_ticker_missing_data():
     data = fetch_stock_data("NON_EXISTENT_TICKER_99")
     assert data["symbol"] == "NON_EXISTENT_TICKER_99"
     assert data["error"] is not None
+
+
+def test_live_failure_never_uses_static_profile(monkeypatch):
+    class BrokenTicker:
+        def __init__(self, symbol):
+            raise RuntimeError("provider unavailable")
+
+    data_fetcher._CACHE.pop("AAPL", None)
+    monkeypatch.setattr(data_fetcher.yf, "Ticker", BrokenTicker)
+    data = fetch_stock_data("AAPL")
+
+    assert data["error"] is not None
+    assert data["info"]["data_source"] == "unavailable"
+    assert data["income_stmt"].empty
+    assert data["balance_sheet"].empty

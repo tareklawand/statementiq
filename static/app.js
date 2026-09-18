@@ -2,10 +2,138 @@
 let currentSymbol = "AAPL";
 let currentData = null;
 let activeStatementType = "income_statement";
-let currentTheme = "dark";
+let currentTheme = document.documentElement.getAttribute("data-theme") || "light";
+let analysisProgressToken = 0;
+let analysisProgressTimers = [];
+let analysisProgressClock = null;
+let analysisProgressStartedAt = 0;
+
+function themeColor(variable, fallback) {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
+    return value || fallback;
+}
+
+function scoreColor(score) {
+    if (!Number.isFinite(Number(score))) return themeColor("--text-dark", "#717a71");
+    if (score < 60) return themeColor("--accent-red", "#ed8d87");
+    if (score < 80) return themeColor("--accent-amber", "#e7c26f");
+    return themeColor("--accent-green", "#83dca5");
+}
+
+function clearAnalysisProgressTimers() {
+    analysisProgressTimers.forEach(timer => window.clearTimeout(timer));
+    analysisProgressTimers = [];
+    if (analysisProgressClock) {
+        window.clearInterval(analysisProgressClock);
+        analysisProgressClock = null;
+    }
+}
+
+function formatElapsed(milliseconds) {
+    const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = String(totalSeconds % 60).padStart(2, "0");
+    return `${minutes}:${seconds} elapsed`;
+}
+
+function updateAnalysisProgress(progress, status, state = "active") {
+    const panel = document.getElementById("analysisProgress");
+    const fill = document.getElementById("analysisProgressFill");
+    const statusEl = document.getElementById("analysisProgressStatus");
+    const track = document.getElementById("analysisProgressTrack");
+    if (!panel || !fill || !statusEl || !track) return;
+
+    panel.classList.toggle("is-complete", state === "complete");
+    panel.classList.toggle("is-error", state === "error");
+    fill.style.width = `${Math.min(100, Math.max(0, progress))}%`;
+    statusEl.textContent = status;
+    track.setAttribute("aria-valuetext", status);
+}
+
+function scheduleAnalysisProgress(token, delay, progress, status) {
+    const timer = window.setTimeout(() => {
+        if (token !== analysisProgressToken) return;
+        updateAnalysisProgress(progress, status);
+    }, delay);
+    analysisProgressTimers.push(timer);
+}
+
+function startAnalysisProgress(symbol) {
+    clearAnalysisProgressTimers();
+    const token = ++analysisProgressToken;
+    const panel = document.getElementById("analysisProgress");
+    const title = document.getElementById("analysisProgressTitle");
+    const elapsed = document.getElementById("analysisProgressElapsed");
+    if (!panel || !title || !elapsed) return token;
+
+    analysisProgressStartedAt = Date.now();
+    title.textContent = `Analyzing ${symbol}`;
+    elapsed.textContent = "0:00 elapsed";
+    panel.classList.remove("is-complete", "is-error");
+    panel.classList.add("is-visible");
+    panel.setAttribute("aria-hidden", "false");
+    updateAnalysisProgress(8, "Connecting to the financial engine…");
+
+    analysisProgressClock = window.setInterval(() => {
+        if (token !== analysisProgressToken) return;
+        elapsed.textContent = formatElapsed(Date.now() - analysisProgressStartedAt);
+    }, 1000);
+
+    scheduleAnalysisProgress(token, 1200, 20, "Connecting to secure financial data sources…");
+    scheduleAnalysisProgress(token, 4000, 36, "Retrieving reported financial statements…");
+    scheduleAnalysisProgress(token, 10000, 52, "Running ratio and valuation checks…");
+    scheduleAnalysisProgress(token, 18000, 65, "Building the financial health assessment…");
+    scheduleAnalysisProgress(token, 30000, 74, "The financial engine may be waking up — the first analysis can take longer.");
+    scheduleAnalysisProgress(token, 48000, 84, "Still working — keeping the financial request open…");
+    scheduleAnalysisProgress(token, 70000, 90, "Final checks are taking longer than usual…");
+    return token;
+}
+
+function completeAnalysisProgress(token) {
+    if (token !== analysisProgressToken) return;
+    clearAnalysisProgressTimers();
+    const panel = document.getElementById("analysisProgress");
+    const elapsed = document.getElementById("analysisProgressElapsed");
+    if (!panel) return;
+
+    if (elapsed) elapsed.textContent = formatElapsed(Date.now() - analysisProgressStartedAt);
+    updateAnalysisProgress(100, "Analysis complete. Dashboard updated.", "complete");
+    const hideTimer = window.setTimeout(() => {
+        if (token !== analysisProgressToken) return;
+        panel.classList.remove("is-visible");
+        panel.setAttribute("aria-hidden", "true");
+    }, 1800);
+    analysisProgressTimers.push(hideTimer);
+}
+
+function failAnalysisProgress(token, message) {
+    if (token !== analysisProgressToken) return;
+    clearAnalysisProgressTimers();
+    const panel = document.getElementById("analysisProgress");
+    const elapsed = document.getElementById("analysisProgressElapsed");
+    if (!panel) return;
+
+    if (elapsed) elapsed.textContent = "Not completed";
+    updateAnalysisProgress(100, message, "error");
+    const hideTimer = window.setTimeout(() => {
+        if (token !== analysisProgressToken) return;
+        panel.classList.remove("is-visible");
+        panel.setAttribute("aria-hidden", "true");
+    }, 9000);
+    analysisProgressTimers.push(hideTimer);
+}
 
 // Initialize Application
 function initApp() {
+    const storedTheme = localStorage.getItem("statementiq-theme");
+    if (storedTheme === "light" || storedTheme === "dark") {
+        currentTheme = storedTheme;
+        document.documentElement.setAttribute("data-theme", currentTheme);
+    }
+    const initialThemeIcon = document.getElementById("themeIcon");
+    if (initialThemeIcon) {
+        initialThemeIcon.setAttribute("data-lucide", currentTheme === "dark" ? "sun" : "moon");
+    }
     try { lucide.createIcons(); } catch(e){}
     setupEventListeners();
     try { fetchPresets(); } catch(e){}
@@ -26,6 +154,7 @@ function setupEventListeners() {
         themeBtn.addEventListener("click", () => {
             currentTheme = currentTheme === "dark" ? "light" : "dark";
             document.documentElement.setAttribute("data-theme", currentTheme);
+            localStorage.setItem("statementiq-theme", currentTheme);
             
             const themeIcon = document.getElementById("themeIcon");
             if (themeIcon) {
@@ -34,7 +163,8 @@ function setupEventListeners() {
             }
 
             if (currentData) {
-                try { renderGaugeChart(currentData.metrics.health_score); } catch(e){}
+                try { renderAIBriefing(); } catch(e){}
+                try { renderPillarsMatrix(); } catch(e){}
                 try { renderCharts(); } catch(e){}
             }
         });
@@ -120,7 +250,7 @@ async function fetchPresets() {
         if (!ribbon) return;
         
         if (data.presets) {
-            ribbon.innerHTML = `<span class="ribbon-label"><i data-lucide="globe" class="inline-icon"></i> COVERED BLUECHIPS:</span>`;
+            ribbon.innerHTML = `<span class="ribbon-label"><i data-lucide="scan-search" class="inline-icon"></i> COVERAGE UNIVERSE</span>`;
             Object.entries(data.presets).forEach(([label, symbol]) => {
                 const pill = document.createElement("div");
                 pill.className = `ticker-pill ${symbol === currentSymbol ? 'active' : ''}`;
@@ -145,29 +275,32 @@ async function fetchPresets() {
 async function loadTickerData(symbol) {
     const searchBtn = document.getElementById("searchBtn");
     const targetSymbol = (symbol || "AAPL").trim().toUpperCase();
+    const progressToken = startAnalysisProgress(targetSymbol);
 
     if (searchBtn) {
         searchBtn.disabled = true;
-        searchBtn.innerText = "LOADING...";
+        searchBtn.innerText = "Analyzing…";
     }
 
     try {
-        const keyInput = document.getElementById("geminiApiKey");
-        const geminiKey = keyInput ? keyInput.value.trim() : "";
         let url = `/api/analyze?ticker=${encodeURIComponent(targetSymbol)}`;
-        if (geminiKey) {
-            url += `&api_key=${encodeURIComponent(geminiKey)}`;
-        }
 
         const res = await fetch(url);
         if (!res.ok) {
-            const errData = await res.json();
-            alert(errData.detail || `Error fetching data for ${targetSymbol}`);
+            let detail = `We could not complete the analysis for ${targetSymbol}. Please try again.`;
+            try {
+                const errData = await res.json();
+                if (errData.detail) detail = errData.detail;
+            } catch (error) {
+                console.error("Unable to read analysis error response:", error);
+            }
+            failAnalysisProgress(progressToken, detail);
             return;
         }
 
         currentData = await res.json();
         currentSymbol = currentData.symbol;
+        updateAnalysisProgress(94, "Preparing the dashboard…");
 
         // Render UI Sections smoothly with isolation
         try { renderHeroBanner(); } catch(e){ console.error("Hero render error:", e); }
@@ -178,14 +311,18 @@ async function loadTickerData(symbol) {
         try { renderCharts(); } catch(e){ console.error("Charts render error:", e); }
         try { renderRatioCards(); } catch(e){ console.error("Ratio Cards render error:", e); }
         try { renderFinancialStatementTable(); } catch(e){ console.error("Statement Table render error:", e); }
+        completeAnalysisProgress(progressToken);
 
     } catch (err) {
         console.error("Error loading ticker data:", err);
-        alert(`Network error fetching data for ${targetSymbol}`);
+        failAnalysisProgress(
+            progressToken,
+            `The connection was interrupted while analyzing ${targetSymbol}. Please try again.`
+        );
     } finally {
         if (searchBtn) {
             searchBtn.disabled = false;
-            searchBtn.innerText = "ANALYZE";
+            searchBtn.innerText = "Run analysis";
         }
         try { lucide.createIcons(); } catch(e){}
     }
@@ -198,10 +335,20 @@ function renderHeroBanner() {
 
     if (el("heroCompanyName")) el("heroCompanyName").innerText = currentData.company_name || "";
     if (el("heroSymbol")) el("heroSymbol").innerText = currentData.symbol || "";
-    if (el("heroExchange")) el("heroExchange").innerText = currentData.info.exchange || "US NASDAQ/NYSE";
+    if (el("heroExchange")) el("heroExchange").innerText = currentData.info.exchange || "N/A";
     if (el("heroSector")) el("heroSector").innerText = currentData.info.sector || "N/A";
     if (el("heroIndustry")) el("heroIndustry").innerText = currentData.info.industry || "N/A";
-    if (el("heroCurrency")) el("heroCurrency").innerText = currentData.info.currency || "USD";
+    if (el("heroCurrency")) el("heroCurrency").innerText = currentData.info.currency || "N/A";
+    if (el("heroDataSource")) {
+        const quality = currentData.data_quality || {};
+        const provider = quality.statement_provider || quality.market_provider || "Source unavailable";
+        let asOf = "timestamp unavailable";
+        if (quality.market_data_as_of) {
+            const parsed = new Date(quality.market_data_as_of);
+            asOf = Number.isNaN(parsed.getTime()) ? quality.market_data_as_of : parsed.toLocaleString();
+        }
+        el("heroDataSource").innerText = `LIVE SOURCE · ${provider} · MARKET DATA ${asOf}`;
+    }
 }
 
 // Render 8 KPI Cards
@@ -210,18 +357,19 @@ function renderKPIs() {
     const info = currentData.info;
     const el = (id) => document.getElementById(id);
     
-    if (el("kpiPrice")) el("kpiPrice").innerText = info.price ? `$${info.price.toFixed(2)}` : "N/A";
-    if (el("kpiMarketCap")) el("kpiMarketCap").innerText = info.market_cap ? `$${(info.market_cap / 1e9).toFixed(2)}B` : "N/A";
-    if (el("kpiEV")) el("kpiEV").innerText = info.market_cap ? `$${((info.market_cap * 1.1) / 1e9).toFixed(2)}B` : "N/A";
-    if (el("kpiPE")) el("kpiPE").innerText = info.pe_ratio ? `${info.pe_ratio.toFixed(2)}x` : "N/A";
-    if (el("kpiEVEBITDA")) el("kpiEVEBITDA").innerText = info.ev_ebitda ? `${info.ev_ebitda.toFixed(2)}x` : "N/A";
+    const valid = value => Number.isFinite(Number(value));
+    if (el("kpiPrice")) el("kpiPrice").innerText = valid(info.price) ? `$${Number(info.price).toFixed(2)}` : "N/A";
+    if (el("kpiMarketCap")) el("kpiMarketCap").innerText = valid(info.market_cap) ? `$${(Number(info.market_cap) / 1e9).toFixed(2)}B` : "N/A";
+    if (el("kpiEV")) el("kpiEV").innerText = valid(info.enterprise_value) ? `$${(Number(info.enterprise_value) / 1e9).toFixed(2)}B` : "N/A";
+    if (el("kpiPE")) el("kpiPE").innerText = valid(info.pe_ratio) ? `${Number(info.pe_ratio).toFixed(2)}x` : "N/A";
+    if (el("kpiEVEBITDA")) el("kpiEVEBITDA").innerText = valid(info.ev_ebitda) ? `${Number(info.ev_ebitda).toFixed(2)}x` : "N/A";
     
-    const low = info.fifty_two_low ? `$${info.fifty_two_low.toFixed(2)}` : "N/A";
-    const high = info.fifty_two_high ? `$${info.fifty_two_high.toFixed(2)}` : "N/A";
+    const low = valid(info.fifty_two_low) ? `$${Number(info.fifty_two_low).toFixed(2)}` : "N/A";
+    const high = valid(info.fifty_two_high) ? `$${Number(info.fifty_two_high).toFixed(2)}` : "N/A";
     if (el("kpiRange")) el("kpiRange").innerText = `${low} - ${high}`;
 
-    if (el("kpiDivYield")) el("kpiDivYield").innerText = info.dividend_yield ? `${(info.dividend_yield * 100).toFixed(2)}%` : "0.55%";
-    if (el("kpiTargetPrice")) el("kpiTargetPrice").innerText = info.target_price ? `$${info.target_price.toFixed(2)}` : "N/A";
+    if (el("kpiDivYield")) el("kpiDivYield").innerText = valid(info.dividend_yield) ? `${(Number(info.dividend_yield) * 100).toFixed(2)}%` : "N/A";
+    if (el("kpiTargetPrice")) el("kpiTargetPrice").innerText = valid(info.target_price) ? `$${Number(info.target_price).toFixed(2)}` : "N/A";
 }
 
 // Render AI Briefing & Health Score Gauge
@@ -236,14 +384,8 @@ function renderAIBriefing() {
     
     const statusText = el("healthStatusText");
     if (statusText) {
-        statusText.innerText = (metrics.health_status || "ANALYZED").toUpperCase();
-        if (metrics.health_score >= 80) {
-            statusText.style.color = currentTheme === "dark" ? "#10B981" : "#16A34A";
-        } else if (metrics.health_score >= 60) {
-            statusText.style.color = currentTheme === "dark" ? "#F59E0B" : "#D97706";
-        } else {
-            statusText.style.color = currentTheme === "dark" ? "#EF4444" : "#DC2626";
-        }
+        statusText.innerText = (metrics.health_status || "INSUFFICIENT DATA").toUpperCase();
+        statusText.style.color = scoreColor(metrics.health_score);
     }
 
     renderGaugeChart(metrics.health_score);
@@ -257,35 +399,36 @@ function renderPillarsMatrix() {
 
     const ratioEvals = currentData.metrics.ratio_evaluations || {};
 
-    const pillars = [
-        { name: "Liquidity", key: "current_ratio" },
-        { name: "Leverage", key: "debt_to_equity" },
-        { name: "Profitability", key: "net_margin" },
-        { name: "Efficiency", key: "asset_turnover" },
-        { name: "Valuation", key: "pe_ratio" }
-    ];
+    const pillars = ["Liquidity", "Leverage", "Profitability", "Efficiency", "Valuation"];
 
-    pillars.forEach(p => {
-        const evalItem = ratioEvals[p.key] || {};
-        let score = 85;
-        let color = currentTheme === "dark" ? "#10B981" : "#16A34A";
-
-        if (evalItem.status === "Caution") {
-            score = 60;
-            color = currentTheme === "dark" ? "#F59E0B" : "#D97706";
-        } else if (evalItem.status === "Warning") {
-            score = 35;
-            color = currentTheme === "dark" ? "#EF4444" : "#DC2626";
+    pillars.forEach(name => {
+        const categoryItems = Object.values(ratioEvals).filter(item => item.category === name);
+        const statuses = categoryItems.map(item => item.status);
+        let status = "N/A";
+        let color = themeColor("--accent-green", "#83dca5");
+        if (statuses.includes("Warning")) {
+            status = "Warning";
+            color = themeColor("--accent-red", "#ed8d87");
+        } else if (statuses.includes("Caution")) {
+            status = "Caution";
+            color = themeColor("--accent-amber", "#e7c26f");
+        } else if (statuses.includes("Healthy")) {
+            status = "Healthy";
+        } else if (statuses.includes("N/M")) {
+            status = "N/M";
+            color = themeColor("--accent-amber", "#e7c26f");
+        } else {
+            color = themeColor("--text-dark", "#717a71");
         }
 
         const div = document.createElement("div");
         div.className = "pillar-item";
         div.innerHTML = `
-            <span class="pillar-name">${p.name}</span>
+            <span class="pillar-name">${name}</span>
             <div class="pillar-track">
-                <div class="pillar-fill" style="width: ${score}%; background: ${color};"></div>
+                <div class="pillar-fill" style="width: ${status === 'N/A' ? 0 : 100}%; background: ${color};"></div>
             </div>
-            <span class="pillar-val" style="color: ${color};">${score}/100</span>
+            <span class="pillar-val" style="color: ${color};">${status}</span>
         `;
         container.appendChild(div);
     });
@@ -323,42 +466,109 @@ function renderStrengthsWeaknesses() {
 function renderGaugeChart(score) {
     if (typeof Plotly === "undefined" || !document.getElementById("healthGaugeChart")) return;
 
-    let accentColor = currentTheme === "dark" ? "#10B981" : "#16A34A";
-    if (score < 60) accentColor = currentTheme === "dark" ? "#EF4444" : "#DC2626";
-    else if (score < 80) accentColor = currentTheme === "dark" ? "#F59E0B" : "#D97706";
+    const textColor = themeColor("--text-main", "#f2f4ec");
+    const mutedColor = themeColor("--text-dark", "#717a71");
+    const panelColor = themeColor("--card-soft", "#111512");
+    const riskColor = themeColor("--gauge-risk", "#f05e58");
+    const cautionColor = themeColor("--gauge-caution", "#ff982b");
+    const healthyColor = themeColor("--gauge-healthy", "#2ed477");
 
-    const textColor = currentTheme === "dark" ? "#F8FAFC" : "#0F172A";
-    const mutedColor = currentTheme === "dark" ? "#94A3B8" : "#64748B";
+    if (!Number.isFinite(Number(score))) {
+        Plotly.newPlot("healthGaugeChart", [], {
+            paper_bgcolor: "rgba(0,0,0,0)",
+            plot_bgcolor: "rgba(0,0,0,0)",
+            xaxis: { visible: false },
+            yaxis: { visible: false },
+            annotations: [{
+                text: "N/A<br><span style='font-size:11px'>INSUFFICIENT DATA</span>",
+                x: 0.5, y: 0.5, showarrow: false, align: "center",
+                font: { size: 28, color: mutedColor, family: "DM Mono" }
+            }],
+            margin: { l: 20, r: 20, t: 20, b: 10 },
+            height: 195
+        }, { responsive: true, displayModeBar: false });
+        return;
+    }
 
     const gaugeData = [{
         type: "indicator",
         mode: "gauge+number",
         value: score,
         domain: { x: [0, 1], y: [0, 1] },
-        number: { suffix: " / 100", font: { size: 38, color: textColor, family: "Outfit" } },
+        number: { suffix: " / 100", font: { size: 34, color: textColor, family: "DM Mono" } },
         gauge: {
-            axis: { range: [0, 100], tickwidth: 1, tickcolor: mutedColor, dtick: 20 },
-            bar: { color: accentColor, thickness: 0.85 },
-            bgcolor: currentTheme === "dark" ? "rgba(10, 14, 24, 0.6)" : "rgba(241, 245, 249, 0.8)",
-            borderwidth: 1,
-            bordercolor: currentTheme === "dark" ? "rgba(255, 255, 255, 0.08)" : "#CBD5E1",
+            axis: {
+                range: [0, 100],
+                tickwidth: 0,
+                tickcolor: "rgba(0,0,0,0)",
+                tickfont: { color: textColor, size: 10, family: "DM Mono" },
+                dtick: 20
+            },
+            bar: { color: "rgba(0,0,0,0)", thickness: 0.78 },
+            bgcolor: panelColor,
+            borderwidth: 0,
             steps: [
-                { range: [0, 60], color: "rgba(239, 68, 68, 0.12)" },
-                { range: [60, 80], color: "rgba(245, 158, 11, 0.12)" },
-                { range: [80, 100], color: "rgba(16, 185, 129, 0.12)" }
-            ]
+                { range: [0, 60], color: riskColor },
+                { range: [60, 80], color: cautionColor },
+                { range: [80, 100], color: healthyColor }
+            ],
+            threshold: {
+                line: { color: textColor, width: 4 },
+                thickness: 0.9,
+                value: Number(score)
+            }
         }
     }];
 
     const gaugeLayout = {
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
-        font: { color: textColor, family: "Plus Jakarta Sans" },
+        font: { color: textColor, family: "Manrope" },
         margin: { l: 20, r: 20, t: 20, b: 10 },
         height: 195
     };
 
     Plotly.newPlot("healthGaugeChart", gaugeData, gaugeLayout, { responsive: true, displayModeBar: false });
+}
+
+function formatInspectorValue(value, prefix = "", suffix = "") {
+    if (value === null || value === undefined || !Number.isFinite(Number(value))) return "N/A";
+    return `${prefix}${Number(value).toFixed(1)}${suffix}`;
+}
+
+function bindChartInspector(chartId, inspectorId, years, rows) {
+    const chart = document.getElementById(chartId);
+    const inspector = document.getElementById(inspectorId);
+    if (!chart || !inspector || !Array.isArray(years) || years.length === 0) return;
+
+    const renderYear = index => {
+        const year = years[index] || "N/A";
+        inspector.innerHTML = `
+            <span class="inspector-year">${year}</span>
+            ${rows.map(row => `
+                <span class="inspector-metric">
+                    <i class="inspector-dot ${row.tone}"></i>
+                    <span>${row.label}</span>
+                    <strong>${formatInspectorValue(row.values[index], row.prefix || "", row.suffix || "")}</strong>
+                </span>
+            `).join("")}
+        `;
+    };
+
+    renderYear(years.length - 1);
+    if (typeof chart.removeAllListeners === "function") {
+        chart.removeAllListeners("plotly_hover");
+        chart.removeAllListeners("plotly_click");
+    }
+    const selectPoint = event => {
+        const hoveredYear = event && event.points && event.points[0] ? String(event.points[0].x) : "";
+        const index = years.map(String).indexOf(hoveredYear);
+        if (index >= 0) renderYear(index);
+    };
+    if (typeof chart.on === "function") {
+        chart.on("plotly_hover", selectPoint);
+        chart.on("plotly_click", selectPoint);
+    }
 }
 
 // Render Plotly Trend Charts
@@ -368,9 +578,35 @@ function renderCharts() {
     const perf = currentData.charts.financial_performance || { years: [], revenue: [], net_income: [], gross_margin: [], net_margin: [] };
     const cashDebt = currentData.charts.cash_vs_debt || { years: [], cash: [], debt: [] };
 
-    const textColor = currentTheme === "dark" ? "#F8FAFC" : "#0F172A";
-    const mutedColor = currentTheme === "dark" ? "#94A3B8" : "#64748B";
-    const gridColor = currentTheme === "dark" ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)";
+    const textColor = themeColor("--text-main", "#f2f4ec");
+    const mutedColor = themeColor("--text-dark", "#717a71");
+    const gridColor = themeColor("--card-border", "rgba(226, 237, 222, 0.1)");
+    const blue = themeColor("--accent-blue", "#9cbfff");
+    const green = themeColor("--accent-green", "#83dca5");
+    const red = themeColor("--accent-red", "#ed8d87");
+    const purple = themeColor("--accent-purple", "#c5adff");
+    const amber = themeColor("--accent-amber", "#e7c26f");
+    const panelColor = themeColor("--card-bg", "#191a16");
+    const legendLayout = {
+        orientation: "h",
+        x: 0,
+        xanchor: "left",
+        y: -0.2,
+        yanchor: "top",
+        font: { size: 11, color: mutedColor, family: "Manrope" },
+        itemclick: "toggle",
+        itemdoubleclick: "toggleothers"
+    };
+    const xAxisBase = {
+        type: "category",
+        showgrid: false,
+        linecolor: gridColor,
+        showspikes: true,
+        spikecolor: themeColor("--chart-crosshair", "#d6dad1"),
+        spikethickness: 1,
+        spikedash: "solid",
+        spikesnap: "cursor"
+    };
 
     // 1. Revenue & Net Income Chart
     if (document.getElementById("chartRevenueNetIncome")) {
@@ -379,7 +615,8 @@ function renderCharts() {
             y: perf.revenue,
             name: "Revenue ($B)",
             type: "bar",
-            marker: { color: "rgba(56, 189, 248, 0.75)", line: { color: "#38BDF8", width: 1.5 } }
+            marker: { color: blue, opacity: 0.84, line: { color: blue, width: 1 } },
+            hoverinfo: "none"
         };
 
         const niTrace = {
@@ -388,23 +625,31 @@ function renderCharts() {
             name: "Net Income ($B)",
             type: "scatter",
             mode: "lines+markers",
-            line: { color: "#10B981", width: 3.5, shape: "spline" },
-            marker: { size: 8, color: "#10B981" }
+            line: { color: green, width: 2.5, shape: "spline" },
+            marker: { size: 7, color: green, line: { color: panelColor, width: 1.5 } },
+            hoverinfo: "none"
         };
 
         const layout1 = {
-            title: { text: "<b>Revenue & Net Income Trend</b> ($ Billions)", font: { color: textColor, family: "Outfit", size: 14 } },
             paper_bgcolor: "rgba(0,0,0,0)",
             plot_bgcolor: "rgba(0,0,0,0)",
             font: { color: mutedColor },
-            xaxis: { showgrid: false, linecolor: currentTheme === "dark" ? "rgba(255,255,255,0.08)" : "#CBD5E1" },
+            xaxis: xAxisBase,
             yaxis: { showgrid: true, gridcolor: gridColor },
-            legend: { orientation: "h", y: 1.1, x: 1, xanchor: "right" },
-            margin: { l: 40, r: 20, t: 40, b: 35 },
-            height: 330
+            legend: legendLayout,
+            hovermode: "x",
+            hoverdistance: 50,
+            spikedistance: -1,
+            margin: { l: 48, r: 20, t: 20, b: 70 },
+            height: 300
         };
 
-        Plotly.newPlot("chartRevenueNetIncome", [revTrace, niTrace], layout1, { responsive: true, displayModeBar: false });
+        Plotly.newPlot("chartRevenueNetIncome", [revTrace, niTrace], layout1, { responsive: true, displayModeBar: false }).then(() => {
+            bindChartInspector("chartRevenueNetIncome", "inspectorRevenue", perf.years, [
+                { label: "Revenue", values: perf.revenue, prefix: "$", suffix: "B", tone: "blue" },
+                { label: "Net income", values: perf.net_income, prefix: "$", suffix: "B", tone: "green" }
+            ]);
+        });
     }
 
     // 2. Cash vs Debt Chart
@@ -414,7 +659,8 @@ function renderCharts() {
             y: cashDebt.cash,
             name: "Cash & Equivalents",
             type: "bar",
-            marker: { color: "rgba(16, 185, 129, 0.85)", line: { color: "#10B981", width: 1.5 } }
+            marker: { color: green, opacity: 0.86, line: { color: green, width: 1 } },
+            hoverinfo: "none"
         };
 
         const debtTrace = {
@@ -422,23 +668,31 @@ function renderCharts() {
             y: cashDebt.debt,
             name: "Total Debt Obligations",
             type: "bar",
-            marker: { color: "rgba(239, 68, 68, 0.85)", line: { color: "#EF4444", width: 1.5 } }
+            marker: { color: red, opacity: 0.84, line: { color: red, width: 1 } },
+            hoverinfo: "none"
         };
 
         const layout2 = {
-            title: { text: "<b>Balance Sheet Liquidity</b> (Cash vs Debt)", font: { color: textColor, family: "Outfit", size: 14 } },
             barmode: "group",
             paper_bgcolor: "rgba(0,0,0,0)",
             plot_bgcolor: "rgba(0,0,0,0)",
             font: { color: mutedColor },
-            xaxis: { showgrid: false, linecolor: currentTheme === "dark" ? "rgba(255,255,255,0.08)" : "#CBD5E1" },
+            xaxis: xAxisBase,
             yaxis: { showgrid: true, gridcolor: gridColor },
-            legend: { orientation: "h", y: 1.1, x: 1, xanchor: "right" },
-            margin: { l: 40, r: 20, t: 40, b: 35 },
-            height: 330
+            legend: legendLayout,
+            hovermode: "x",
+            hoverdistance: 50,
+            spikedistance: -1,
+            margin: { l: 48, r: 20, t: 20, b: 70 },
+            height: 300
         };
 
-        Plotly.newPlot("chartCashVsDebt", [cashTrace, debtTrace], layout2, { responsive: true, displayModeBar: false });
+        Plotly.newPlot("chartCashVsDebt", [cashTrace, debtTrace], layout2, { responsive: true, displayModeBar: false }).then(() => {
+            bindChartInspector("chartCashVsDebt", "inspectorCashDebt", cashDebt.years, [
+                { label: "Cash", values: cashDebt.cash, prefix: "$", suffix: "B", tone: "green" },
+                { label: "Debt", values: cashDebt.debt, prefix: "$", suffix: "B", tone: "red" }
+            ]);
+        });
     }
 
     // 3. Margin Trend Chart
@@ -449,8 +703,9 @@ function renderCharts() {
             name: "Gross Margin (%)",
             type: "scatter",
             mode: "lines+markers",
-            line: { color: "#8B5CF6", width: 3.5, shape: "spline" },
-            marker: { size: 8, color: "#8B5CF6" }
+            line: { color: purple, width: 2.5, shape: "spline" },
+            marker: { size: 8, color: purple, line: { color: panelColor, width: 1.5 } },
+            hoverinfo: "none"
         };
 
         const nmTrace = {
@@ -459,23 +714,31 @@ function renderCharts() {
             name: "Net Profit Margin (%)",
             type: "scatter",
             mode: "lines+markers",
-            line: { color: "#F59E0B", width: 3.5, shape: "spline" },
-            marker: { size: 8, color: "#F59E0B" }
+            line: { color: amber, width: 2.5, shape: "spline" },
+            marker: { size: 8, color: amber, line: { color: panelColor, width: 1.5 } },
+            hoverinfo: "none"
         };
 
         const layout3 = {
-            title: { text: "<b>Margin Expansion Dynamics</b> (%)", font: { color: textColor, family: "Outfit", size: 14 } },
             paper_bgcolor: "rgba(0,0,0,0)",
             plot_bgcolor: "rgba(0,0,0,0)",
             font: { color: mutedColor },
-            xaxis: { showgrid: false, linecolor: currentTheme === "dark" ? "rgba(255,255,255,0.08)" : "#CBD5E1" },
+            xaxis: xAxisBase,
             yaxis: { showgrid: true, gridcolor: gridColor },
-            legend: { orientation: "h", y: 1.1, x: 1, xanchor: "right" },
-            margin: { l: 40, r: 20, t: 40, b: 35 },
-            height: 330
+            legend: legendLayout,
+            hovermode: "x",
+            hoverdistance: 50,
+            spikedistance: -1,
+            margin: { l: 48, r: 20, t: 20, b: 70 },
+            height: 300
         };
 
-        Plotly.newPlot("chartMargins", [gmTrace, nmTrace], layout3, { responsive: true, displayModeBar: false });
+        Plotly.newPlot("chartMargins", [gmTrace, nmTrace], layout3, { responsive: true, displayModeBar: false }).then(() => {
+            bindChartInspector("chartMargins", "inspectorMargins", perf.years, [
+                { label: "Gross margin", values: perf.gross_margin, suffix: "%", tone: "purple" },
+                { label: "Net profit", values: perf.net_margin, suffix: "%", tone: "amber" }
+            ]);
+        });
     }
 }
 
@@ -494,11 +757,30 @@ function renderRatioCards() {
         categories[cat].push(item);
     });
 
-    Object.entries(categories).forEach(([catName, items]) => {
+    const categoryDescriptions = {
+        Liquidity: "Short-term obligations",
+        Leverage: "Capital structure and debt",
+        Profitability: "Earnings quality and returns",
+        Efficiency: "Asset utilization",
+        Valuation: "Market expectations"
+    };
+
+    Object.entries(categories).forEach(([catName, items], categoryIndex) => {
+        const section = document.createElement("section");
+        section.className = "ratio-category-section";
+        section.dataset.category = catName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
         const catHeader = document.createElement("div");
         catHeader.className = "category-title";
-        catHeader.innerText = catName.toUpperCase();
-        container.appendChild(catHeader);
+        catHeader.innerHTML = `
+            <span class="category-index">${String(categoryIndex + 1).padStart(2, "0")}</span>
+            <span class="category-copy">
+                <strong>${catName}</strong>
+                <small>${categoryDescriptions[catName] || "Financial diagnostics"}</small>
+            </span>
+            <span class="category-count">${items.length} ${items.length === 1 ? "metric" : "metrics"}</span>
+        `;
+        section.appendChild(catHeader);
 
         const grid = document.createElement("div");
         grid.className = "ratio-cards-grid";
@@ -508,25 +790,14 @@ function renderRatioCards() {
             card.className = "ratio-card";
 
             let statusClass = "healthy";
-            let fillClass = "green";
-            let pct = 85;
-
             if (item.status === "Caution") {
                 statusClass = "caution";
-                fillClass = "amber";
-                pct = 55;
             } else if (item.status === "Warning") {
                 statusClass = "warning";
-                fillClass = "red";
-                pct = 30;
             } else if (item.status === "N/M") {
                 statusClass = "nm";
-                fillClass = "amber";
-                pct = 0;
             } else if (item.status === "N/A") {
                 statusClass = "na";
-                fillClass = "muted";
-                pct = 0;
             }
 
             let valStr = item.status === "N/M" ? "N/M" : "N/A";
@@ -540,22 +811,17 @@ function renderRatioCards() {
 
             card.innerHTML = `
                 <div class="ratio-card-header">
-                    <span class="ratio-cat-tag">${catName}</span>
                     <span class="status-pill ${statusClass}">● ${item.status.toUpperCase()}</span>
                 </div>
                 <div class="ratio-name">${item.name}</div>
                 <div class="ratio-val-large">${valStr}</div>
-                <div class="progress-track">
-                    <div class="progress-fill ${fillClass}" style="width: ${pct}%;"></div>
-                </div>
                 <div class="ratio-target-caption">Benchmark Target: ${item.target}</div>
             `;
 
             grid.appendChild(card);
         });
-
-
-        container.appendChild(grid);
+        section.appendChild(grid);
+        container.appendChild(section);
     });
 }
 
@@ -667,7 +933,7 @@ async function handlePdfDownload() {
     } finally {
         if (btn) {
             btn.disabled = false;
-            btn.innerHTML = `<i data-lucide="file-down"></i> EXPORT AUDIT REPORT (PDF)`;
+            btn.innerHTML = `<i data-lucide="file-down"></i> Download research report`;
             try { lucide.createIcons(); } catch(e){}
         }
     }

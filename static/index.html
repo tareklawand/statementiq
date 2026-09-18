@@ -1,17 +1,24 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>StatementIQ PRO | Corporate Financial Analysis & Valuation Platform</title>
+    <script>
+        // This application needs its local API server. If the HTML file is
+        // opened directly, hand off to the served app before loading assets.
+        if (window.location.protocol === "file:") {
+            window.location.replace("http://127.0.0.1:8888/");
+        }
+    </script>
+    <title>StatementIQ | Financial Research Workspace</title>
     
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,600;0,700;1,400&family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter+Tight:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
     <!-- Plotly.js CDN -->
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
@@ -20,7 +27,7 @@
     <script src="https://unpkg.com/lucide@latest"></script>
 
     <!-- Theme Switcher & Bulletproof Layout Stylesheet -->
-    <style>
+    <style media="not all">
         html[data-theme="dark"] {
             --bg-main: #07090E;
             --bg-radial-1: rgba(56, 189, 248, 0.14);
@@ -267,6 +274,7 @@
         .val-positive { color: var(--accent-green); }
         .val-negative { color: var(--accent-red); }
     </style>
+    <link rel="stylesheet" href="/static/redesign.css?v=editorial_research_v14">
 </head>
 <body>
     <div class="app-layout">
@@ -275,11 +283,11 @@
         <header class="top-navbar">
             <div class="brand-container">
                 <div class="brand-logo-icon">
-                    <i data-lucide="line-chart"></i>
+                    <i data-lucide="chart-no-axes-combined"></i>
                 </div>
                 <div>
-                    <div class="brand-title">Statement<span class="accent-cyan">IQ</span> <span class="pro-tag">PRO</span></div>
-                    <div class="brand-subtitle">INSTITUTIONAL FINANCIAL ANALYSIS & RATIO BENCHMARKING</div>
+                    <div class="brand-title">Statement<span class="accent-cyan">IQ</span></div>
+                    <div class="brand-subtitle">FUNDAMENTALS & VALUATION</div>
                 </div>
             </div>
 
@@ -287,15 +295,10 @@
             <div class="search-controls">
                 <div class="search-input-wrapper">
                     <i data-lucide="search" class="search-icon"></i>
-                    <input type="text" id="tickerSearchInput" placeholder="Search Ticker (e.g. AAPL, MSFT, NVDA)..." value="AAPL" autocomplete="off" />
-                    <button id="searchBtn" class="btn-search">ANALYZE</button>
+                    <input type="text" id="tickerSearchInput" aria-label="Ticker symbol" placeholder="Search ticker" value="AAPL" autocomplete="off" />
+                    <button id="searchBtn" class="btn-search">Run analysis</button>
                 </div>
                 
-                <div class="api-key-wrapper">
-                    <i data-lucide="key" class="key-icon"></i>
-                    <input type="password" id="geminiApiKey" placeholder="Gemini API Key (Optional)" />
-                </div>
-
                 <!-- Theme Switcher -->
                 <button id="themeToggleBtn" class="btn-theme-toggle" title="Toggle Theme (Dark / Light)">
                     <i data-lucide="sun" id="themeIcon"></i>
@@ -303,9 +306,31 @@
             </div>
         </header>
 
+        <section id="analysisProgress" class="analysis-progress" aria-hidden="true">
+            <div class="analysis-progress-header">
+                <div class="analysis-progress-title-row">
+                    <span class="analysis-progress-pulse" aria-hidden="true"></span>
+                    <span id="analysisProgressTitle" class="analysis-progress-title">Preparing analysis</span>
+                </div>
+                <span id="analysisProgressElapsed" class="analysis-progress-elapsed">0:00 elapsed</span>
+            </div>
+            <div
+                id="analysisProgressTrack"
+                class="analysis-progress-track"
+                role="progressbar"
+                aria-label="Financial analysis progress"
+                aria-valuetext="Preparing analysis"
+            >
+                <span id="analysisProgressFill" class="analysis-progress-fill"></span>
+            </div>
+            <div id="analysisProgressStatus" class="analysis-progress-status" role="status" aria-live="polite">
+                Connecting to the financial engine…
+            </div>
+        </section>
+
         <!-- Preset Ticker Selector Ribbon -->
         <div class="ticker-ribbon" id="tickerRibbon">
-            <span class="ribbon-label"><i data-lucide="globe" class="inline-icon"></i> COVERED BLUECHIPS:</span>
+            <span class="ribbon-label"><i data-lucide="scan-search" class="inline-icon"></i> COVERAGE UNIVERSE</span>
             <!-- Dynamically loaded pills -->
         </div>
 
@@ -315,24 +340,26 @@
             <!-- Company Hero Header Banner -->
             <section class="hero-card">
                 <div class="hero-header-left">
+                    <div class="hero-eyebrow"><span class="live-dot"></span> Fundamental research / company overview</div>
                     <div class="company-title-row">
                         <h1 class="company-name" id="heroCompanyName">Apple Inc.</h1>
                         <span class="symbol-badge" id="heroSymbol">AAPL</span>
                         <span class="exchange-badge" id="heroExchange">NASDAQ</span>
                     </div>
                     <div class="meta-row">
-                        <span>Sector: <b id="heroSector">Technology</b></span>
-                        <span class="dot-separator">•</span>
-                        <span>Industry: <b id="heroIndustry">Consumer Electronics</b></span>
-                        <span class="dot-separator">•</span>
-                        <span>Currency: <b class="accent-cyan" id="heroCurrency">USD</b></span>
+                        <span>Sector <b id="heroSector">Technology</b></span>
+                        <span class="dot-separator">/</span>
+                        <span>Industry <b id="heroIndustry">Consumer Electronics</b></span>
+                        <span class="dot-separator">/</span>
+                        <span>Reporting currency <b class="accent-cyan" id="heroCurrency">USD</b></span>
                     </div>
+                    <div class="source-row" id="heroDataSource">Loading source details…</div>
                 </div>
 
                 <!-- Export Report Action -->
                 <div class="hero-actions">
                     <button id="downloadPdfBtn" class="btn-export-pdf">
-                        <i data-lucide="file-down"></i> EXPORT AUDIT REPORT (PDF)
+                        <i data-lucide="file-down"></i> Download research report
                     </button>
                 </div>
             </section>
@@ -407,13 +434,16 @@
             <!-- Navigation Tabs -->
             <div class="dashboard-tabs-nav">
                 <button class="tab-btn active" data-tab="tab1">
-                    <i data-lucide="brain-circuit"></i> Tab 1: Executive AI Briefing & Performance Trends
+                    <i data-lucide="layout-dashboard"></i>
+                    <span class="tab-copy"><strong>Executive overview</strong><small>Health, narrative & trends</small></span>
                 </button>
                 <button class="tab-btn" data-tab="tab2">
-                    <i data-lucide="sliders"></i> Tab 2: 10 Fundamental Financial Ratios
+                    <i data-lucide="gauge"></i>
+                    <span class="tab-copy"><strong>Ratio diagnostics</strong><small>Fundamentals & benchmarks</small></span>
                 </button>
                 <button class="tab-btn" data-tab="tab3">
-                    <i data-lucide="table"></i> Tab 3: Audited Financial Statements
+                    <i data-lucide="table-2"></i>
+                    <span class="tab-copy"><strong>Financial statements</strong><small>Reported source data</small></span>
                 </button>
             </div>
 
@@ -426,7 +456,7 @@
                         
                         <!-- Health Score Panel & Sub-Pillars Breakdown -->
                         <div class="glass-card score-panel">
-                            <div class="card-subtitle">DETERMINISTIC FINANCIAL HEALTH SCORE</div>
+                            <div class="card-subtitle">RULES-BASED MODEL SCORE</div>
                             <div id="healthGaugeChart" class="gauge-container"></div>
                             <div class="health-status-badge" id="healthStatusText">STRONG FINANCIAL HEALTH</div>
                             
@@ -438,14 +468,14 @@
                             </div>
                         </div>
 
-                        <!-- Executive AI Analyst Briefing -->
+                        <!-- Deterministic model briefing -->
                         <div class="glass-card ai-briefing-card">
                             <div class="ai-card-header">
-                                <span class="ai-chip"><i data-lucide="sparkles"></i> GEMINI ANALYST EXECUTIVE BRIEFING</span>
+                                <span class="ai-chip"><i data-lucide="list-checks"></i> MODEL BRIEFING</span>
                             </div>
                             <p class="ai-summary-text" id="aiExecutiveSummary">Loading financial assessment...</p>
                             <hr class="card-divider" />
-                            <div class="ai-section-title">PRIMARY SCORE DETERMINATION FACTORS</div>
+                            <div class="ai-section-title">WHAT IS DRIVING THE SCORE</div>
                             <p class="ai-rationale-text" id="aiScoreExplanation">Loading evaluation drivers...</p>
                         </div>
                     </div>
@@ -453,29 +483,50 @@
                     <!-- Strategic Strengths & Key Risks -->
                     <div class="strengths-risks-grid">
                         <div class="glass-card">
-                            <h3 class="card-title text-green"><i data-lucide="check-circle-2"></i> Key Operational & Financial Strengths</h3>
+                            <h3 class="card-title text-green"><i data-lucide="circle-check-big"></i> Strengths to underwrite</h3>
                             <div id="strengthsContainer"></div>
                         </div>
 
                         <div class="glass-card">
-                            <h3 class="card-title text-red"><i data-lucide="alert-triangle"></i> Key Risk Exposures & Vulnerabilities</h3>
+                            <h3 class="card-title text-red"><i data-lucide="triangle-alert"></i> Risks to monitor</h3>
                             <div id="weaknessesContainer"></div>
                         </div>
                     </div>
 
                     <!-- Performance Trend Charts Grid -->
-                    <h2 class="section-heading"><i data-lucide="line-chart"></i> Core Financial Performance Charts</h2>
+                    <h2 class="section-heading"><i data-lucide="chart-spline"></i> Performance through time</h2>
                     <div class="charts-grid">
                         <div class="glass-card chart-card">
+                            <div class="chart-card-header">
+                                <div>
+                                    <h3>Revenue &amp; net income</h3>
+                                    <p>USD billions</p>
+                                </div>
+                                <div class="chart-inspector" id="inspectorRevenue"></div>
+                            </div>
                             <div id="chartRevenueNetIncome" class="plotly-chart"></div>
                         </div>
                         <div class="glass-card chart-card">
+                            <div class="chart-card-header">
+                                <div>
+                                    <h3>Balance sheet liquidity</h3>
+                                    <p>Cash vs debt · USD billions</p>
+                                </div>
+                                <div class="chart-inspector" id="inspectorCashDebt"></div>
+                            </div>
                             <div id="chartCashVsDebt" class="plotly-chart"></div>
                         </div>
                     </div>
 
                     <div class="charts-grid-single">
                         <div class="glass-card chart-card">
+                            <div class="chart-card-header">
+                                <div>
+                                    <h3>Margin profile</h3>
+                                    <p>Gross margin vs net profit margin</p>
+                                </div>
+                                <div class="chart-inspector" id="inspectorMargins"></div>
+                            </div>
                             <div id="chartMargins" class="plotly-chart"></div>
                         </div>
                     </div>
@@ -485,8 +536,8 @@
                 <div class="tab-pane" id="tab2">
                     <div class="section-header-row">
                         <div>
-                            <h2 class="section-heading" style="margin:0;"><i data-lucide="bar-chart-3"></i> Categorized 10 Financial Ratios & Benchmark Audit</h2>
-                            <p class="section-subheading">Ratio metrics benchmarked against standard healthy corporate targets with visual progress indicators.</p>
+                            <h2 class="section-heading" style="margin:0;"><i data-lucide="scan-line"></i> Fundamental ratio diagnostics</h2>
+                            <p class="section-subheading">Ten core measures compared with practical corporate benchmarks.</p>
                         </div>
                     </div>
 
@@ -527,6 +578,6 @@
     </div>
 
     <!-- Script Entry -->
-    <script src="/static/app.js?v=final_fix_v100"></script>
+    <script src="/static/app.js?v=editorial_research_v14"></script>
 </body>
 </html>

@@ -72,14 +72,19 @@ def generate_pdf_report(company_name: str, symbol: str, metrics: Dict[str, Any],
 
     report_generated_at = datetime.utcnow().strftime("%B %d, %Y at %I:%M:%S %p UTC")
     ev_b = metrics.get("ev_breakdown", {})
-    market_data_as_of = ev_b.get("market_data_as_of", "Intraday Market Snapshot")
+    market_data_as_of = ev_b.get("market_data_as_of") or "Unavailable"
     
-    health_score = metrics.get("health_score", 50)
+    health_score = metrics.get("health_score")
 
-    header_text = Paragraph(f"<b>Financial Health & Valuation Report: {company_name} ({symbol})</b><br/><font size=8.5 color='#2563EB'>Audited Fundamentals with Live Market Valuation</font><br/><font size=6.5 color='#64748B'>Report Generated: {report_generated_at}<br/>Market Data Captured: {market_data_as_of}</font>", title_style)
+    header_text = Paragraph(f"<b>Financial Health & Valuation Report: {company_name} ({symbol})</b><br/><font size=8.5 color='#2563EB'>Provider-Sourced Fundamentals with Live Market Valuation</font><br/><font size=6.5 color='#64748B'>Report Generated: {report_generated_at}<br/>Market Data Captured: {market_data_as_of}</font>", title_style)
 
-    score_color = SUCCESS if health_score >= 80 else (WARNING if health_score >= 60 else DANGER)
-    score_box_html = f"<font size=16 color='{score_color.hexval()}'><b>{health_score}/100</b></font><br/><font size=6.5 color='#64748B'>Health & Valuation</font>"
+    if health_score is None:
+        score_color = colors.HexColor("#64748B")
+        score_display = "N/A"
+    else:
+        score_color = SUCCESS if health_score >= 80 else (WARNING if health_score >= 60 else DANGER)
+        score_display = f"{health_score}/100"
+    score_box_html = f"<font size=16 color='{score_color.hexval()}'><b>{score_display}</b></font><br/><font size=6.5 color='#64748B'>Rules-Based Model Score</font>"
     score_p = Paragraph(score_box_html, ParagraphStyle('ScoreP', align=TA_CENTER))
 
     header_table = Table([[header_text, score_p]], colWidths=[420, 120])
@@ -96,8 +101,8 @@ def generate_pdf_report(company_name: str, symbol: str, metrics: Dict[str, Any],
     elements.append(Spacer(1, 4))
     elements.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#E2E8F0"), spaceBefore=2, spaceAfter=4))
 
-    # Section 1: Audited SEC Financial Facts
-    elements.append(Paragraph(f"1. Audited Financial Statements & Balance Sheet Facts ({symbol})", section_heading))
+    # Section 1: Provider-sourced financial facts
+    elements.append(Paragraph(f"1. Source Financial Statements & Balance Sheet Facts ({symbol})", section_heading))
     raw_fin = metrics.get("raw_financials", {})
 
     def format_money(val):
@@ -107,8 +112,8 @@ def generate_pdf_report(company_name: str, symbol: str, metrics: Dict[str, Any],
     raw_table_data = [
         [
             Paragraph("<b>Financial Metric</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7, textColor=PRIMARY)),
-            Paragraph("<b>Audited Annual Value</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7, textColor=PRIMARY)),
-            Paragraph("<b>Statement Provenance Tag</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7, textColor=PRIMARY)),
+            Paragraph("<b>Latest Annual Value</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7, textColor=PRIMARY)),
+            Paragraph("<b>Source Statement Line</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7, textColor=PRIMARY)),
         ],
         [Paragraph("Net Sales (Revenue)", body_style), Paragraph(format_money(raw_fin.get("revenue")), body_style), Paragraph(f"{symbol} Income Statement | Total Revenue", body_style)],
         [Paragraph("Gross Margin Dollars", body_style), Paragraph(format_money(raw_fin.get("gross_profit")), body_style), Paragraph(f"{symbol} Income Statement | Gross Profit", body_style)],
@@ -217,7 +222,7 @@ def generate_pdf_report(company_name: str, symbol: str, metrics: Dict[str, Any],
         ],
         [
             Paragraph(f"<b>(-) Cash & Short-Term Investments:</b> {format_money(ev_b.get('cash_and_short_term'))}", body_style),
-            Paragraph(f"<b>(=) EBITDA Approximation:</b> <b>{format_money(ev_b.get('ebitda'))}</b>", body_style)
+            Paragraph(f"<b>(=) EBITDA:</b> <b>{format_money(ev_b.get('ebitda'))}</b> ({ev_b.get('ebitda_method') or 'method unavailable'})", body_style)
         ],
         [
             Paragraph(f"<b>(=) Enterprise Value:</b> <b>{format_money(ev_b.get('enterprise_value_std'))}</b>", body_style),
@@ -236,8 +241,8 @@ def generate_pdf_report(company_name: str, symbol: str, metrics: Dict[str, Any],
     elements.append(ev_table)
     elements.append(Spacer(1, 6))
 
-    # Section 4: AI Qualitative Analysis
-    elements.append(Paragraph("4. Executive Briefing & Contextual Financial Drivers", section_heading))
+    # Section 4: Deterministic contextual analysis
+    elements.append(Paragraph("4. Rules-Based Briefing & Contextual Financial Drivers", section_heading))
     exec_summary = ai_insights.get("executive_summary", "")
     elements.append(Paragraph(exec_summary, body_style))
     elements.append(Spacer(1, 4))
@@ -265,7 +270,7 @@ def generate_pdf_report(company_name: str, symbol: str, metrics: Dict[str, Any],
 
     # Footer note
     elements.append(Spacer(1, 6))
-    footer_p = Paragraph(f"<font color='#94A3B8'>StatementIQ Financial Analysis Report for {company_name} ({symbol}). Financial Health Score: {health_score}/100.</font>", ParagraphStyle('Foot', fontName='Helvetica-Oblique', fontSize=6.5, align=TA_CENTER))
+    footer_p = Paragraph(f"<font color='#94A3B8'>StatementIQ Financial Analysis Report for {company_name} ({symbol}). Rules-Based Model Score: {score_display}. Missing source values are shown as N/A.</font>", ParagraphStyle('Foot', fontName='Helvetica-Oblique', fontSize=6.5, align=TA_CENTER))
     elements.append(footer_p)
 
     doc.build(elements)

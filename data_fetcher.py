@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import requests
 import time
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
 PRESET_TICKERS = {
@@ -98,7 +99,9 @@ KNOWN_SECTORS = {
     "RTX": ("Industrials", "Aerospace & Defense", "RTX Corporation")
 }
 
-# 100% Reconciled Preset Profiles for Instant Switching
+# Legacy snapshot fixtures retained only for historical test/reference purposes.
+# Production requests never use these values: stale or hand-entered figures must
+# never be presented as live company data.
 REAL_COMPANY_PROFILES = {
     "AAPL": {
         "info": {
@@ -488,48 +491,71 @@ def fetch_stock_data(ticker_symbol: str) -> Dict[str, Any]:
         if now - cached_entry["timestamp"] < CACHE_TTL:
             return cached_entry["data"]
 
-    session = get_session()
     result = None
+    fetch_error = None
 
-    # Try live yfinance fetch first for dynamic non-preset tickers
-    if symbol not in REAL_COMPANY_PROFILES:
-        try:
-            ticker = yf.Ticker(symbol, session=session)
-            info = ticker.info or {}
+    # Every production request uses the live provider. Missing live fields remain
+    # missing; the application never falls back to static estimates or snapshots.
+    try:
+        ticker = yf.Ticker(symbol)
+        info = ticker.info or {}
+        income_stmt = ticker.financials if ticker.financials is not None and not ticker.financials.empty else ticker.income_stmt
+        balance_sheet = ticker.balance_sheet if ticker.balance_sheet is not None and not ticker.balance_sheet.empty else ticker.bs
+        cash_flow = ticker.cashflow if ticker.cashflow is not None and not ticker.cashflow.empty else ticker.cash_flow
+        history = ticker.history(period="1y")
 
-            if info and 'regularMarketPrice' in info and info.get('regularMarketPrice') is not None and 'marketCap' in info:
-                income_stmt = ticker.financials if ticker.financials is not None and not ticker.financials.empty else ticker.income_stmt
-                balance_sheet = ticker.balance_sheet if ticker.balance_sheet is not None and not ticker.balance_sheet.empty else ticker.bs
-                cash_flow = ticker.cashflow if ticker.cashflow is not None and not ticker.cashflow.empty else ticker.cash_flow
-                history = ticker.history(period="1y")
+        # Only fill descriptive labels from the maintained symbol directory. No
+        # numerical financial or market value is supplied by this mapping.
+        if symbol in KNOWN_SECTORS:
+            sec, ind, long_n = KNOWN_SECTORS[symbol]
+            info.setdefault("sector", sec)
+            info.setdefault("industry", ind)
+            info.setdefault("longName", long_n)
 
-                # Override missing sector or industry if present in KNOWN_SECTORS
-                if symbol in KNOWN_SECTORS:
-                    sec, ind, long_n = KNOWN_SECTORS[symbol]
-                    info["sector"] = sec
-                    info["industry"] = ind
-                    if not info.get("longName"):
-                        info["longName"] = long_n
+        market_time = info.get("regularMarketTime")
+        if market_time is not None:
+            try:
+                info["market_data_as_of"] = datetime.fromtimestamp(float(market_time), tz=timezone.utc).isoformat()
+            except (TypeError, ValueError, OSError):
+                info["market_data_as_of"] = None
+        else:
+            info["market_data_as_of"] = None
+        info["market_data_provider"] = "Yahoo Finance"
+        info["statement_data_provider"] = "Yahoo Finance"
+        info["data_source"] = "live"
 
-                sec = info.get("sector", "")
-                is_fin = symbol in {"JPM", "BRK-B", "BAC", "WFC", "C", "GS", "MS", "V", "MA", "AXP", "BLK"} or any(kw in str(sec).lower() for kw in ["financial", "bank", "insurance"])
+        sec = info.get("sector", "")
+        is_fin = symbol in {"JPM", "BRK-B", "BAC", "WFC", "C", "GS", "MS", "V", "MA", "AXP", "BLK"} or any(kw in str(sec).lower() for kw in ["financial", "bank", "insurance"])
 
-                if income_stmt is not None and not income_stmt.empty and balance_sheet is not None and not balance_sheet.empty:
-                    result = {
-                        "symbol": symbol,
-                        "is_financial_sector": is_fin,
-                        "info": info,
-                        "income_stmt": income_stmt,
-                        "balance_sheet": balance_sheet,
-                        "cash_flow": cash_flow if cash_flow is not None else pd.DataFrame(),
-                        "history": history if history is not None else pd.DataFrame(),
-                        "error": None
-                    }
-        except Exception:
-            pass
+        if income_stmt is not None and not income_stmt.empty and balance_sheet is not None and not balance_sheet.empty:
+            result = {
+                "symbol": symbol,
+                "is_financial_sector": is_fin,
+                "info": info,
+                "income_stmt": income_stmt,
+                "balance_sheet": balance_sheet,
+                "cash_flow": cash_flow if cash_flow is not None else pd.DataFrame(),
+                "history": history if history is not None else pd.DataFrame(),
+                "error": None
+            }
+        else:
+            fetch_error = "The live provider did not return complete income-statement and balance-sheet data."
+    except Exception as exc:
+        fetch_error = f"The live provider request failed: {exc}"
 
     if result is None:
-        result = build_from_company_profile(symbol)
+        sec, _, _ = KNOWN_SECTORS.get(symbol, ("", "", symbol))
+        is_fin = symbol in {"JPM", "BRK-B", "BAC", "WFC", "C", "GS", "MS", "V", "MA", "AXP", "BLK"} or any(kw in str(sec).lower() for kw in ["financial", "bank", "insurance"])
+        result = {
+            "symbol": symbol,
+            "is_financial_sector": is_fin,
+            "info": {"symbol": symbol, "data_source": "unavailable"},
+            "income_stmt": pd.DataFrame(),
+            "balance_sheet": pd.DataFrame(),
+            "cash_flow": pd.DataFrame(),
+            "history": pd.DataFrame(),
+            "error": f"Live financial data for {symbol} is unavailable. {fetch_error or ''} No substitute values were used.".strip()
+        }
 
     _CACHE[symbol] = {"timestamp": now, "data": result}
     return result
@@ -605,13 +631,9 @@ def build_from_company_profile(symbol: str) -> Dict[str, Any]:
         balance_sheet.loc["Total Debt", col] = prof["total_debt"][i]
         balance_sheet.loc["Stockholders Equity", col] = prof["equity"][i]
 
-    cash_flow = pd.DataFrame(index=[
-        "Operating Cash Flow", "Capital Expenditure", "Free Cash Flow"
-    ], columns=years)
-    for i, col in enumerate(years):
-        cash_flow.loc["Operating Cash Flow", col] = prof["net_income"][i] * 1.25
-        cash_flow.loc["Capital Expenditure", col] = -prof["revenue"][i] * 0.05
-        cash_flow.loc["Free Cash Flow", col] = (prof["net_income"][i] * 1.25) - (prof["revenue"][i] * 0.05)
+    # Cash-flow rows are intentionally not synthesized from revenue or net
+    # income. Legacy fixtures do not contain sourced cash-flow statement facts.
+    cash_flow = pd.DataFrame()
 
     return {
         "symbol": symbol,
@@ -623,4 +645,3 @@ def build_from_company_profile(symbol: str) -> Dict[str, Any]:
         "history": pd.DataFrame(),
         "error": None
     }
-

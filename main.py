@@ -25,6 +25,25 @@ app = FastAPI(title="StatementIQ Financial API")
 os.makedirs("static", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+
+def calculate_dividend_yield(info: Dict[str, Any], share_price: Optional[float]) -> Optional[float]:
+    """Return annual dividend yield as a decimal using two sourced fields.
+
+    The provider's dividendYield field has changed units across API versions, so
+    using dividendRate / price avoids silently displaying 100x the true yield.
+    """
+    annual_dividend = info.get("dividendRate")
+    try:
+        if annual_dividend is None or share_price is None:
+            return None
+        annual_dividend = float(annual_dividend)
+        share_price = float(share_price)
+        if annual_dividend < 0 or share_price <= 0:
+            return None
+        return annual_dividend / share_price
+    except (TypeError, ValueError):
+        return None
+
 def prewarm_cache():
     """Background task to pre-fetch preset bluechip tickers on startup."""
     print("⚡ Pre-warming financial data cache for preset tickers...")
@@ -75,6 +94,7 @@ def analyze_ticker(ticker: str = Query(..., description="Stock Ticker Symbol"), 
 
     info = stock_data.get("info", {})
     metrics = compute_metrics(stock_data)
+    share_price = info.get("regularMarketPrice") or info.get("currentPrice") or info.get("previousClose")
 
     company_name = info.get("longName") or info.get("shortName") or symbol
 
@@ -96,18 +116,26 @@ def analyze_ticker(ticker: str = Query(..., description="Stock Ticker Symbol"), 
         "symbol": symbol,
         "company_name": company_name,
         "info": {
-            "sector": info.get("sector", "General Industry"),
-            "industry": info.get("industry", "General Business"),
-            "currency": info.get("currency", "USD"),
-            "exchange": info.get("exchange", "US NASDAQ/NYSE"),
-            "price": info.get("regularMarketPrice") or info.get("currentPrice") or info.get("previousClose"),
+            "sector": info.get("sector"),
+            "industry": info.get("industry"),
+            "currency": info.get("currency"),
+            "exchange": info.get("exchange"),
+            "price": share_price,
             "market_cap": info.get("marketCap"),
-            "pe_ratio": info.get("trailingPE") or info.get("forwardPE"),
-            "ev_ebitda": info.get("enterpriseToEbitda"),
+            "enterprise_value": metrics["ev_breakdown"].get("enterprise_value_std"),
+            "pe_ratio": metrics["ratios"].get("pe_ratio"),
+            "ev_ebitda": metrics["ratios"].get("ev_ebitda"),
             "fifty_two_high": info.get("fiftyTwoWeekHigh"),
             "fifty_two_low": info.get("fiftyTwoWeekLow"),
-            "dividend_yield": info.get("dividendYield"),
+            "dividend_yield": calculate_dividend_yield(info, share_price),
             "target_price": info.get("targetMeanPrice"),
+        },
+        "data_quality": {
+            "source_mode": info.get("data_source"),
+            "statement_provider": info.get("statement_data_provider"),
+            "market_provider": info.get("market_data_provider"),
+            "market_data_as_of": info.get("market_data_as_of"),
+            "missing_values_policy": "Missing source values remain N/A; no static or estimated fallback is used."
         },
         "metrics": metrics,
         "ai_insights": ai_insights,
@@ -155,29 +183,29 @@ def prepare_charts_data(income_stmt: pd.DataFrame, balance_sheet: pd.DataFrame) 
         index_lower = [str(i).strip().lower() for i in income_stmt.index]
 
         for c in cols:
-            r, ni, gp = 0.0, 0.0, 0.0
+            r, ni, gp = None, None, None
             for name in ["Total Revenue", "Operating Revenue", "Revenue"]:
                 if name.lower() in index_lower:
                     val = income_stmt.loc[income_stmt.index[index_lower.index(name.lower())], c]
-                    r = float(val) if pd.notna(val) else 0.0
+                    r = float(val) if pd.notna(val) else None
                     break
             
             for name in ["Net Income", "Net Income Common Stockholders", "Net Income Continuous Operations"]:
                 if name.lower() in index_lower:
                     val = income_stmt.loc[income_stmt.index[index_lower.index(name.lower())], c]
-                    ni = float(val) if pd.notna(val) else 0.0
+                    ni = float(val) if pd.notna(val) else None
                     break
 
             for name in ["Gross Profit"]:
                 if name.lower() in index_lower:
                     val = income_stmt.loc[income_stmt.index[index_lower.index(name.lower())], c]
-                    gp = float(val) if pd.notna(val) else 0.0
+                    gp = float(val) if pd.notna(val) else None
                     break
 
-            rev_chart["revenue"].append(round(r / 1e9, 2))
-            rev_chart["net_income"].append(round(ni / 1e9, 2))
-            rev_chart["gross_margin"].append(round((gp / r) * 100, 1) if r != 0 else 0.0)
-            rev_chart["net_margin"].append(round((ni / r) * 100, 1) if r != 0 else 0.0)
+            rev_chart["revenue"].append(round(r / 1e9, 2) if r is not None else None)
+            rev_chart["net_income"].append(round(ni / 1e9, 2) if ni is not None else None)
+            rev_chart["gross_margin"].append(round((gp / r) * 100, 1) if gp is not None and r not in (None, 0) else None)
+            rev_chart["net_margin"].append(round((ni / r) * 100, 1) if ni is not None and r not in (None, 0) else None)
 
     if balance_sheet is not None and not balance_sheet.empty:
         cols = list(balance_sheet.columns)[:4]
@@ -188,21 +216,21 @@ def prepare_charts_data(income_stmt: pd.DataFrame, balance_sheet: pd.DataFrame) 
         index_lower = [str(i).strip().lower() for i in balance_sheet.index]
 
         for c in cols:
-            cash, debt = 0.0, 0.0
+            cash, debt = None, None
             for name in ["Cash And Cash Equivalents", "Cash Cash Equivalents And Short Term Investments", "Cash Financial"]:
                 if name.lower() in index_lower:
                     val = balance_sheet.loc[balance_sheet.index[index_lower.index(name.lower())], c]
-                    cash = float(val) if pd.notna(val) else 0.0
+                    cash = float(val) if pd.notna(val) else None
                     break
 
             for name in ["Total Debt", "Long Term Debt", "Current Debt"]:
                 if name.lower() in index_lower:
                     val = balance_sheet.loc[balance_sheet.index[index_lower.index(name.lower())], c]
-                    debt = float(val) if pd.notna(val) else 0.0
+                    debt = float(val) if pd.notna(val) else None
                     break
 
-            cash_debt_chart["cash"].append(round(cash / 1e9, 2))
-            cash_debt_chart["debt"].append(round(debt / 1e9, 2))
+            cash_debt_chart["cash"].append(round(cash / 1e9, 2) if cash is not None else None)
+            cash_debt_chart["debt"].append(round(debt / 1e9, 2) if debt is not None else None)
 
     return {
         "financial_performance": rev_chart,

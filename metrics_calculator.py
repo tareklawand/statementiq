@@ -44,37 +44,70 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
     gross_profit = get_row_value(income_stmt, ["Gross Profit"], col)
     net_income = get_row_value(income_stmt, ["Net Income", "Net Income Common Stockholders", "Net Income Continuous Operations"], col)
     operating_income = get_row_value(income_stmt, ["Operating Income", "Net Interest Income"], col)
-    depreciation_amortization = get_row_value(cash_flow, ["Depreciation & Amortization", "Depreciation And Amortization", "DepreciationAmortizationDepletion"], col) or 0.0
-    
-    ebitda = (operating_income + depreciation_amortization) if operating_income is not None else None
+    depreciation_amortization = get_row_value(cash_flow, ["Depreciation & Amortization", "Depreciation And Amortization", "DepreciationAmortizationDepletion"], col)
+    reported_ebitda = get_row_value(income_stmt, ["EBITDA", "Normalized EBITDA"], col)
+
+    # Never treat a missing D&A line as zero. Prefer reported EBITDA; otherwise
+    # derive it only when both inputs are explicitly available.
+    if reported_ebitda is not None:
+        ebitda = reported_ebitda
+        ebitda_method = "reported"
+    elif operating_income is not None and depreciation_amortization is not None:
+        ebitda = operating_income + depreciation_amortization
+        ebitda_method = "operating_income_plus_d_and_a"
+    else:
+        ebitda = None
+        ebitda_method = None
     
     total_assets = get_row_value(balance_sheet, ["Total Assets"], col)
     total_assets_prev = get_row_value(balance_sheet, ["Total Assets"], col + 1)
     
-    if total_assets is not None and total_assets_prev is not None:
-        avg_total_assets = (total_assets + total_assets_prev) / 2.0
-    else:
-        avg_total_assets = total_assets
+    avg_total_assets = (
+        (total_assets + total_assets_prev) / 2.0
+        if total_assets is not None and total_assets_prev is not None
+        else None
+    )
 
     current_assets = get_row_value(balance_sheet, ["Current Assets", "Total Current Assets"], col)
     current_liabilities = get_row_value(balance_sheet, ["Current Liabilities", "Total Current Liabilities"], col)
     
-    cash_and_equiv = get_row_value(balance_sheet, ["Cash And Cash Equivalents", "Cash Cash Equivalents And Short Term Investments", "Cash Financial"], col) or 0.0
-    current_marketable = get_row_value(balance_sheet, ["Other Short Term Investments"], col) or 0.0
-    cash_and_short_term = cash_and_equiv + current_marketable
-    
-    receivables = get_row_value(balance_sheet, ["Receivables", "Accounts Receivable"], col) or 0.0
-    vendor_nontrade = get_row_value(balance_sheet, ["Vendor Nontrade Receivables"], col) or 0.0
+    combined_cash_and_investments = get_row_value(balance_sheet, ["Cash Cash Equivalents And Short Term Investments"], col)
+    cash_and_equiv = get_row_value(balance_sheet, ["Cash And Cash Equivalents", "Cash Financial"], col)
+    current_marketable = get_row_value(balance_sheet, ["Other Short Term Investments"], col)
+    if combined_cash_and_investments is not None:
+        cash_and_short_term = combined_cash_and_investments
+    elif cash_and_equiv is not None:
+        cash_and_short_term = cash_and_equiv + (current_marketable if current_marketable is not None else 0.0)
+    else:
+        cash_and_short_term = None
+
+    accounts_receivable = get_row_value(balance_sheet, ["Accounts Receivable", "Current Receivables"], col)
+    aggregate_receivables = get_row_value(balance_sheet, ["Receivables"], col)
+    vendor_nontrade = get_row_value(balance_sheet, ["Vendor Nontrade Receivables"], col)
+    if aggregate_receivables is not None:
+        # Prefer the provider's aggregate current receivables line so disclosed
+        # components are neither omitted nor counted twice.
+        receivables = aggregate_receivables
+    elif accounts_receivable is not None:
+        receivables = accounts_receivable + (vendor_nontrade if vendor_nontrade is not None else 0.0)
+    else:
+        receivables = None
     inventory = get_row_value(balance_sheet, ["Inventory"], col)
-    
-    total_debt = get_row_value(balance_sheet, ["Total Debt", "Long Term Debt", "Current Debt"], col) or 0.0
+
+    total_debt = get_row_value(balance_sheet, ["Total Debt"], col)
+    if total_debt is None:
+        current_debt = get_row_value(balance_sheet, ["Current Debt", "Current Debt And Capital Lease Obligation"], col)
+        long_term_debt = get_row_value(balance_sheet, ["Long Term Debt", "Long Term Debt And Capital Lease Obligation"], col)
+        if current_debt is not None and long_term_debt is not None:
+            total_debt = current_debt + long_term_debt
     stockholder_equity = get_row_value(balance_sheet, ["Stockholders Equity", "Total Stockholder Equity", "Common Stock Equity"], col)
     stockholder_equity_prev = get_row_value(balance_sheet, ["Stockholders Equity", "Total Stockholder Equity"], col + 1)
     
-    if stockholder_equity is not None and stockholder_equity_prev is not None:
-        avg_stockholder_equity = (stockholder_equity + stockholder_equity_prev) / 2.0
-    else:
-        avg_stockholder_equity = stockholder_equity
+    avg_stockholder_equity = (
+        (stockholder_equity + stockholder_equity_prev) / 2.0
+        if stockholder_equity is not None and stockholder_equity_prev is not None
+        else None
+    )
 
     # Market Parameters
     market_cap = info.get("marketCap")
@@ -89,7 +122,11 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
         else:
             pe_ratio = None # Marked N/M (Not Meaningful) for loss-making companies
 
-    enterprise_value_std = (market_cap + total_debt - cash_and_short_term) if (market_cap is not None) else None
+    enterprise_value_std = (
+        market_cap + total_debt - cash_and_short_term
+        if market_cap is not None and total_debt is not None and cash_and_short_term is not None
+        else None
+    )
     
     ev_ebitda_std = None
     if enterprise_value_std is not None and ebitda is not None and ebitda > 0:
@@ -98,12 +135,20 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
     # Ratio Calculations (Full Float Precision or None)
     current_ratio = (current_assets / current_liabilities) if (current_assets is not None and current_liabilities is not None and current_liabilities > 0) else None
     
-    strict_quick_assets = cash_and_equiv + current_marketable + receivables + vendor_nontrade
-    quick_ratio = (strict_quick_assets / current_liabilities) if (current_liabilities is not None and current_liabilities > 0) else None
+    strict_quick_assets = (
+        cash_and_short_term + receivables
+        if cash_and_short_term is not None and receivables is not None
+        else None
+    )
+    quick_ratio = (
+        strict_quick_assets / current_liabilities
+        if strict_quick_assets is not None and current_liabilities is not None and current_liabilities > 0
+        else None
+    )
 
     # Debt-to-Equity: Not Meaningful if equity <= 0
     debt_to_equity = None
-    if stockholder_equity is not None and stockholder_equity > 0:
+    if total_debt is not None and stockholder_equity is not None and stockholder_equity > 0:
         debt_to_equity = total_debt / stockholder_equity
 
     gross_margin = (gross_profit / revenue) if (gross_profit is not None and revenue is not None and revenue > 0) else None
@@ -150,9 +195,11 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
             "operating_income": operating_income,
             "depreciation_amortization": depreciation_amortization,
             "ebitda": ebitda,
+            "ebitda_method": ebitda_method,
             "ev_ebitda_std": ev_ebitda_std,
-            "market_data_as_of": info.get("market_data_as_of", "Intraday Market Snapshot"),
-            "market_data_provider": info.get("market_data_provider", "Yahoo Finance / SEC EDGAR API")
+            "market_data_as_of": info.get("market_data_as_of"),
+            "market_data_provider": info.get("market_data_provider"),
+            "statement_data_provider": info.get("statement_data_provider")
         },
         "raw_financials": {
             "revenue": revenue,
@@ -164,6 +211,7 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
             "total_debt": total_debt,
             "stockholder_equity": stockholder_equity,
             "cash_and_equiv": cash_and_equiv,
+            "cash_and_short_term": cash_and_short_term,
             "current_assets": current_assets,
             "current_liabilities": current_liabilities,
             "inventory": inventory
@@ -344,9 +392,11 @@ def evaluate_financial_health(ratios: Dict[str, Optional[float]], is_financial_s
         max_possible_points = total_applicable_weight * 100.0
         final_score = int(round((total_weighted_points / max_possible_points) * 100.0))
     else:
-        final_score = 50
+        final_score = None
 
-    if final_score >= 80:
+    if final_score is None:
+        overall_status = "Insufficient Data"
+    elif final_score >= 80:
         overall_status = "Strong Financial Health & Valuation"
     elif final_score >= 60:
         overall_status = "Moderate Financial Health & Valuation"

@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "statementiq-site",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-18",
+  "vars": {
+    "BACKEND_ORIGIN": "https://statementiq-sacc.onrender.com"
+  },
+  "assets": {
+    "directory": "./static",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/health", "/static/*"]
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "upload_source_maps": true
+}

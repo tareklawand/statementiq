@@ -1,6 +1,8 @@
 import pytest
+import pandas as pd
+from pathlib import Path
 from fastapi.testclient import TestClient
-from main import app
+from main import app, prepare_charts_data, calculate_dividend_yield
 
 client = TestClient(app)
 
@@ -63,3 +65,31 @@ def test_download_pdf_endpoint():
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/pdf"
     assert len(response.content) > 1000
+
+
+def test_chart_missing_values_remain_null():
+    period = pd.Timestamp("2025-01-01")
+    income = pd.DataFrame({period: [100e9, None]}, index=["Total Revenue", "Net Income"])
+    balance = pd.DataFrame({period: [None, None]}, index=["Cash And Cash Equivalents", "Total Debt"])
+
+    charts = prepare_charts_data(income, balance)
+    perf = charts["financial_performance"]
+    cash_debt = charts["cash_vs_debt"]
+    assert perf["revenue"] == [100.0]
+    assert perf["net_income"] == [None]
+    assert perf["gross_margin"] == [None]
+    assert perf["net_margin"] == [None]
+    assert cash_debt["cash"] == [None]
+    assert cash_debt["debt"] == [None]
+
+
+def test_frontend_contains_no_numeric_fallbacks():
+    app_js = (Path(__file__).parents[1] / "static" / "app.js").read_text()
+    assert "market_cap * 1.1" not in app_js
+    assert 'else "0.55%"' not in app_js
+
+
+def test_dividend_yield_uses_rate_over_price_not_ambiguous_provider_units():
+    info = {"dividendRate": 1.04, "dividendYield": 0.33}
+    assert calculate_dividend_yield(info, 332.0) == pytest.approx(1.04 / 332.0)
+    assert calculate_dividend_yield({"dividendYield": 0.33}, 332.0) is None

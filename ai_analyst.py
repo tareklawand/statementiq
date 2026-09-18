@@ -19,7 +19,13 @@ COMPANY_SPECIFIC_INTELLIGENCE = {
     }
 }
 
-def generate_ai_insights(company_name: str, symbol: str, health_score: int, ratios_summary: Dict[str, Any], api_key: Optional[str] = None) -> Dict[str, Any]:
+def generate_ai_insights(company_name: str, symbol: str, health_score: Optional[int], ratios_summary: Dict[str, Any], api_key: Optional[str] = None) -> Dict[str, Any]:
+    # Deliberately use the deterministic path only. Free-form model output and
+    # ticker-specific snapshots can introduce claims that are not present in the
+    # current source dataset.
+    return generate_custom_ticker_insights(company_name, symbol, health_score, ratios_summary)
+
+    # Legacy implementation retained below for compatibility history only.
     effective_api_key = api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
 
     if effective_api_key:
@@ -73,7 +79,7 @@ Return ONLY raw JSON.
 
     return generate_custom_ticker_insights(company_name, symbol, health_score, ratios_summary)
 
-def generate_custom_ticker_insights(company_name: str, symbol: str, health_score: int, ratios_summary: Dict[str, Any]) -> Dict[str, Any]:
+def generate_custom_ticker_insights(company_name: str, symbol: str, health_score: Optional[int], ratios_summary: Dict[str, Any]) -> Dict[str, Any]:
     strengths = []
     weaknesses = []
 
@@ -101,13 +107,21 @@ def generate_custom_ticker_insights(company_name: str, symbol: str, health_score
         elif status == "N/A":
             pass
 
+    applicable_count = sum(
+        1 for item in ratios_summary.values()
+        if item.get("status") in ["Healthy", "Caution", "Warning"]
+    )
     if not strengths:
-        strengths.append(f"Stable operating baseline for {company_name} ({symbol}) across core reported business operations.")
+        strengths.append("No available ratio met the model's Healthy benchmark range.")
     if not weaknesses:
-        weaknesses.append(f"Macroeconomic sensitivity and competitive industry valuation dynamics for {company_name} ({symbol}).")
+        weaknesses.append("No available ratio fell in a Caution, Warning, or Not Meaningful category.")
 
-    summary = f"{company_name} ({symbol}) financial analysis based on audited Form 10-K balance sheet statements and market parameters. The company achieved a Financial Health & Valuation Score of {health_score}/100."
-    explanation = f"The Financial Health and Valuation Score of {health_score}/100 reflects a quantitative weighted scoring model evaluating 10 key liquidity, leverage, profitability, efficiency, and market valuation ratios."
+    if health_score is None:
+        summary = f"{company_name} ({symbol}) does not have enough applicable source fields to calculate a model health score. Missing inputs remain N/A and are not estimated."
+        explanation = f"{applicable_count} applicable ratios were available. A score is shown only when at least one weighted ratio can be calculated from reported inputs."
+    else:
+        summary = f"{company_name} ({symbol}) has {applicable_count} applicable calculated ratios and a rules-based model score of {health_score}/100. The score is an analytical classification, not a reported company figure."
+        explanation = f"The {health_score}/100 model score is the normalized weighted result for the {applicable_count} applicable ratios. Ratios marked N/A or N/M contribute no points and are excluded from the denominator."
 
     return {
         "executive_summary": summary,
@@ -115,4 +129,3 @@ def generate_custom_ticker_insights(company_name: str, symbol: str, health_score
         "top_weaknesses": weaknesses[:3],
         "score_explanation": explanation
     }
-
