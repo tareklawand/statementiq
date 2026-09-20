@@ -53,6 +53,12 @@
                 "@id": "https://statementiq-lb.com/#organization",
                 "name": "StatementIQ",
                 "url": "https://statementiq-lb.com/",
+                "email": "tareklawand06@hotmail.com",
+                "contactPoint": {
+                    "@type": "ContactPoint",
+                    "email": "tareklawand06@hotmail.com",
+                    "contactType": "customer support"
+                },
                 "logo": {
                     "@type": "ImageObject",
                     "url": "https://statementiq-lb.com/favicon-512.png",
@@ -323,7 +329,7 @@
         .val-positive { color: var(--accent-green); }
         .val-negative { color: var(--accent-red); }
     </style>
-    <link rel="stylesheet" href="/static/redesign.css?v=editorial_research_v15">
+    <link rel="stylesheet" href="/static/redesign.css?v=editorial_research_v16">
 </head>
 <body>
     <section class="intro-page" id="introPage" aria-labelledby="introTitle">
@@ -336,24 +342,32 @@
                         <div class="intro-brand-subtitle">FUNDAMENTALS &amp; VALUATION</div>
                     </div>
                 </div>
-                <button class="intro-nav-cta" type="button" data-open-workspace>
-                    Open workspace <i data-lucide="arrow-up-right"></i>
-                </button>
+                <div class="intro-nav-actions">
+                    <button class="btn-theme-toggle intro-theme-toggle" type="button" data-theme-toggle aria-label="Switch to dark mode" title="Switch to dark mode">
+                        <span class="theme-icon-stage" aria-hidden="true">
+                            <i data-lucide="sun" class="theme-icon theme-icon-sun"></i>
+                            <i data-lucide="moon" class="theme-icon theme-icon-moon"></i>
+                        </span>
+                    </button>
+                    <button class="intro-nav-cta" type="button" data-open-workspace>
+                        Open workspace <i data-lucide="arrow-up-right"></i>
+                    </button>
+                </div>
             </header>
 
             <main class="intro-main">
                 <div class="intro-copy">
-                    <div class="intro-kicker"><span></span> INSTITUTIONAL COMPANY RESEARCH</div>
-                    <h1 id="introTitle">Financial statements,<br><em>made decision-ready.</em></h1>
+                    <div class="intro-kicker"><span></span> COMPANY FUNDAMENTALS</div>
+                    <h1 id="introTitle">Financial statement analysis for public companies.</h1>
                     <p>
-                        StatementIQ turns reported company data into a clear view of financial health,
-                        valuation, operating performance, and the statements behind every conclusion.
+                        Enter a ticker to review reported financials, ratios, performance trends,
+                        and a rules-based financial health assessment.
                     </p>
                     <div class="intro-actions">
                         <button class="intro-primary-cta" type="button" data-open-workspace>
-                            Open research workspace <i data-lucide="arrow-right"></i>
+                            Analyze a company <i data-lucide="arrow-right"></i>
                         </button>
-                        <span>No login required. Start with a ticker.</span>
+                        <span>No account required.</span>
                     </div>
                 </div>
 
@@ -372,15 +386,15 @@
                     </div>
                     <div class="intro-map-step">
                         <span class="intro-step-index">03</span>
-                        <div><strong>Decision-ready briefing</strong><small>See the strengths, risks, and trends driving the assessment.</small></div>
+                        <div><strong>Model briefing</strong><small>See the strengths, risks, and trends behind the assessment.</small></div>
                     </div>
                     <div class="intro-map-footer">RULES-BASED ANALYSIS <span></span> SOURCE-AWARE OUTPUT</div>
                 </aside>
             </main>
 
             <footer class="intro-footer">
-                <span>STATEMENTIQ-LB.COM</span>
-                <span>FUNDAMENTAL RESEARCH / COMPANY ANALYSIS</span>
+                <span>&copy; 2026 StatementIQ</span>
+                <a href="mailto:tareklawand06@hotmail.com">Contact &amp; support <strong>tareklawand06@hotmail.com</strong></a>
             </footer>
         </div>
     </section>
@@ -408,8 +422,11 @@
                 </div>
                 
                 <!-- Theme Switcher -->
-                <button id="themeToggleBtn" class="btn-theme-toggle" title="Toggle Theme (Dark / Light)">
-                    <i data-lucide="sun" id="themeIcon"></i>
+                <button id="themeToggleBtn" class="btn-theme-toggle" type="button" data-theme-toggle aria-label="Switch to dark mode" title="Switch to dark mode">
+                    <span class="theme-icon-stage" aria-hidden="true">
+                        <i data-lucide="sun" class="theme-icon theme-icon-sun"></i>
+                        <i data-lucide="moon" class="theme-icon theme-icon-moon"></i>
+                    </span>
                 </button>
             </div>
         </header>
@@ -683,9 +700,14 @@
 
             </div>
         </main>
+
+        <footer class="workspace-footer">
+            <span>&copy; 2026 StatementIQ</span>
+            <a href="mailto:tareklawand06@hotmail.com">Contact &amp; support</a>
+        </footer>
     </div>
 
     <!-- Script Entry -->
-    <script src="/static/app.js?v=editorial_research_v15"></script>
+    <script src="/static/app.js?v=editorial_research_v16"></script>
 </body>
 </html>

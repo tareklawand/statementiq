@@ -2973,3 +2973,195 @@ body.intro-active {
         animation: none;
     }
 }
+
+/* ==========================================================================
+   Theme transition, restrained introduction copy, and contact details
+   ========================================================================== */
+
+.intro-nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.intro-theme-toggle {
+    flex: 0 0 auto;
+    width: 42px;
+    height: 42px;
+    background: color-mix(in srgb, var(--card-bg) 68%, transparent);
+}
+
+.theme-icon-stage {
+    position: relative;
+    display: block;
+    width: 19px;
+    height: 19px;
+}
+
+.theme-icon {
+    position: absolute;
+    inset: 0;
+    width: 19px;
+    height: 19px;
+    transform-origin: 50% 50%;
+    stroke-width: 1.75;
+    transition:
+        opacity 260ms ease,
+        transform 480ms cubic-bezier(.2, .78, .2, 1),
+        color 320ms ease;
+}
+
+html[data-theme="light"] .theme-icon-moon {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+}
+
+html[data-theme="light"] .theme-icon-sun {
+    opacity: 0;
+    transform: rotate(-110deg) scale(.35);
+}
+
+html[data-theme="dark"] .theme-icon-sun {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+}
+
+html[data-theme="dark"] .theme-icon-moon {
+    opacity: 0;
+    transform: rotate(110deg) scale(.35);
+}
+
+.btn-theme-toggle.is-theme-animating .theme-icon-stage {
+    animation: theme-icon-turn 500ms cubic-bezier(.2, .78, .2, 1);
+}
+
+@keyframes theme-icon-turn {
+    0%, 100% { transform: rotate(0deg) scale(1); }
+    48% { transform: rotate(70deg) scale(.78); }
+}
+
+.intro-copy h1 {
+    font-size: clamp(3.2rem, 5.4vw, 5.65rem);
+    letter-spacing: -0.058em;
+    line-height: .96;
+}
+
+.intro-footer a,
+.workspace-footer a {
+    color: inherit;
+    text-decoration: none;
+    transition: color 160ms ease;
+}
+
+.intro-footer a {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.intro-footer a strong {
+    color: var(--text-muted);
+    font-weight: 500;
+    letter-spacing: 0;
+}
+
+.intro-footer a:hover,
+.intro-footer a:hover strong,
+.workspace-footer a:hover {
+    color: var(--accent-cyan);
+}
+
+.workspace-footer {
+    display: flex;
+    min-height: 76px;
+    margin-top: 36px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    border-top: 1px solid var(--card-border);
+    color: var(--text-dark);
+    font-family: "DM Mono", monospace;
+    font-size: .58rem;
+    letter-spacing: .08em;
+}
+
+html.theme-view-transition::view-transition-old(root),
+html.theme-view-transition::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+}
+
+html.theme-view-transition::view-transition-old(root) {
+    z-index: 1;
+}
+
+html.theme-view-transition::view-transition-new(root) {
+    z-index: 2;
+    clip-path: circle(0 at var(--theme-switch-x) var(--theme-switch-y));
+    animation: theme-surface-reveal 560ms cubic-bezier(.2, .72, .18, 1) forwards;
+}
+
+@keyframes theme-surface-reveal {
+    to {
+        clip-path: circle(var(--theme-switch-radius) at var(--theme-switch-x) var(--theme-switch-y));
+    }
+}
+
+html.theme-color-transition * {
+    transition-property: color, background-color, border-color, box-shadow, fill, stroke;
+    transition-duration: 460ms;
+    transition-timing-function: cubic-bezier(.2, .72, .18, 1);
+}
+
+html.theme-color-transition .theme-icon {
+    transition:
+        opacity 260ms ease,
+        transform 480ms cubic-bezier(.2, .78, .2, 1),
+        color 320ms ease;
+}
+
+@media (max-width: 620px) {
+    .intro-nav-actions {
+        gap: 7px;
+    }
+
+    .intro-theme-toggle {
+        width: 38px;
+        height: 38px;
+    }
+
+    .intro-nav-cta {
+        min-width: 38px;
+    }
+
+    .intro-copy h1 {
+        font-size: clamp(2.9rem, 13.8vw, 4.25rem);
+        line-height: .98;
+    }
+
+    .intro-footer a {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .workspace-footer {
+        min-height: 90px;
+        align-items: flex-start;
+        flex-direction: column;
+        justify-content: center;
+        gap: 8px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .theme-icon,
+    .btn-theme-toggle.is-theme-animating .theme-icon-stage {
+        animation: none;
+        transition: none;
+    }
+
+    html.theme-view-transition::view-transition-new(root) {
+        animation-duration: 1ms;
+    }
+}
