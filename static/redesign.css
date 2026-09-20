@@ -1587,7 +1587,7 @@ html[data-theme="light"] {
     --input-border: rgba(31, 34, 28, 0.18);
     --text-main: #1e201c;
     --text-muted: #62655b;
-    --text-dark: #85877d;
+    --text-dark: #686b62;
     --accent-cyan: #4f7127;
     --accent-blue: #2f6fa3;
     --accent-indigo: #5e743c;
@@ -1622,7 +1622,7 @@ html[data-theme="dark"] {
     --input-border: rgba(238, 234, 224, 0.17);
     --text-main: #eeeae0;
     --text-muted: #aaa99f;
-    --text-dark: #76786e;
+    --text-dark: #95978d;
     --accent-cyan: #b4dc72;
     --accent-blue: #64ace8;
     --accent-indigo: #94bd62;
@@ -3164,4 +3164,98 @@ html.theme-color-transition .theme-icon {
     html.theme-view-transition::view-transition-new(root) {
         animation-duration: 1ms;
     }
+}
+
+/* ==========================================================================
+   Secondary-text readability
+   Keeps supporting copy subordinate without reducing it to fine print.
+   ========================================================================== */
+
+.brand-subtitle,
+.intro-brand-subtitle {
+    font-size: .66rem;
+    line-height: 1.35;
+}
+
+.analysis-progress-elapsed,
+.analysis-progress-status {
+    font-size: .7rem;
+}
+
+.ribbon-label,
+.hero-card::after,
+.hero-eyebrow,
+.kpi-label {
+    font-size: .66rem;
+}
+
+.source-row {
+    font-size: .72rem;
+    line-height: 1.55;
+}
+
+.tab-copy small {
+    margin-top: 3px;
+    font-size: .74rem;
+    line-height: 1.35;
+}
+
+.card-subtitle,
+.ai-chip,
+.ai-briefing-card .ai-section-title {
+    font-size: .7rem;
+}
+
+.ai-rationale-text {
+    color: var(--text-muted);
+    font-size: .82rem;
+    line-height: 1.72;
+}
+
+.chart-card-header p {
+    font-size: .68rem;
+    line-height: 1.45;
+}
+
+.inspector-metric {
+    font-size: .65rem;
+}
+
+.section-subheading {
+    font-size: .86rem;
+    line-height: 1.6;
+}
+
+.category-copy small,
+.category-count,
+.ratio-cat-tag,
+.status-pill {
+    font-size: .68rem;
+}
+
+.ratio-target-caption {
+    font-size: .73rem;
+    line-height: 1.55;
+}
+
+.intro-kicker,
+.intro-map-header,
+.intro-map-footer {
+    font-size: .68rem;
+}
+
+.intro-actions > span,
+.intro-map-step small {
+    font-size: .76rem;
+}
+
+.intro-footer,
+.workspace-footer {
+    color: var(--text-dark);
+    font-size: .74rem;
+    line-height: 1.45;
+}
+
+.intro-footer a strong {
+    color: var(--text-muted);
 }
