@@ -2,7 +2,17 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "statementiq-site",
   "main": "src/index.js",
-  "compatibility_date": "2026-09-18",
+  "compatibility_date": "2026-09-20",
+  "routes": [
+    {
+      "pattern": "statementiq-lb.com",
+      "custom_domain": true
+    },
+    {
+      "pattern": "www.statementiq-lb.com",
+      "custom_domain": true
+    }
+  ],
   "vars": {
     "BACKEND_ORIGIN": "https://statementiq-sacc.onrender.com"
   },
@@ -10,7 +20,7 @@
     "directory": "./static",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/health", "/static/*"]
+    "run_worker_first": true
   },
   "observability": {
     "enabled": true,
