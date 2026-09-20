@@ -323,10 +323,69 @@
         .val-positive { color: var(--accent-green); }
         .val-negative { color: var(--accent-red); }
     </style>
-    <link rel="stylesheet" href="/static/redesign.css?v=editorial_research_v14">
+    <link rel="stylesheet" href="/static/redesign.css?v=editorial_research_v15">
 </head>
 <body>
-    <div class="app-layout">
+    <section class="intro-page" id="introPage" aria-labelledby="introTitle">
+        <div class="intro-shell">
+            <header class="intro-nav">
+                <div class="intro-brand" aria-label="StatementIQ">
+                    <img src="/favicon.svg" alt="" aria-hidden="true">
+                    <div>
+                        <div class="intro-brand-name">Statement<span>IQ</span></div>
+                        <div class="intro-brand-subtitle">FUNDAMENTALS &amp; VALUATION</div>
+                    </div>
+                </div>
+                <button class="intro-nav-cta" type="button" data-open-workspace>
+                    Open workspace <i data-lucide="arrow-up-right"></i>
+                </button>
+            </header>
+
+            <main class="intro-main">
+                <div class="intro-copy">
+                    <div class="intro-kicker"><span></span> INSTITUTIONAL COMPANY RESEARCH</div>
+                    <h1 id="introTitle">Financial statements,<br><em>made decision-ready.</em></h1>
+                    <p>
+                        StatementIQ turns reported company data into a clear view of financial health,
+                        valuation, operating performance, and the statements behind every conclusion.
+                    </p>
+                    <div class="intro-actions">
+                        <button class="intro-primary-cta" type="button" data-open-workspace>
+                            Open research workspace <i data-lucide="arrow-right"></i>
+                        </button>
+                        <span>No login required. Start with a ticker.</span>
+                    </div>
+                </div>
+
+                <aside class="intro-research-map" aria-label="StatementIQ research workflow">
+                    <div class="intro-map-header">
+                        <span>RESEARCH WORKFLOW</span>
+                        <i data-lucide="scan-line"></i>
+                    </div>
+                    <div class="intro-map-step">
+                        <span class="intro-step-index">01</span>
+                        <div><strong>Reported statements</strong><small>Review source financial data across annual periods.</small></div>
+                    </div>
+                    <div class="intro-map-step">
+                        <span class="intro-step-index">02</span>
+                        <div><strong>Fundamental diagnostics</strong><small>Test liquidity, leverage, profitability, efficiency, and valuation.</small></div>
+                    </div>
+                    <div class="intro-map-step">
+                        <span class="intro-step-index">03</span>
+                        <div><strong>Decision-ready briefing</strong><small>See the strengths, risks, and trends driving the assessment.</small></div>
+                    </div>
+                    <div class="intro-map-footer">RULES-BASED ANALYSIS <span></span> SOURCE-AWARE OUTPUT</div>
+                </aside>
+            </main>
+
+            <footer class="intro-footer">
+                <span>STATEMENTIQ-LB.COM</span>
+                <span>FUNDAMENTAL RESEARCH / COMPANY ANALYSIS</span>
+            </footer>
+        </div>
+    </section>
+
+    <div class="app-layout" id="researchWorkspace" hidden>
         
         <!-- Top Institutional Header -->
         <header class="top-navbar">
@@ -627,6 +686,6 @@
     </div>
 
     <!-- Script Entry -->
-    <script src="/static/app.js?v=editorial_research_v14"></script>
+    <script src="/static/app.js?v=editorial_research_v15"></script>
 </body>
 </html>

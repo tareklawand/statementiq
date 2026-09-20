@@ -7,6 +7,48 @@ let analysisProgressToken = 0;
 let analysisProgressTimers = [];
 let analysisProgressClock = null;
 let analysisProgressStartedAt = 0;
+let workspaceInitialized = false;
+
+function initializeWorkspace() {
+    if (workspaceInitialized) return;
+    workspaceInitialized = true;
+    try { fetchPresets(); } catch(e){}
+    loadTickerData("AAPL");
+}
+
+function showExperienceView(view, updateHistory = false) {
+    const intro = document.getElementById("introPage");
+    const workspace = document.getElementById("researchWorkspace");
+    const showWorkspace = view === "workspace";
+    if (!intro || !workspace) return;
+
+    intro.hidden = showWorkspace;
+    workspace.hidden = !showWorkspace;
+    document.body.classList.toggle("intro-active", !showWorkspace);
+
+    if (updateHistory) {
+        const nextUrl = showWorkspace ? "#workspace" : window.location.pathname;
+        window.history.pushState({ statementiqView: view }, "", nextUrl);
+    }
+
+    window.scrollTo({ top: 0, behavior: "auto" });
+    if (showWorkspace) {
+        initializeWorkspace();
+        window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+    }
+}
+
+function setupExperienceGate() {
+    document.querySelectorAll("[data-open-workspace]").forEach(button => {
+        button.addEventListener("click", () => showExperienceView("workspace", true));
+    });
+
+    window.addEventListener("popstate", () => {
+        showExperienceView(window.location.hash === "#workspace" ? "workspace" : "intro");
+    });
+
+    showExperienceView(window.location.hash === "#workspace" ? "workspace" : "intro");
+}
 
 function themeColor(variable, fallback) {
     const value = getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
@@ -136,8 +178,7 @@ function initApp() {
     }
     try { lucide.createIcons(); } catch(e){}
     setupEventListeners();
-    try { fetchPresets(); } catch(e){}
-    loadTickerData("AAPL");
+    setupExperienceGate();
 }
 
 if (document.readyState === "loading") {

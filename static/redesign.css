@@ -1,4 +1,4 @@
-/* ========================================================================== 
+/* ==========================================================================
    StatementIQ — Institutional Research Workspace
    A restrained, editorial visual system for dense financial information.
    ========================================================================== */
@@ -2559,5 +2559,417 @@ html[data-theme="light"] .symbol-badge {
 
     .category-count {
         grid-column: 2;
+    }
+}
+
+/* ==========================================================================
+   Introduction experience and header precision fixes
+   ========================================================================== */
+
+[hidden] {
+    display: none !important;
+}
+
+.brand-logo-icon {
+    width: 40px;
+    height: 40px;
+    overflow: hidden;
+    border-radius: 9px;
+    background: #171c18;
+    box-shadow: none;
+}
+
+.brand-logo-icon img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.search-input-wrapper {
+    overflow: hidden;
+    border-radius: 9px;
+    background: var(--input-bg);
+    isolation: isolate;
+}
+
+.search-input-wrapper input {
+    border-radius: 0;
+}
+
+.btn-search {
+    border-radius: 7px;
+}
+
+.btn-theme-toggle {
+    border-radius: 9px;
+}
+
+body.intro-active {
+    min-height: 100vh;
+}
+
+.intro-page {
+    min-height: 100svh;
+    background:
+        radial-gradient(circle at 72% 18%, color-mix(in srgb, var(--accent-cyan) 9%, transparent), transparent 30%),
+        linear-gradient(var(--bg-grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px),
+        var(--bg-main);
+    background-size: auto, 42px 42px, 42px 42px, auto;
+}
+
+.intro-shell {
+    display: grid;
+    width: min(100%, 1440px);
+    min-height: 100svh;
+    margin: 0 auto;
+    padding: 0 clamp(20px, 4vw, 64px);
+    grid-template-rows: auto 1fr auto;
+}
+
+.intro-nav {
+    display: flex;
+    min-height: 88px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    border-bottom: 1px solid var(--card-border);
+}
+
+.intro-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.intro-brand img {
+    display: block;
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+}
+
+.intro-brand-name {
+    color: var(--text-main);
+    font-family: "Inter Tight", "Manrope", sans-serif;
+    font-size: 1.28rem;
+    font-weight: 650;
+    letter-spacing: -0.04em;
+    line-height: 1;
+}
+
+.intro-brand-name span {
+    color: var(--accent-cyan);
+}
+
+.intro-brand-subtitle {
+    margin-top: 5px;
+    color: var(--text-dark);
+    font-family: "Manrope", sans-serif;
+    font-size: 0.54rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+}
+
+.intro-nav-cta,
+.intro-primary-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    border: 0;
+    cursor: pointer;
+    font-weight: 750;
+    transition: transform 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+
+.intro-nav-cta {
+    min-height: 42px;
+    padding: 0 16px;
+    border: 1px solid var(--card-border);
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--card-bg) 68%, transparent);
+    color: var(--text-main);
+    font-size: 0.72rem;
+}
+
+.intro-nav-cta svg,
+.intro-primary-cta svg {
+    width: 16px;
+    height: 16px;
+}
+
+.intro-nav-cta:hover,
+.intro-primary-cta:hover {
+    transform: translateY(-1px);
+}
+
+.intro-main {
+    display: grid;
+    align-items: center;
+    gap: clamp(52px, 7vw, 110px);
+    padding: clamp(40px, 5vh, 72px) 0;
+    grid-template-columns: minmax(0, 1.12fr) minmax(340px, 0.88fr);
+}
+
+.intro-copy {
+    max-width: 760px;
+    animation: intro-rise 620ms cubic-bezier(.2, .75, .2, 1) both;
+}
+
+.intro-kicker {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 24px;
+    color: var(--text-dark);
+    font-family: "DM Mono", monospace;
+    font-size: 0.65rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+}
+
+.intro-kicker span {
+    width: 30px;
+    height: 1px;
+    background: var(--accent-cyan);
+}
+
+.intro-copy h1 {
+    max-width: 800px;
+    margin: 0;
+    color: var(--text-main);
+    font-family: "Inter Tight", "Manrope", sans-serif;
+    font-size: clamp(3.8rem, 6.4vw, 6.5rem);
+    font-weight: 600;
+    letter-spacing: -0.072em;
+    line-height: 0.92;
+}
+
+.intro-copy h1 em {
+    color: var(--accent-cyan);
+    font-style: normal;
+}
+
+.intro-copy > p {
+    max-width: 660px;
+    margin-top: 30px;
+    color: var(--text-muted);
+    font-size: clamp(1rem, 1.35vw, 1.14rem);
+    line-height: 1.75;
+}
+
+.intro-actions {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    margin-top: 34px;
+}
+
+.intro-primary-cta {
+    min-height: 52px;
+    padding: 0 21px;
+    border-radius: 10px;
+    background: var(--primary-fill);
+    color: var(--primary-ink);
+    font-size: 0.78rem;
+}
+
+.intro-actions > span {
+    color: var(--text-dark);
+    font-size: 0.72rem;
+}
+
+.intro-research-map {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--card-bg) 92%, transparent);
+    box-shadow: 0 28px 70px -55px rgba(0, 0, 0, 0.78);
+    animation: intro-rise 620ms 100ms cubic-bezier(.2, .75, .2, 1) both;
+}
+
+.intro-research-map::before {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 34%;
+    height: 2px;
+    background: var(--accent-cyan);
+    content: "";
+}
+
+.intro-map-header,
+.intro-map-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 20px;
+    color: var(--text-dark);
+    font-family: "DM Mono", monospace;
+    font-size: 0.62rem;
+    font-weight: 500;
+    letter-spacing: 0.09em;
+}
+
+.intro-map-header {
+    border-bottom: 1px solid var(--card-border);
+}
+
+.intro-map-header svg {
+    width: 17px;
+    height: 17px;
+    color: var(--accent-cyan);
+}
+
+.intro-map-step {
+    display: grid;
+    align-items: start;
+    gap: 18px;
+    padding: 24px 20px;
+    border-bottom: 1px solid var(--card-border);
+    grid-template-columns: 38px minmax(0, 1fr);
+}
+
+.intro-step-index {
+    color: var(--accent-cyan);
+    font-family: "DM Mono", monospace;
+    font-size: 0.69rem;
+    line-height: 1.55;
+}
+
+.intro-map-step strong,
+.intro-map-step small {
+    display: block;
+}
+
+.intro-map-step strong {
+    color: var(--text-main);
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.intro-map-step small {
+    margin-top: 7px;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    line-height: 1.55;
+}
+
+.intro-map-footer {
+    justify-content: flex-start;
+    gap: 10px;
+    padding-top: 16px;
+    padding-bottom: 16px;
+    font-size: 0.56rem;
+}
+
+.intro-map-footer span {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--accent-cyan);
+}
+
+.intro-footer {
+    display: flex;
+    min-height: 70px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    border-top: 1px solid var(--card-border);
+    color: var(--text-dark);
+    font-family: "DM Mono", monospace;
+    font-size: 0.56rem;
+    letter-spacing: 0.08em;
+}
+
+@keyframes intro-rise {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 960px) {
+    .intro-main {
+        grid-template-columns: 1fr;
+        gap: 54px;
+    }
+
+    .intro-research-map {
+        width: min(100%, 700px);
+    }
+}
+
+@media (max-width: 620px) {
+    .intro-shell {
+        padding: 0 18px;
+    }
+
+    .intro-nav {
+        min-height: 78px;
+    }
+
+    .intro-brand img {
+        width: 38px;
+        height: 38px;
+    }
+
+    .intro-brand-subtitle {
+        display: none;
+    }
+
+    .intro-nav-cta {
+        min-height: 38px;
+        padding: 0 12px;
+    }
+
+    .intro-main {
+        gap: 42px;
+        padding: 58px 0 52px;
+    }
+
+    .intro-kicker {
+        margin-bottom: 18px;
+        font-size: 0.58rem;
+    }
+
+    .intro-copy h1 {
+        font-size: clamp(3.25rem, 15.5vw, 4.75rem);
+    }
+
+    .intro-copy > p {
+        margin-top: 24px;
+    }
+
+    .intro-actions {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 12px;
+        margin-top: 28px;
+    }
+
+    .intro-primary-cta {
+        width: 100%;
+    }
+
+    .intro-map-step {
+        padding: 20px 17px;
+    }
+
+    .intro-footer {
+        align-items: flex-start;
+        flex-direction: column;
+        justify-content: center;
+        gap: 7px;
+        padding: 18px 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .intro-copy,
+    .intro-research-map {
+        animation: none;
     }
 }
