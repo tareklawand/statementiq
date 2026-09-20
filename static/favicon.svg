@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
   <title id="title">StatementIQ logo</title>
-  <desc id="desc">A geometric S shaped like financial statement lines with an insight dot.</desc>
-  <rect width="512" height="512" rx="112" fill="#171c18"/>
-  <rect x="18" y="18" width="476" height="476" rx="96" fill="none" stroke="#313a32" stroke-width="12"/>
-  <path d="M348 150H214c-42 0-70 24-70 61s25 57 67 57h90c42 0 67 20 67 58s-28 61-70 61H158"
-        fill="none" stroke="#c8f56c" stroke-width="54" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="374" cy="126" r="27" fill="#f2f4ec"/>
+  <desc id="desc">A lime insight symbol inside a warm white Q monogram.</desc>
+  <rect width="512" height="512" rx="88" fill="#171c18"/>
+  <circle cx="244" cy="248" r="128" fill="none" stroke="#f2f4ec" stroke-width="42"/>
+  <path d="M327 344l68 68" fill="none" stroke="#f2f4ec" stroke-width="42" stroke-linecap="round"/>
+  <path d="M244 222v94" fill="none" stroke="#c8f56c" stroke-width="38" stroke-linecap="round"/>
+  <circle cx="244" cy="174" r="21" fill="#c8f56c"/>
 </svg>
