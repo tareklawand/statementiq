@@ -480,6 +480,7 @@ function renderHeroBanner() {
         const sec = quality.sec_filing || {};
         const secFacts = quality.sec_fact_validation || {};
         const calculationCoverage = quality.calculation_coverage || {};
+        const marketCapMethod = (currentData.info || {}).market_cap_method;
         const warnings = Array.isArray(quality.warnings) ? quality.warnings : [];
         const basisText = [
             `Income: ${basis.income === "trailing_twelve_months" ? "TTM" : "latest annual"} through ${basis.income_period_end || "N/A"}`,
@@ -503,6 +504,9 @@ function renderHeroBanner() {
             basisText.push(
                 `Calculation inputs: ${calculationCoverage.available_core_input_count || 0}/${calculationCoverage.core_input_count} core inputs available`
             );
+        }
+        if (marketCapMethod === "current_price_times_provider_share_count") {
+            basisText.push("Market cap: calculated from current price × provider share count");
         }
         el("heroQualityDetails").innerHTML = `
             <div class="quality-basis">${basisText.map(text => `<span>${escapeHtml(text)}</span>`).join("")}</div>

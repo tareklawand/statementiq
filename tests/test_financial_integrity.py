@@ -241,3 +241,21 @@ def test_pe_uses_statement_diluted_eps_when_market_eps_is_missing():
     }
     result = compute_metrics(data)
     assert result["ratios"]["pe_ratio"] == 20.0
+
+
+def test_market_cap_uses_price_times_provider_share_count_when_direct_value_is_missing():
+    data = {
+        "symbol": "CAP",
+        "info": {
+            "regularMarketPrice": 25.0,
+            "sharesOutstanding": 40.0,
+            "sector": "Technology",
+        },
+        "income_stmt": pd.DataFrame(),
+        "balance_sheet": pd.DataFrame(),
+        "cash_flow": pd.DataFrame(),
+    }
+    result = compute_metrics(data)
+    assert result["ev_breakdown"]["market_cap"] == 1000.0
+    assert result["ev_breakdown"]["market_cap_method"] == "current_price_times_provider_share_count"
+    assert "market_cap" in result["calculation_coverage"]["available_core_inputs"]

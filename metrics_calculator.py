@@ -130,8 +130,18 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
     )
 
     # Market Parameters
-    market_cap = info.get("marketCap")
     share_price = info.get("regularMarketPrice") or info.get("currentPrice") or info.get("previousClose")
+    reported_market_cap = info.get("marketCap")
+    share_count = info.get("impliedSharesOutstanding") or info.get("sharesOutstanding")
+    if reported_market_cap is not None:
+        market_cap = reported_market_cap
+        market_cap_method = "provider_reported"
+    elif share_price is not None and share_count is not None and share_price > 0 and share_count > 0:
+        market_cap = share_price * share_count
+        market_cap_method = "current_price_times_provider_share_count"
+    else:
+        market_cap = None
+        market_cap_method = None
     eps_ttm = info.get("epsTrailingTwelveMonths")
     if eps_ttm is None:
         eps_ttm = get_row_value(income_stmt, ["Diluted EPS", "Diluted EPS Continuing Operations"], col)
@@ -398,6 +408,8 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
         "analysis_basis": analysis_basis,
         "ev_breakdown": {
             "market_cap": market_cap,
+            "market_cap_method": market_cap_method,
+            "share_count_used": share_count,
             "share_price": share_price,
             "eps_ttm": eps_ttm,
             "total_debt": total_debt,
