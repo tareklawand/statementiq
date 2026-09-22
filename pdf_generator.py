@@ -1,6 +1,6 @@
 import io
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
@@ -8,7 +8,13 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
 
-def generate_pdf_report(company_name: str, symbol: str, metrics: Dict[str, Any], ai_insights: Dict[str, Any]) -> io.BytesIO:
+def generate_pdf_report(
+    company_name: str,
+    symbol: str,
+    metrics: Dict[str, Any],
+    ai_insights: Dict[str, Any],
+    data_quality: Optional[Dict[str, Any]] = None,
+) -> io.BytesIO:
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -73,10 +79,18 @@ def generate_pdf_report(company_name: str, symbol: str, metrics: Dict[str, Any],
     report_generated_at = datetime.utcnow().strftime("%B %d, %Y at %I:%M:%S %p UTC")
     ev_b = metrics.get("ev_breakdown", {})
     market_data_as_of = ev_b.get("market_data_as_of") or "Unavailable"
+    market_currency = ev_b.get("market_currency") or ""
+    statement_currency = ev_b.get("statement_currency") or market_currency
+    data_quality = data_quality or {}
+    basis = data_quality.get("analysis_basis") or metrics.get("analysis_basis") or {}
+    sec_filing = data_quality.get("sec_filing") or {}
+    sec_fact_validation = data_quality.get("sec_fact_validation") or {}
+    calculation_coverage = data_quality.get("calculation_coverage") or metrics.get("calculation_coverage") or {}
+    integrity_hold_reason = data_quality.get("integrity_hold_reason")
     
     health_score = metrics.get("health_score")
 
-    header_text = Paragraph(f"<b>Financial Health & Valuation Report: {company_name} ({symbol})</b><br/><font size=8.5 color='#2563EB'>Provider-Sourced Fundamentals with Live Market Valuation</font><br/><font size=6.5 color='#64748B'>Report Generated: {report_generated_at}<br/>Market Data Captured: {market_data_as_of}</font>", title_style)
+    header_text = Paragraph(f"<b>Financial Health & Valuation Report: {company_name} ({symbol})</b><br/><font size=8.5 color='#2563EB'>Provider-Sourced Fundamentals with Current Market Valuation</font><br/><font size=6.5 color='#64748B'>Report Generated: {report_generated_at}<br/>Market Data Captured: {market_data_as_of}<br/>Income Basis: {basis.get('income', 'unavailable')} through {basis.get('income_period_end', 'unavailable')}<br/>Balance Sheet: {basis.get('balance_sheet', 'unavailable')} at {basis.get('balance_sheet_period_end', 'unavailable')}</font>", title_style)
 
     if health_score is None:
         score_color = colors.HexColor("#64748B")
@@ -105,14 +119,15 @@ def generate_pdf_report(company_name: str, symbol: str, metrics: Dict[str, Any],
     elements.append(Paragraph(f"1. Source Financial Statements & Balance Sheet Facts ({symbol})", section_heading))
     raw_fin = metrics.get("raw_financials", {})
 
-    def format_money(val):
+    def format_money(val, currency=statement_currency):
         if val is None: return "N/A"
-        return f"${val / 1e9:,.3f} Billion" if abs(val) >= 1e9 else f"${val / 1e6:,.2f} Million"
+        prefix = f"{currency} " if currency else ""
+        return f"{prefix}{val / 1e9:,.3f} Billion" if abs(val) >= 1e9 else f"{prefix}{val / 1e6:,.2f} Million"
 
     raw_table_data = [
         [
             Paragraph("<b>Financial Metric</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7, textColor=PRIMARY)),
-            Paragraph("<b>Latest Annual Value</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7, textColor=PRIMARY)),
+            Paragraph("<b>Analysis-Basis Value</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7, textColor=PRIMARY)),
             Paragraph("<b>Source Statement Line</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7, textColor=PRIMARY)),
         ],
         [Paragraph("Net Sales (Revenue)", body_style), Paragraph(format_money(raw_fin.get("revenue")), body_style), Paragraph(f"{symbol} Income Statement | Total Revenue", body_style)],
@@ -136,6 +151,38 @@ def generate_pdf_report(company_name: str, symbol: str, metrics: Dict[str, Any],
     ]))
     elements.append(raw_table)
     elements.append(Spacer(1, 6))
+
+    if sec_filing.get("status") == "verified":
+        elements.append(Paragraph(
+            f"<b>SEC filing recency check:</b> {sec_filing.get('form', 'filing')} filed {sec_filing.get('filed_date', 'date unavailable')} for report period {sec_filing.get('report_period', 'period unavailable')} (CIK {sec_filing.get('cik', 'unavailable')}). This verifies filing recency, not every standardized provider line item.",
+            body_style,
+        ))
+        elements.append(Spacer(1, 4))
+
+    if sec_fact_validation.get("status") == "matched":
+        elements.append(Paragraph(
+            f"<b>SEC numeric cross-check:</b> {sec_fact_validation.get('matched', 0)} of {sec_fact_validation.get('checked', 0)} comparable latest-quarter core facts matched SEC Company Facts within the stated tolerance.",
+            body_style,
+        ))
+        elements.append(Spacer(1, 4))
+    elif sec_fact_validation.get("status") == "mismatch":
+        mismatch_names = ", ".join(item.get("metric", "unknown") for item in sec_fact_validation.get("mismatches", []))
+        elements.append(Paragraph(
+            f"<b>SEC numeric cross-check warning:</b> Comparable facts did not match for {mismatch_names or 'one or more core metrics'}. Review the filing before relying on calculated results.",
+            body_style,
+        ))
+        elements.append(Spacer(1, 4))
+
+    if calculation_coverage.get("core_input_count"):
+        elements.append(Paragraph(
+            f"<b>Calculation input coverage:</b> {calculation_coverage.get('available_core_input_count', 0)} of {calculation_coverage.get('core_input_count')} core inputs were available. Missing values were not estimated.",
+            body_style,
+        ))
+        elements.append(Spacer(1, 4))
+
+    if integrity_hold_reason:
+        elements.append(Paragraph(f"<b>Score hold:</b> {integrity_hold_reason}", body_style))
+        elements.append(Spacer(1, 4))
 
     # Section 2: Core Financial Ratios
     elements.append(Paragraph("2. Calculated Financial Ratios with Explicit Weightings & Benchmarks", section_heading))
@@ -206,14 +253,14 @@ def generate_pdf_report(company_name: str, symbol: str, metrics: Dict[str, Any],
     elements.append(Paragraph("3. Market Valuation & Enterprise Value Breakdown", section_heading))
 
     price_val = ev_b.get("share_price")
-    price_str = f"${price_val:.2f}" if price_val else "N/A"
+    price_str = f"{market_currency} {price_val:.2f}" if price_val else "N/A"
     
     eve_val = ev_b.get("ev_ebitda_std")
     eve_str = f"{eve_val:.2f}x" if eve_val else "N/A"
 
     ev_box_data = [
         [
-            Paragraph(f"<b>Market Capitalization:</b> {format_money(ev_b.get('market_cap'))} (Share Price {price_str})", body_style),
+            Paragraph(f"<b>Market Capitalization:</b> {format_money(ev_b.get('market_cap'), market_currency)} (Share Price {price_str})", body_style),
             Paragraph(f"<b>Operating Income (EBIT):</b> {format_money(ev_b.get('operating_income'))}", body_style)
         ],
         [
@@ -270,7 +317,7 @@ def generate_pdf_report(company_name: str, symbol: str, metrics: Dict[str, Any],
 
     # Footer note
     elements.append(Spacer(1, 6))
-    footer_p = Paragraph(f"<font color='#94A3B8'>StatementIQ Financial Analysis Report for {company_name} ({symbol}). Rules-Based Model Score: {score_display}. Missing source values are shown as N/A.</font>", ParagraphStyle('Foot', fontName='Helvetica-Oblique', fontSize=6.5, align=TA_CENTER))
+    footer_p = Paragraph(f"<font color='#94A3B8'>StatementIQ Financial Analysis Report for {company_name} ({symbol}). Rules-Based Model Score: {score_display}. Missing source values are shown as N/A. This general research screen is not investment advice, a credit opinion, or a substitute for reviewing the complete filings.</font>", ParagraphStyle('Foot', fontName='Helvetica-Oblique', fontSize=6.5, align=TA_CENTER))
     elements.append(footer_p)
 
     doc.build(elements)

@@ -5,7 +5,7 @@ import os
 
 from data_fetcher import fetch_stock_data, PRESET_TICKERS
 from metrics_calculator import compute_metrics
-from ai_analyst import generate_ai_insights
+from deterministic_analyst import generate_ai_insights
 from charts import (
     plot_health_score_gauge,
     plot_revenue_net_income,

@@ -16,6 +16,12 @@ def test_health_endpoint():
     assert response.status_code == 200
     assert response.json() == {"status": "healthy", "service": "StatementIQ Engine"}
 
+
+def test_root_favicon_is_served_locally():
+    response = client.get("/favicon.svg")
+    assert response.status_code == 200
+    assert "svg" in response.headers["content-type"]
+
 def test_presets_endpoint():
     response = client.get("/api/presets")
     assert response.status_code == 200
@@ -33,6 +39,12 @@ def test_analyze_endpoint_aapl():
     assert "charts" in data
     assert "statements" in data
 
+
+def test_analyze_endpoint_rejects_malformed_ticker():
+    response = client.get("/api/analyze", params={"ticker": "AAPL<script>"})
+    assert response.status_code == 400
+    assert "valid public-company ticker" in response.json()["detail"]
+
 def test_analyze_endpoint_jpm_financial_sector():
     response = client.get("/api/analyze?ticker=JPM")
     assert response.status_code == 200
@@ -43,28 +55,20 @@ def test_analyze_endpoint_jpm_financial_sector():
     assert evals["current_ratio"]["status"] == "N/A"
 
 def test_download_pdf_endpoint():
-    payload = {
-        "symbol": "MSFT",
-        "company_name": "Microsoft Corporation",
-        "metrics": {
-            "health_score": 88,
-            "ev_breakdown": {"market_cap": 3000e9, "operating_income": 100e9, "total_debt": 50e9, "cash_and_short_term": 70e9},
-            "raw_financials": {"revenue": 240e9, "net_income": 80e9, "current_assets": 180e9, "current_liabilities": 100e9},
-            "ratio_evaluations": {
-                "net_margin": {"name": "Net Margin", "category": "Profitability", "value": 0.33, "status": "Healthy", "target": "Healthy ≥ 15%", "format": "{:.1%}", "pts": 1.0, "weight": 0.10, "w_pts": 10.0}
-            }
-        },
-        "ai_insights": {
-            "executive_summary": "Microsoft is a technology powerhouse.",
-            "top_strengths": ["High net margin", "Strong balance sheet"],
-            "top_weaknesses": ["Valuation multiples"]
-        }
-    }
+    payload = {"symbol": "MSFT"}
     
     response = client.post("/api/download-pdf", json=payload)
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/pdf"
     assert len(response.content) > 1000
+
+
+def test_download_pdf_rejects_client_supplied_financial_numbers():
+    response = client.post("/api/download-pdf", json={
+        "symbol": "MSFT",
+        "metrics": {"health_score": 100},
+    })
+    assert response.status_code == 422
 
 
 def test_chart_missing_values_remain_null():
@@ -87,6 +91,9 @@ def test_frontend_contains_no_numeric_fallbacks():
     app_js = (Path(__file__).parents[1] / "static" / "app.js").read_text()
     assert "market_cap * 1.1" not in app_js
     assert 'else "0.55%"' not in app_js
+    assert 'value !== null && value !== undefined && value !== ""' in app_js
+    assert 'return "percent"' in app_js
+    assert 'return "shares"' in app_js
 
 
 def test_dividend_yield_uses_rate_over_price_not_ambiguous_provider_units():

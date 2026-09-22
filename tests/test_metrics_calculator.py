@@ -62,11 +62,16 @@ def test_financial_institution_sector_rules():
     assert evals["quick_ratio"]["status"] == "N/A"
     assert evals["gross_margin"]["status"] == "N/A"
     assert evals["ev_ebitda"]["status"] == "N/A"
+    assert res["ev_breakdown"]["enterprise_value_std"] is None
+    assert res["ratios"]["ev_ebitda"] is None
     
-    # Financial sector evaluates applicable metrics
+    # Financial sector shows applicable diagnostics but withholds a misleading
+    # general-model headline score until regulatory metrics are available.
     assert evals["net_margin"]["status"] in ["Healthy", "Caution", "Warning"]
     assert evals["roa"]["status"] in ["Healthy", "Caution", "Warning"]
-    assert 0 <= res["health_score"] <= 100
+    assert res["health_score"] is None
+    assert res["health_status"] == "Verification Hold"
+    assert "sector-specific regulatory model" in res["score_coverage"]["withheld_reason"]
 
 def test_negative_eps_not_meaningful_pe():
     data = {

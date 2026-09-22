@@ -329,7 +329,7 @@
         .val-positive { color: var(--accent-green); }
         .val-negative { color: var(--accent-red); }
     </style>
-    <link rel="stylesheet" href="/static/redesign.css?v=editorial_research_v17">
+    <link rel="stylesheet" href="/static/redesign.css?v=financial_integrity_v20">
 </head>
 <body>
     <section class="intro-page" id="introPage" aria-labelledby="introTitle">
@@ -378,7 +378,7 @@
                     </div>
                     <div class="intro-map-step">
                         <span class="intro-step-index">01</span>
-                        <div><strong>Reported statements</strong><small>Review source financial data across annual periods.</small></div>
+                        <div><strong>Reported statements</strong><small>Review source financial data across annual and quarterly periods.</small></div>
                     </div>
                     <div class="intro-map-step">
                         <span class="intro-step-index">02</span>
@@ -394,6 +394,7 @@
 
             <footer class="intro-footer">
                 <span>&copy; 2026 StatementIQ</span>
+                <span class="footer-disclaimer">Research screening only. Not investment advice or a substitute for full filings.</span>
                 <a href="mailto:tareklawand06@hotmail.com">Contact &amp; support <strong>tareklawand06@hotmail.com</strong></a>
             </footer>
         </div>
@@ -479,6 +480,7 @@
                         <span>Reporting currency <b class="accent-cyan" id="heroCurrency">USD</b></span>
                     </div>
                     <div class="source-row" id="heroDataSource">Loading source details…</div>
+                    <div class="quality-details" id="heroQualityDetails" aria-live="polite"></div>
                 </div>
 
                 <!-- Export Report Action -->
@@ -541,7 +543,7 @@
 
                 <div class="kpi-card">
                     <div class="kpi-header">
-                        <span class="kpi-label">DIVIDEND YIELD</span>
+                        <span class="kpi-label">FORWARD DIVIDEND YIELD</span>
                         <i data-lucide="percent" class="kpi-icon"></i>
                     </div>
                     <div class="kpi-value" id="kpiDivYield">0.00%</div>
@@ -584,6 +586,8 @@
                             <div class="card-subtitle">RULES-BASED MODEL SCORE</div>
                             <div id="healthGaugeChart" class="gauge-container"></div>
                             <div class="health-status-badge" id="healthStatusText">STRONG FINANCIAL HEALTH</div>
+                            <div class="score-coverage" id="scoreCoverageText">Checking ratio coverage…</div>
+                            <p class="score-disclaimer">General screening benchmarks—not a peer valuation, credit opinion, or investment recommendation.</p>
                             
                             <hr class="card-divider" />
                             
@@ -625,7 +629,7 @@
                             <div class="chart-card-header">
                                 <div>
                                     <h3>Revenue &amp; net income</h3>
-                                    <p>USD billions</p>
+                                    <p id="chartRevenueUnits">Reporting currency · billions</p>
                                 </div>
                                 <div class="chart-inspector" id="inspectorRevenue"></div>
                             </div>
@@ -635,7 +639,7 @@
                             <div class="chart-card-header">
                                 <div>
                                     <h3>Balance sheet liquidity</h3>
-                                    <p>Cash vs debt · USD billions</p>
+                                    <p id="chartLiquidityUnits">Cash vs debt · reporting currency billions</p>
                                 </div>
                                 <div class="chart-inspector" id="inspectorCashDebt"></div>
                             </div>
@@ -662,22 +666,39 @@
                     <div class="section-header-row">
                         <div>
                             <h2 class="section-heading" style="margin:0;"><i data-lucide="scan-line"></i> Fundamental ratio diagnostics</h2>
-                            <p class="section-subheading">Ten core measures compared with practical corporate benchmarks.</p>
+                            <p class="section-subheading">Ten scored diagnostics with explicit formulas, plus unscored cash-flow and growth measures.</p>
                         </div>
                     </div>
 
                     <div id="ratiosCategoriesContainer">
                         <!-- Dynamically populated ratio cards -->
                     </div>
+
+                    <section class="supplemental-metrics-section" aria-labelledby="supplementalMetricsTitle">
+                        <div class="supplemental-heading">
+                            <div>
+                                <span>ADDITIONAL ANALYSIS</span>
+                                <h3 id="supplementalMetricsTitle">Cash flow, coverage &amp; growth</h3>
+                            </div>
+                            <p>Shown for analysis only. These values do not alter the rules-based score.</p>
+                        </div>
+                        <div class="supplemental-metrics-grid" id="supplementalMetricsContainer"></div>
+                    </section>
                 </div>
 
                 <!-- TAB 3: RAW FINANCIAL STATEMENTS -->
                 <div class="tab-pane" id="tab3">
                     <div class="statements-controls-bar">
-                        <div class="statement-selector">
-                            <button class="stmt-btn active" data-stmt="income_statement">Income Statement</button>
-                            <button class="stmt-btn" data-stmt="balance_sheet">Balance Sheet</button>
-                            <button class="stmt-btn" data-stmt="cash_flow">Cash Flow Statement</button>
+                        <div class="statement-control-groups">
+                            <div class="statement-frequency-selector" aria-label="Statement frequency">
+                                <button class="stmt-frequency-btn active" data-frequency="annual">Annual</button>
+                                <button class="stmt-frequency-btn" data-frequency="quarterly">Quarterly</button>
+                            </div>
+                            <div class="statement-selector">
+                                <button class="stmt-btn active" data-stmt="income_statement">Income Statement</button>
+                                <button class="stmt-btn" data-stmt="balance_sheet">Balance Sheet</button>
+                                <button class="stmt-btn" data-stmt="cash_flow">Cash Flow Statement</button>
+                            </div>
                         </div>
 
                         <div class="statement-right-actions">
@@ -692,6 +713,7 @@
                     </div>
 
                     <div class="glass-card table-card">
+                        <p class="statement-units-note">Currency rows use the reporting currency shown above. Per-share, percentage, and share-count rows are labeled separately.</p>
                         <div class="table-responsive" id="statementTableContainer">
                             <!-- Dynamically generated financial table -->
                         </div>
@@ -703,11 +725,12 @@
 
         <footer class="workspace-footer">
             <span>&copy; 2026 StatementIQ</span>
+            <span class="footer-disclaimer">Research screening only. Verify the full filings before making an investment decision.</span>
             <a href="mailto:tareklawand06@hotmail.com">Contact &amp; support</a>
         </footer>
     </div>
 
     <!-- Script Entry -->
-    <script src="/static/app.js?v=editorial_research_v16"></script>
+    <script src="/static/app.js?v=financial_integrity_v21"></script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 import pytest
-from ai_analyst import generate_ai_insights, generate_custom_ticker_insights
+from deterministic_analyst import generate_ai_insights, generate_custom_ticker_insights
 
 def test_ai_insights_structure():
     ratios_summary = {
@@ -29,3 +29,18 @@ def test_fallback_insights_no_gemini_key():
     assert "Tesla, Inc. (TSLA)" in res["executive_summary"]
     assert len(res["top_strengths"]) >= 1
     assert len(res["top_weaknesses"]) >= 1
+
+
+def test_verification_hold_is_explained_without_investment_conclusion():
+    ratios_summary = {
+        "net_margin": {"name": "Net Margin", "value": 0.2, "status": "Healthy", "target": "Healthy ≥ 15%", "format": "{:.1%}"},
+    }
+    res = generate_ai_insights(
+        "Example Bank",
+        "BANK",
+        None,
+        ratios_summary,
+        score_coverage={"withheld_reason": "A sector-specific regulatory model is required."},
+    )
+    assert "not publishing a headline score" in res["executive_summary"]
+    assert "not a negative investment opinion" in res["score_explanation"]

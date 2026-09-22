@@ -25,17 +25,21 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
     symbol = (data.get("symbol") or info.get("symbol") or "").strip().upper()
     sector = info.get("sector", "")
     
-    # Financial Services Sector Detection (Banks, Insurers, Conglomerates)
-    financial_tickers = {"JPM", "BRK-B", "BAC", "WFC", "C", "GS", "MS", "V", "MA", "AXP", "BLK"}
+    # Only actual financial institutions use the institution-specific model.
+    # Payment networks (for example Visa and Mastercard) remain in the standard
+    # corporate model even though their broad market sector is Financial Services.
+    financial_tickers = {"JPM", "BRK-B", "BAC", "WFC", "C", "GS", "MS"}
+    industry = str(info.get("industry") or "").lower()
     is_financial_sector = (
         symbol in financial_tickers or
         data.get("is_financial_sector", False) or
-        any(kw in str(sector).lower() for kw in ["financial", "bank", "insurance"])
+        any(kw in industry for kw in ["bank", "insurance", "capital markets", "financial conglomerate"])
     )
 
-    income_stmt = data.get("income_stmt", pd.DataFrame())
-    balance_sheet = data.get("balance_sheet", pd.DataFrame())
-    cash_flow = data.get("cash_flow", pd.DataFrame())
+    income_stmt = data.get("analysis_income_stmt", data.get("income_stmt", pd.DataFrame()))
+    balance_sheet = data.get("analysis_balance_sheet", data.get("balance_sheet", pd.DataFrame()))
+    cash_flow = data.get("analysis_cash_flow", data.get("cash_flow", pd.DataFrame()))
+    analysis_basis = data.get("analysis_basis") or {}
     
     col = 0
     
@@ -59,8 +63,17 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
         ebitda = None
         ebitda_method = None
     
+    # For TTM returns, compare the latest quarter-end balance with the same
+    # quarter one year earlier. Annual fallback compares consecutive year ends.
+    if analysis_basis.get("balance_sheet") == "latest_quarter":
+        previous_balance_col = 4 if balance_sheet.shape[1] >= 5 else None
+    else:
+        previous_balance_col = 1 if balance_sheet.shape[1] >= 2 else None
     total_assets = get_row_value(balance_sheet, ["Total Assets"], col)
-    total_assets_prev = get_row_value(balance_sheet, ["Total Assets"], col + 1)
+    total_assets_prev = (
+        get_row_value(balance_sheet, ["Total Assets"], previous_balance_col)
+        if previous_balance_col is not None else None
+    )
     
     avg_total_assets = (
         (total_assets + total_assets_prev) / 2.0
@@ -101,7 +114,14 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
         if current_debt is not None and long_term_debt is not None:
             total_debt = current_debt + long_term_debt
     stockholder_equity = get_row_value(balance_sheet, ["Stockholders Equity", "Total Stockholder Equity", "Common Stock Equity"], col)
-    stockholder_equity_prev = get_row_value(balance_sheet, ["Stockholders Equity", "Total Stockholder Equity"], col + 1)
+    stockholder_equity_prev = (
+        get_row_value(
+            balance_sheet,
+            ["Stockholders Equity", "Total Stockholder Equity", "Common Stock Equity"],
+            previous_balance_col,
+        )
+        if previous_balance_col is not None else None
+    )
     
     avg_stockholder_equity = (
         (stockholder_equity + stockholder_equity_prev) / 2.0
@@ -113,6 +133,15 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
     market_cap = info.get("marketCap")
     share_price = info.get("regularMarketPrice") or info.get("currentPrice") or info.get("previousClose")
     eps_ttm = info.get("epsTrailingTwelveMonths")
+    if eps_ttm is None:
+        eps_ttm = get_row_value(income_stmt, ["Diluted EPS", "Diluted EPS Continuing Operations"], col)
+    market_currency = info.get("currency")
+    statement_currency = info.get("financialCurrency") or market_currency
+    currencies_compatible = (
+        not market_currency or
+        not statement_currency or
+        str(market_currency).upper() == str(statement_currency).upper()
+    )
     
     # Valuation Multiples
     pe_ratio = None
@@ -122,11 +151,13 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
         else:
             pe_ratio = None # Marked N/M (Not Meaningful) for loss-making companies
 
-    enterprise_value_std = (
-        market_cap + total_debt - cash_and_short_term
-        if market_cap is not None and total_debt is not None and cash_and_short_term is not None
-        else None
-    )
+    enterprise_value_std = None
+    if not is_financial_sector and currencies_compatible:
+        enterprise_value_std = (
+            market_cap + total_debt - cash_and_short_term
+            if market_cap is not None and total_debt is not None and cash_and_short_term is not None
+            else None
+        )
     
     ev_ebitda_std = None
     if enterprise_value_std is not None and ebitda is not None and ebitda > 0:
@@ -152,6 +183,7 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
         debt_to_equity = total_debt / stockholder_equity
 
     gross_margin = (gross_profit / revenue) if (gross_profit is not None and revenue is not None and revenue > 0) else None
+    operating_margin = (operating_income / revenue) if (operating_income is not None and revenue is not None and revenue > 0) else None
     net_margin = (net_income / revenue) if (net_income is not None and revenue is not None and revenue > 0) else None
 
     # ROE: Not Meaningful if avg_equity <= 0
@@ -161,6 +193,134 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
 
     roa = (net_income / avg_total_assets) if (net_income is not None and avg_total_assets is not None and avg_total_assets > 0) else None
     asset_turnover = (revenue / avg_total_assets) if (revenue is not None and avg_total_assets is not None and avg_total_assets > 0) else None
+
+    operating_cash_flow = get_row_value(cash_flow, ["Operating Cash Flow", "Total Cash From Operating Activities"], col)
+    capital_expenditure = get_row_value(cash_flow, ["Capital Expenditure", "Capital Expenditures"], col)
+    reported_free_cash_flow = get_row_value(cash_flow, ["Free Cash Flow"], col)
+    if reported_free_cash_flow is not None:
+        free_cash_flow = reported_free_cash_flow
+        free_cash_flow_method = "reported"
+    elif operating_cash_flow is not None and capital_expenditure is not None:
+        # Normalize provider sign conventions: capex may be a negative outflow
+        # or a positive amount spent.
+        free_cash_flow = (
+            operating_cash_flow + capital_expenditure
+            if capital_expenditure < 0
+            else operating_cash_flow - capital_expenditure
+        )
+        free_cash_flow_method = "operating_cash_flow_less_capital_spending"
+    else:
+        free_cash_flow = None
+        free_cash_flow_method = None
+
+    interest_expense = get_row_value(
+        income_stmt,
+        ["Interest Expense", "Interest Expense Non Operating", "Net Non Operating Interest Income Expense"],
+        col,
+    )
+    interest_coverage = None
+    if operating_income is not None and interest_expense is not None and abs(interest_expense) > 0:
+        interest_coverage = operating_income / abs(interest_expense)
+
+    debt_to_ebitda = (
+        total_debt / ebitda
+        if total_debt is not None and ebitda is not None and ebitda > 0
+        else None
+    )
+    net_debt = (
+        total_debt - cash_and_short_term
+        if total_debt is not None and cash_and_short_term is not None
+        else None
+    )
+    net_debt_to_ebitda = (
+        net_debt / ebitda
+        if net_debt is not None and ebitda is not None and ebitda > 0
+        else None
+    )
+    working_capital = (
+        current_assets - current_liabilities
+        if current_assets is not None and current_liabilities is not None
+        else None
+    )
+    free_cash_flow_margin = (
+        free_cash_flow / revenue
+        if free_cash_flow is not None and revenue is not None and revenue > 0
+        else None
+    )
+    cash_conversion = (
+        operating_cash_flow / net_income
+        if operating_cash_flow is not None and net_income is not None and net_income > 0
+        else None
+    )
+    free_cash_flow_yield = (
+        free_cash_flow / market_cap
+        if currencies_compatible and free_cash_flow is not None and market_cap is not None and market_cap > 0
+        else None
+    )
+    cash_ratio = (
+        cash_and_short_term / current_liabilities
+        if cash_and_short_term is not None and current_liabilities is not None and current_liabilities > 0
+        else None
+    )
+
+    # Operating cash flow, EBITDA leverage, and interest coverage do not carry
+    # the same interpretation for deposit-taking banks and insurers because
+    # financing flows and interest are part of ordinary operations.
+    if is_financial_sector:
+        operating_cash_flow_display = None
+        free_cash_flow_display = None
+        free_cash_flow_margin = None
+        operating_margin = None
+        cash_conversion = None
+        interest_coverage = None
+        debt_to_ebitda = None
+        net_debt = None
+        net_debt_to_ebitda = None
+        free_cash_flow_yield = None
+        cash_ratio = None
+    else:
+        operating_cash_flow_display = operating_cash_flow
+        free_cash_flow_display = free_cash_flow
+
+    annual_income = data.get("income_stmt", pd.DataFrame())
+    annual_revenue = get_row_value(annual_income, ["Total Revenue", "Operating Revenue", "Revenue"], 0)
+    prior_annual_revenue = get_row_value(annual_income, ["Total Revenue", "Operating Revenue", "Revenue"], 1)
+    annual_net_income = get_row_value(annual_income, ["Net Income", "Net Income Common Stockholders", "Net Income Continuous Operations"], 0)
+    prior_annual_net_income = get_row_value(annual_income, ["Net Income", "Net Income Common Stockholders", "Net Income Continuous Operations"], 1)
+    revenue_growth = (
+        annual_revenue / prior_annual_revenue - 1.0
+        if annual_revenue is not None and prior_annual_revenue is not None and prior_annual_revenue > 0
+        else None
+    )
+    net_income_growth = (
+        annual_net_income / prior_annual_net_income - 1.0
+        if annual_net_income is not None and prior_annual_net_income is not None and prior_annual_net_income > 0
+        else None
+    )
+
+    revenue_cagr = None
+    if annual_income is not None and not annual_income.empty and annual_income.shape[1] >= 3:
+        oldest_index = min(3, annual_income.shape[1] - 1)
+        oldest_revenue = get_row_value(annual_income, ["Total Revenue", "Operating Revenue", "Revenue"], oldest_index)
+        try:
+            newest_period = pd.Timestamp(annual_income.columns[0])
+            oldest_period = pd.Timestamp(annual_income.columns[oldest_index])
+            year_span = (newest_period - oldest_period).days / 365.25
+        except Exception:
+            year_span = float(oldest_index)
+        if (
+            annual_revenue is not None and annual_revenue > 0 and
+            oldest_revenue is not None and oldest_revenue > 0 and year_span > 0
+        ):
+            revenue_cagr = (annual_revenue / oldest_revenue) ** (1.0 / year_span) - 1.0
+
+    diluted_shares = get_row_value(annual_income, ["Diluted Average Shares", "Diluted Weighted Average Shares"], 0)
+    prior_diluted_shares = get_row_value(annual_income, ["Diluted Average Shares", "Diluted Weighted Average Shares"], 1)
+    diluted_share_change = (
+        diluted_shares / prior_diluted_shares - 1.0
+        if diluted_shares is not None and prior_diluted_shares is not None and prior_diluted_shares > 0
+        else None
+    )
 
     ratios = {
         "current_ratio": current_ratio,
@@ -177,6 +337,49 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
 
     # Evaluate Benchmarks and Calculate Deterministic Score
     health_evaluation = evaluate_financial_health(ratios, is_financial_sector=is_financial_sector, eps_ttm=eps_ttm, equity=stockholder_equity)
+    integrity_hold_reason = data.get("integrity_hold_reason")
+    if is_financial_sector and not integrity_hold_reason:
+        integrity_hold_reason = "Headline score withheld because financial institutions require a sector-specific regulatory model."
+    if integrity_hold_reason:
+        health_evaluation["score"] = None
+        health_evaluation["status"] = "Verification Hold"
+        health_evaluation["coverage"]["sufficient_for_score"] = False
+        health_evaluation["coverage"]["withheld_reason"] = integrity_hold_reason
+
+    core_inputs = {
+        "revenue": revenue,
+        "gross_profit": gross_profit,
+        "operating_income": operating_income,
+        "net_income": net_income,
+        "total_assets": total_assets,
+        "stockholders_equity": stockholder_equity,
+        "current_assets": current_assets,
+        "current_liabilities": current_liabilities,
+        "cash_and_short_term_investments": cash_and_short_term,
+        "total_debt": total_debt,
+        "operating_cash_flow": operating_cash_flow,
+        "capital_expenditure": capital_expenditure,
+        "trailing_eps": eps_ttm,
+        "market_cap": market_cap,
+    }
+    available_core_inputs = [name for name, value in core_inputs.items() if value is not None]
+    missing_core_inputs = [name for name, value in core_inputs.items() if value is None]
+
+    formula_map = {
+        "current_ratio": "Current assets / current liabilities",
+        "quick_ratio": "(Cash + short-term investments + receivables) / current liabilities",
+        "debt_to_equity": "Total debt / stockholders' equity",
+        "gross_margin": "Gross profit / revenue",
+        "net_margin": "Net income / revenue",
+        "roe": "Net income / average stockholders' equity",
+        "roa": "Net income / average total assets",
+        "asset_turnover": "Revenue / average total assets",
+        "pe_ratio": "Current share price / trailing-twelve-month diluted EPS",
+        "ev_ebitda": "(Market cap + debt - cash and short-term investments) / EBITDA",
+    }
+    for key, item in health_evaluation["evaluations"].items():
+        item["formula"] = formula_map.get(key)
+        item["period_basis"] = analysis_basis
 
     return {
         "symbol": symbol,
@@ -184,7 +387,15 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
         "ratios": ratios,
         "health_score": health_evaluation["score"],
         "health_status": health_evaluation["status"],
+        "score_coverage": health_evaluation["coverage"],
+        "calculation_coverage": {
+            "available_core_input_count": len(available_core_inputs),
+            "core_input_count": len(core_inputs),
+            "available_core_inputs": available_core_inputs,
+            "missing_core_inputs": missing_core_inputs,
+        },
         "ratio_evaluations": health_evaluation["evaluations"],
+        "analysis_basis": analysis_basis,
         "ev_breakdown": {
             "market_cap": market_cap,
             "share_price": share_price,
@@ -199,7 +410,30 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
             "ev_ebitda_std": ev_ebitda_std,
             "market_data_as_of": info.get("market_data_as_of"),
             "market_data_provider": info.get("market_data_provider"),
-            "statement_data_provider": info.get("statement_data_provider")
+            "statement_data_provider": info.get("statement_data_provider"),
+            "market_currency": market_currency,
+            "statement_currency": statement_currency,
+            "currencies_compatible": currencies_compatible,
+        },
+        "supplemental_metrics": {
+            "working_capital": working_capital,
+            "cash_ratio": cash_ratio,
+            "operating_cash_flow": operating_cash_flow_display,
+            "capital_expenditure": capital_expenditure,
+            "free_cash_flow": free_cash_flow_display,
+            "free_cash_flow_method": free_cash_flow_method,
+            "free_cash_flow_margin": free_cash_flow_margin,
+            "free_cash_flow_yield": free_cash_flow_yield,
+            "cash_conversion": cash_conversion,
+            "interest_coverage": interest_coverage,
+            "debt_to_ebitda": debt_to_ebitda,
+            "net_debt": net_debt,
+            "net_debt_to_ebitda": net_debt_to_ebitda,
+            "operating_margin": operating_margin,
+            "annual_revenue_growth": revenue_growth,
+            "annual_net_income_growth": net_income_growth,
+            "revenue_cagr": revenue_cagr,
+            "diluted_share_change": diluted_share_change,
         },
         "raw_financials": {
             "revenue": revenue,
@@ -207,14 +441,22 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
             "net_income": net_income,
             "operating_income": operating_income,
             "depreciation_amortization": depreciation_amortization,
+            "ebitda": ebitda,
             "total_assets": total_assets,
+            "average_total_assets": avg_total_assets,
             "total_debt": total_debt,
             "stockholder_equity": stockholder_equity,
+            "average_stockholder_equity": avg_stockholder_equity,
             "cash_and_equiv": cash_and_equiv,
             "cash_and_short_term": cash_and_short_term,
+            "receivables": receivables,
             "current_assets": current_assets,
             "current_liabilities": current_liabilities,
-            "inventory": inventory
+            "inventory": inventory,
+            "operating_cash_flow": operating_cash_flow,
+            "capital_expenditure": capital_expenditure,
+            "free_cash_flow": free_cash_flow,
+            "interest_expense": interest_expense,
         }
     }
 
@@ -387,8 +629,15 @@ def evaluate_financial_health(ratios: Dict[str, Optional[float]], is_financial_s
         else:
             add_eval("ev_ebitda", "EV/EBITDA", "Valuation", None, "N/A", "Data Unavailable", "{:.2f}", 0.0, 0.0)
 
-    # Calculate final normalized score
-    if total_applicable_weight > 0:
+    applicable_count = sum(
+        1 for item in evaluations.values()
+        if item["status"] in ["Healthy", "Caution", "Warning"]
+    )
+    minimum_required = 4 if is_financial_sector else 6
+
+    # A normalized score based on one or two surviving ratios creates false
+    # precision. Publish a score only after a minimum coverage threshold.
+    if total_applicable_weight > 0 and applicable_count >= minimum_required:
         max_possible_points = total_applicable_weight * 100.0
         final_score = int(round((total_weighted_points / max_possible_points) * 100.0))
     else:
@@ -397,14 +646,20 @@ def evaluate_financial_health(ratios: Dict[str, Optional[float]], is_financial_s
     if final_score is None:
         overall_status = "Insufficient Data"
     elif final_score >= 80:
-        overall_status = "Strong Financial Health & Valuation"
+        overall_status = "Strong Rules-Based Screen"
     elif final_score >= 60:
-        overall_status = "Moderate Financial Health & Valuation"
+        overall_status = "Moderate Rules-Based Screen"
     else:
-        overall_status = "Weak Financial Health & Valuation"
+        overall_status = "Weak Rules-Based Screen"
 
     return {
         "score": final_score,
         "status": overall_status,
-        "evaluations": evaluations
+        "evaluations": evaluations,
+        "coverage": {
+            "applicable_ratio_count": applicable_count,
+            "model_ratio_count": len(evaluations),
+            "minimum_required": minimum_required,
+            "sufficient_for_score": final_score is not None,
+        },
     }

@@ -877,6 +877,23 @@ html[data-theme="dark"] .kpi-value.accent-green {
     text-align: center;
 }
 
+.score-coverage {
+    margin-top: 7px;
+    color: var(--text-muted);
+    font-size: .72rem;
+    line-height: 1.4;
+    text-align: center;
+}
+
+.score-disclaimer {
+    max-width: 330px;
+    margin: 9px auto 0;
+    color: var(--text-dark);
+    font-size: .7rem;
+    line-height: 1.55;
+    text-align: center;
+}
+
 .pillars-container {
     display: flex;
     flex-direction: column;
@@ -2466,6 +2483,15 @@ html[data-theme="light"] .symbol-badge {
     border-radius: 4px;
 }
 
+.statement-units-note {
+    margin: 0;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--card-border);
+    color: var(--text-muted);
+    font-size: .72rem;
+    line-height: 1.45;
+}
+
 @media (max-width: 1120px) {
     .top-navbar {
         top: 0;
@@ -3085,6 +3111,13 @@ html[data-theme="dark"] .theme-icon-moon {
     letter-spacing: .08em;
 }
 
+.footer-disclaimer {
+    max-width: 520px;
+    color: var(--text-muted);
+    text-align: center;
+    letter-spacing: 0;
+}
+
 html.theme-view-transition::view-transition-old(root),
 html.theme-view-transition::view-transition-new(root) {
     animation: none;
@@ -3194,6 +3227,148 @@ html.theme-color-transition .theme-icon {
     line-height: 1.55;
 }
 
+.quality-details {
+    margin-top: 10px;
+    max-width: 920px;
+    color: var(--text-muted);
+    font-size: .72rem;
+    line-height: 1.55;
+}
+
+.quality-basis {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.quality-basis span {
+    padding: 5px 8px;
+    border: 1px solid var(--card-border);
+    border-radius: 4px;
+    background: var(--card-soft);
+}
+
+.quality-warning {
+    margin-top: 7px;
+    padding-left: 10px;
+    border-left: 2px solid var(--accent-amber);
+    color: var(--text-dark);
+}
+
+.supplemental-metrics-section {
+    margin-top: 36px;
+    padding-top: 24px;
+    border-top: 1px solid var(--card-border);
+}
+
+.supplemental-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 16px;
+}
+
+.supplemental-heading span {
+    color: var(--accent-cyan);
+    font-family: "DM Mono", monospace;
+    font-size: .64rem;
+    letter-spacing: .12em;
+}
+
+.supplemental-heading h3 {
+    margin-top: 5px;
+    color: var(--text-main);
+    font-size: 1.18rem;
+}
+
+.supplemental-heading p {
+    max-width: 420px;
+    color: var(--text-muted);
+    font-size: .75rem;
+    line-height: 1.5;
+    text-align: right;
+}
+
+.supplemental-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1px;
+    overflow: hidden;
+    border: 1px solid var(--card-border);
+    border-radius: 4px;
+    background: var(--card-border);
+}
+
+.supplemental-card {
+    min-height: 142px;
+    padding: 18px;
+    background: var(--card-bg);
+}
+
+.supplemental-card span,
+.supplemental-card small {
+    display: block;
+    color: var(--text-muted);
+    font-size: .72rem;
+    line-height: 1.45;
+}
+
+.supplemental-card strong {
+    display: block;
+    margin: 10px 0 8px;
+    color: var(--text-main);
+    font-family: "DM Mono", monospace;
+    font-size: 1.25rem;
+    font-weight: 500;
+}
+
+.statement-control-groups {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.statement-frequency-selector {
+    display: flex;
+    gap: 2px;
+    padding: 4px;
+    border: 1px solid var(--input-border);
+    border-radius: 2px;
+    background: var(--input-bg);
+}
+
+.stmt-frequency-btn {
+    min-height: 36px;
+    padding: 0 11px;
+    border: 0;
+    border-radius: 1px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: .7rem;
+    font-weight: 700;
+}
+
+.stmt-frequency-btn.active {
+    background: var(--card-raised);
+    box-shadow: inset 0 0 0 1px var(--card-border);
+    color: var(--text-main);
+}
+
+@media (max-width: 900px) {
+    .supplemental-metrics-grid { grid-template-columns: 1fr 1fr; }
+    .supplemental-heading,
+    .statement-control-groups { align-items: stretch; flex-direction: column; }
+    .supplemental-heading p { text-align: left; }
+}
+
+@media (max-width: 560px) {
+    .supplemental-metrics-grid { grid-template-columns: 1fr; }
+    .statement-frequency-selector { width: 100%; }
+    .stmt-frequency-btn { flex: 1; }
+}
+
 .tab-copy small {
     margin-top: 3px;
     font-size: .74rem;
@@ -3236,6 +3411,13 @@ html.theme-color-transition .theme-icon {
 .ratio-target-caption {
     font-size: .73rem;
     line-height: 1.55;
+}
+
+.ratio-formula {
+    margin-top: 8px;
+    color: var(--text-muted);
+    font-size: .7rem;
+    line-height: 1.45;
 }
 
 .intro-kicker,

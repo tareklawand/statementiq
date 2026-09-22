@@ -3,31 +3,52 @@ import json
 import io
 import sys
 import threading
+import re
+from contextlib import asynccontextmanager
 import pandas as pd
 import numpy as np
 
 sys.path.append('/Users/tareklawand/Library/Python/3.9/lib/python/site-packages')
 
 from fastapi import FastAPI, Query, HTTPException
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, Dict, Any
 
 from data_fetcher import fetch_stock_data, PRESET_TICKERS
 from metrics_calculator import compute_metrics
-from ai_analyst import generate_ai_insights
+from deterministic_analyst import generate_ai_insights
 from pdf_generator import generate_pdf_report
 
-app = FastAPI(title="StatementIQ Financial API")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    threading.Thread(target=prewarm_cache, daemon=True).start()
+    yield
+
+
+app = FastAPI(title="StatementIQ Financial API", lifespan=lifespan)
 
 # Mount static files directory
 os.makedirs("static", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+TICKER_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9.\-]{0,23}$")
+
+
+def normalize_ticker(value: str) -> str:
+    symbol = (value or "").strip().upper()
+    if not TICKER_PATTERN.fullmatch(symbol):
+        raise HTTPException(
+            status_code=400,
+            detail="Enter a valid public-company ticker using letters, numbers, a period, or a hyphen.",
+        )
+    return symbol
+
 
 def calculate_dividend_yield(info: Dict[str, Any], share_price: Optional[float]) -> Optional[float]:
-    """Return annual dividend yield as a decimal using two sourced fields.
+    """Return forward annualized dividend yield from rate and current price.
 
     The provider's dividendYield field has changed units across API versions, so
     using dividendRate / price avoids silently displaying 100x the true yield.
@@ -45,18 +66,13 @@ def calculate_dividend_yield(info: Dict[str, Any], share_price: Optional[float])
         return None
 
 def prewarm_cache():
-    """Background task to pre-fetch preset bluechip tickers on startup."""
-    print("⚡ Pre-warming financial data cache for preset tickers...")
-    for label, symbol in PRESET_TICKERS.items():
-        try:
-            fetch_stock_data(symbol)
-        except Exception:
-            pass
-    print("✅ Pre-warming complete!")
-
-@app.on_event("startup")
-def startup_event():
-    threading.Thread(target=prewarm_cache, daemon=True).start()
+    """Warm only the default company without loading every statement into RAM."""
+    print("⚡ Pre-warming default financial data...")
+    try:
+        fetch_stock_data("AAPL")
+    except Exception:
+        pass
+    print("✅ Default pre-warm complete!")
 
 @app.get("/", response_class=HTMLResponse)
 def read_root():
@@ -67,6 +83,7 @@ def read_root():
             headers = {"Cache-Control": "no-cache, no-store, must-revalidate, max-age=0"}
             return HTMLResponse(content=f.read(), headers=headers)
     return "<h1>StatementIQ UI loading...</h1>"
+
 
 @app.get("/health")
 def health_check():
@@ -79,16 +96,33 @@ def get_presets():
     return {"presets": PRESET_TICKERS}
 
 
+@app.get("/{asset_name}", include_in_schema=False)
+def read_root_asset(asset_name: str):
+    """Serve root-level public assets consistently in local and edge hosting."""
+    allowed_assets = {
+        "favicon.svg", "favicon.ico", "favicon-iq-48.png", "favicon-48.png",
+        "favicon-512.png", "apple-touch-icon.png", "robots.txt", "sitemap.xml",
+    }
+    if asset_name not in allowed_assets:
+        raise HTTPException(status_code=404, detail="Not found")
+    asset_path = os.path.join("static", asset_name)
+    if not os.path.exists(asset_path):
+        raise HTTPException(status_code=404, detail="Not found")
+    return FileResponse(asset_path)
+
+
 @app.get("/api/analyze")
-def analyze_ticker(ticker: str = Query(..., description="Stock Ticker Symbol"), api_key: Optional[str] = Query(None)):
+def analyze_ticker(
+    ticker: str = Query(..., description="Stock Ticker Symbol"),
+    refresh: bool = Query(False, description="Bypass the short-lived data cache"),
+    api_key: Optional[str] = Query(None),
+):
     """
     Fetches financial data, computes 10 ratios, health score, chart data, and AI insights.
     """
-    symbol = ticker.strip().upper()
-    if not symbol:
-        raise HTTPException(status_code=400, detail="Invalid ticker symbol.")
+    symbol = normalize_ticker(ticker)
 
-    stock_data = fetch_stock_data(symbol)
+    stock_data = fetch_stock_data(symbol, force_refresh=refresh)
     if stock_data.get("error"):
         raise HTTPException(status_code=400, detail=stock_data["error"])
 
@@ -103,14 +137,22 @@ def analyze_ticker(ticker: str = Query(..., description="Stock Ticker Symbol"), 
         symbol=symbol,
         health_score=metrics["health_score"],
         ratios_summary=metrics["ratio_evaluations"],
-        api_key=api_key
+        api_key=api_key,
+        score_coverage=metrics.get("score_coverage"),
     )
 
     income_stmt = stock_data.get("income_stmt", pd.DataFrame())
     balance_sheet = stock_data.get("balance_sheet", pd.DataFrame())
     
     charts_data = prepare_charts_data(income_stmt, balance_sheet)
-    statements_data = prepare_statements_data(income_stmt, balance_sheet, stock_data.get("cash_flow", pd.DataFrame()))
+    statements_data = prepare_statements_data(
+        income_stmt,
+        balance_sheet,
+        stock_data.get("cash_flow", pd.DataFrame()),
+        stock_data.get("quarterly_income_stmt", pd.DataFrame()),
+        stock_data.get("quarterly_balance_sheet", pd.DataFrame()),
+        stock_data.get("quarterly_cash_flow", pd.DataFrame()),
+    )
 
     return {
         "symbol": symbol,
@@ -118,7 +160,8 @@ def analyze_ticker(ticker: str = Query(..., description="Stock Ticker Symbol"), 
         "info": {
             "sector": info.get("sector"),
             "industry": info.get("industry"),
-            "currency": info.get("currency"),
+            "currency": info.get("financialCurrency") or info.get("currency"),
+            "market_currency": info.get("currency"),
             "exchange": info.get("exchange"),
             "price": share_price,
             "market_cap": info.get("marketCap"),
@@ -135,6 +178,14 @@ def analyze_ticker(ticker: str = Query(..., description="Stock Ticker Symbol"), 
             "statement_provider": info.get("statement_data_provider"),
             "market_provider": info.get("market_data_provider"),
             "market_data_as_of": info.get("market_data_as_of"),
+            "fetched_at": stock_data.get("fetched_at"),
+            "analysis_basis": stock_data.get("analysis_basis") or {},
+            "sec_filing": stock_data.get("sec_filing") or {},
+            "sec_fact_validation": stock_data.get("sec_fact_validation") or {},
+            "calculation_coverage": metrics.get("calculation_coverage") or {},
+            "verification_scope": stock_data.get("verification_scope"),
+            "integrity_hold_reason": stock_data.get("integrity_hold_reason"),
+            "warnings": stock_data.get("quality_warnings") or [],
             "missing_values_policy": "Missing source values remain N/A; no static or estimated fallback is used."
         },
         "metrics": metrics,
@@ -144,28 +195,52 @@ def analyze_ticker(ticker: str = Query(..., description="Stock Ticker Symbol"), 
     }
 
 class PDFRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     symbol: str
-    company_name: str
-    metrics: Dict[str, Any]
-    ai_insights: Dict[str, Any]
 
 @app.post("/api/download-pdf")
 def download_pdf(payload: PDFRequest):
-    """Generates and streams downloadable ReportLab PDF report."""
+    """Generate a report exclusively from server-fetched, server-calculated data."""
     try:
+        symbol = normalize_ticker(payload.symbol)
+        stock_data = fetch_stock_data(symbol, force_refresh=True)
+        if stock_data.get("error"):
+            raise HTTPException(status_code=400, detail=stock_data["error"])
+        info = stock_data.get("info") or {}
+        company_name = info.get("longName") or info.get("shortName") or symbol
+        metrics = compute_metrics(stock_data)
+        ai_insights = generate_ai_insights(
+            company_name=company_name,
+            symbol=symbol,
+            health_score=metrics["health_score"],
+            ratios_summary=metrics["ratio_evaluations"],
+            score_coverage=metrics.get("score_coverage"),
+        )
         pdf_buf = generate_pdf_report(
-            company_name=payload.company_name,
-            symbol=payload.symbol,
-            metrics=payload.metrics,
-            ai_insights=payload.ai_insights
+            company_name=company_name,
+            symbol=symbol,
+            metrics=metrics,
+            ai_insights=ai_insights,
+            data_quality={
+                "analysis_basis": stock_data.get("analysis_basis") or {},
+                "sec_filing": stock_data.get("sec_filing") or {},
+                "sec_fact_validation": stock_data.get("sec_fact_validation") or {},
+                "calculation_coverage": metrics.get("calculation_coverage") or {},
+                "verification_scope": stock_data.get("verification_scope"),
+                "integrity_hold_reason": stock_data.get("integrity_hold_reason"),
+                "warnings": stock_data.get("quality_warnings") or [],
+                "fetched_at": stock_data.get("fetched_at"),
+            },
         )
         return StreamingResponse(
             pdf_buf,
             media_type="application/pdf",
             headers={
-                "Content-Disposition": f"attachment; filename={payload.symbol}_Financial_Audit_Report.pdf"
+                "Content-Disposition": f"attachment; filename={symbol}_Financial_Audit_Report.pdf"
             }
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -175,7 +250,7 @@ def prepare_charts_data(income_stmt: pd.DataFrame, balance_sheet: pd.DataFrame) 
     cash_debt_chart = {"years": [], "cash": [], "debt": []}
 
     if income_stmt is not None and not income_stmt.empty:
-        cols = list(income_stmt.columns)[:4]
+        cols = sorted(list(income_stmt.columns), reverse=True)[:4]
         cols = sorted(cols)
         years = [pd.to_datetime(c).strftime('%Y') if hasattr(c, 'strftime') else str(c)[:4] for c in cols]
         rev_chart["years"] = years
@@ -208,7 +283,7 @@ def prepare_charts_data(income_stmt: pd.DataFrame, balance_sheet: pd.DataFrame) 
             rev_chart["net_margin"].append(round((ni / r) * 100, 1) if ni is not None and r not in (None, 0) else None)
 
     if balance_sheet is not None and not balance_sheet.empty:
-        cols = list(balance_sheet.columns)[:4]
+        cols = sorted(list(balance_sheet.columns), reverse=True)[:4]
         cols = sorted(cols)
         years = [pd.to_datetime(c).strftime('%Y') if hasattr(c, 'strftime') else str(c)[:4] for c in cols]
         cash_debt_chart["years"] = years
@@ -217,17 +292,43 @@ def prepare_charts_data(income_stmt: pd.DataFrame, balance_sheet: pd.DataFrame) 
 
         for c in cols:
             cash, debt = None, None
-            for name in ["Cash And Cash Equivalents", "Cash Cash Equivalents And Short Term Investments", "Cash Financial"]:
+            for name in ["Cash Cash Equivalents And Short Term Investments", "Cash And Cash Equivalents", "Cash Financial"]:
                 if name.lower() in index_lower:
                     val = balance_sheet.loc[balance_sheet.index[index_lower.index(name.lower())], c]
                     cash = float(val) if pd.notna(val) else None
                     break
 
-            for name in ["Total Debt", "Long Term Debt", "Current Debt"]:
+            # When the provider supplies cash and short-term investments as
+            # separate lines, display their sum rather than cash alone.
+            if "cash cash equivalents and short term investments" not in index_lower and cash is not None:
+                for name in ["Other Short Term Investments", "Current Investments"]:
+                    if name.lower() in index_lower:
+                        val = balance_sheet.loc[balance_sheet.index[index_lower.index(name.lower())], c]
+                        if pd.notna(val):
+                            cash += float(val)
+                        break
+
+            for name in ["Total Debt"]:
                 if name.lower() in index_lower:
                     val = balance_sheet.loc[balance_sheet.index[index_lower.index(name.lower())], c]
                     debt = float(val) if pd.notna(val) else None
                     break
+
+            if debt is None:
+                current_debt = None
+                long_term_debt = None
+                for name in ["Current Debt", "Current Debt And Capital Lease Obligation"]:
+                    if name.lower() in index_lower:
+                        val = balance_sheet.loc[balance_sheet.index[index_lower.index(name.lower())], c]
+                        current_debt = float(val) if pd.notna(val) else None
+                        break
+                for name in ["Long Term Debt", "Long Term Debt And Capital Lease Obligation"]:
+                    if name.lower() in index_lower:
+                        val = balance_sheet.loc[balance_sheet.index[index_lower.index(name.lower())], c]
+                        long_term_debt = float(val) if pd.notna(val) else None
+                        break
+                if current_debt is not None and long_term_debt is not None:
+                    debt = current_debt + long_term_debt
 
             cash_debt_chart["cash"].append(round(cash / 1e9, 2) if cash is not None else None)
             cash_debt_chart["debt"].append(round(debt / 1e9, 2) if debt is not None else None)
@@ -237,7 +338,14 @@ def prepare_charts_data(income_stmt: pd.DataFrame, balance_sheet: pd.DataFrame) 
         "cash_vs_debt": cash_debt_chart
     }
 
-def prepare_statements_data(income_stmt: pd.DataFrame, balance_sheet: pd.DataFrame, cash_flow: pd.DataFrame) -> Dict[str, Any]:
+def prepare_statements_data(
+    income_stmt: pd.DataFrame,
+    balance_sheet: pd.DataFrame,
+    cash_flow: pd.DataFrame,
+    quarterly_income_stmt: Optional[pd.DataFrame] = None,
+    quarterly_balance_sheet: Optional[pd.DataFrame] = None,
+    quarterly_cash_flow: Optional[pd.DataFrame] = None,
+) -> Dict[str, Any]:
     """Helper to convert financial statement DataFrames into clean JSON for frontend tables."""
     def clean_df(df):
         if df is None or df.empty:
@@ -261,7 +369,10 @@ def prepare_statements_data(income_stmt: pd.DataFrame, balance_sheet: pd.DataFra
     return {
         "income_statement": clean_df(income_stmt),
         "balance_sheet": clean_df(balance_sheet),
-        "cash_flow": clean_df(cash_flow)
+        "cash_flow": clean_df(cash_flow),
+        "quarterly_income_statement": clean_df(quarterly_income_stmt),
+        "quarterly_balance_sheet": clean_df(quarterly_balance_sheet),
+        "quarterly_cash_flow": clean_df(quarterly_cash_flow),
     }
 
 if __name__ == "__main__":

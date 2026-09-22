@@ -1,7 +1,7 @@
 import json
 from data_fetcher import fetch_stock_data, PRESET_TICKERS
 from metrics_calculator import compute_metrics
-from ai_analyst import generate_ai_insights
+from deterministic_analyst import generate_ai_insights
 
 TICKERS = ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "JPM", "JNJ", "LLY", "BRK-B"]
 

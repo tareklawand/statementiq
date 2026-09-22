@@ -2,6 +2,7 @@
 let currentSymbol = "AAPL";
 let currentData = null;
 let activeStatementType = "income_statement";
+let activeStatementFrequency = "annual";
 let currentTheme = document.documentElement.getAttribute("data-theme") || "light";
 let analysisProgressToken = 0;
 let analysisProgressTimers = [];
@@ -86,7 +87,7 @@ function initializeWorkspace() {
     if (workspaceInitialized) return;
     workspaceInitialized = true;
     try { fetchPresets(); } catch(e){}
-    loadTickerData("AAPL");
+    loadTickerData("AAPL", false);
 }
 
 function showExperienceView(view, updateHistory = false) {
@@ -128,8 +129,28 @@ function themeColor(variable, fallback) {
     return value || fallback;
 }
 
+function isNumericValue(value) {
+    return value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
+}
+
+function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>'"]/g, character => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "'": "&#39;",
+        '"': "&quot;",
+    })[character]);
+}
+
+function currencyPrefix(currencyCode) {
+    const code = String(currencyCode || "").toUpperCase();
+    const symbols = { USD: "$", EUR: "€", GBP: "£", JPY: "¥", CNY: "CN¥", CAD: "C$", AUD: "A$", CHF: "CHF " };
+    return symbols[code] || (code ? `${code} ` : "");
+}
+
 function scoreColor(score) {
-    if (!Number.isFinite(Number(score))) return themeColor("--text-dark", "#717a71");
+    if (!isNumericValue(score)) return themeColor("--text-dark", "#717a71");
     if (score < 60) return themeColor("--accent-red", "#ed8d87");
     if (score < 80) return themeColor("--accent-amber", "#e7c26f");
     return themeColor("--accent-green", "#83dca5");
@@ -271,7 +292,7 @@ function setupEventListeners() {
             const inputEl = document.getElementById("tickerSearchInput");
             const inputVal = inputEl ? inputEl.value.trim() : "";
             if (inputVal) {
-                loadTickerData(inputVal);
+                loadTickerData(inputVal, true);
             }
         });
     }
@@ -283,7 +304,7 @@ function setupEventListeners() {
             if (e.key === "Enter") {
                 const inputVal = e.target.value.trim();
                 if (inputVal) {
-                    loadTickerData(inputVal);
+                    loadTickerData(inputVal, true);
                 }
             }
         });
@@ -310,6 +331,15 @@ function setupEventListeners() {
             document.querySelectorAll(".stmt-btn").forEach(b => b.classList.remove("active"));
             e.currentTarget.classList.add("active");
             activeStatementType = e.currentTarget.getAttribute("data-stmt");
+            renderFinancialStatementTable();
+        });
+    });
+
+    document.querySelectorAll(".stmt-frequency-btn").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+            document.querySelectorAll(".stmt-frequency-btn").forEach(b => b.classList.remove("active"));
+            e.currentTarget.classList.add("active");
+            activeStatementFrequency = e.currentTarget.getAttribute("data-frequency") || "annual";
             renderFinancialStatementTable();
         });
     });
@@ -354,7 +384,7 @@ async function fetchPresets() {
                     pill.classList.add("active");
                     const searchInput = document.getElementById("tickerSearchInput");
                     if (searchInput) searchInput.value = symbol;
-                    loadTickerData(symbol);
+                    loadTickerData(symbol, true);
                 });
                 ribbon.appendChild(pill);
             });
@@ -366,7 +396,7 @@ async function fetchPresets() {
 }
 
 // Main Data Fetcher
-async function loadTickerData(symbol) {
+async function loadTickerData(symbol, forceRefresh = false) {
     const searchBtn = document.getElementById("searchBtn");
     const targetSymbol = (symbol || "AAPL").trim().toUpperCase();
     const progressToken = startAnalysisProgress(targetSymbol);
@@ -377,7 +407,7 @@ async function loadTickerData(symbol) {
     }
 
     try {
-        let url = `/api/analyze?ticker=${encodeURIComponent(targetSymbol)}`;
+        let url = `/api/analyze?ticker=${encodeURIComponent(targetSymbol)}&refresh=${forceRefresh ? "true" : "false"}`;
 
         const res = await fetch(url);
         if (!res.ok) {
@@ -404,6 +434,7 @@ async function loadTickerData(symbol) {
         try { renderStrengthsWeaknesses(); } catch(e){ console.error("Strengths render error:", e); }
         try { renderCharts(); } catch(e){ console.error("Charts render error:", e); }
         try { renderRatioCards(); } catch(e){ console.error("Ratio Cards render error:", e); }
+        try { renderSupplementalMetrics(); } catch(e){ console.error("Supplemental metrics render error:", e); }
         try { renderFinancialStatementTable(); } catch(e){ console.error("Statement Table render error:", e); }
         completeAnalysisProgress(progressToken);
 
@@ -443,6 +474,41 @@ function renderHeroBanner() {
         }
         el("heroDataSource").innerText = `LIVE SOURCE · ${provider} · MARKET DATA ${asOf}`;
     }
+    if (el("heroQualityDetails")) {
+        const quality = currentData.data_quality || {};
+        const basis = quality.analysis_basis || {};
+        const sec = quality.sec_filing || {};
+        const secFacts = quality.sec_fact_validation || {};
+        const calculationCoverage = quality.calculation_coverage || {};
+        const warnings = Array.isArray(quality.warnings) ? quality.warnings : [];
+        const basisText = [
+            `Income: ${basis.income === "trailing_twelve_months" ? "TTM" : "latest annual"} through ${basis.income_period_end || "N/A"}`,
+            `Balance sheet: ${basis.balance_sheet === "latest_quarter" ? "latest quarter" : "latest annual"} at ${basis.balance_sheet_period_end || "N/A"}`,
+            `Cash flow: ${basis.cash_flow === "trailing_twelve_months" ? "TTM" : "latest annual"} through ${basis.cash_flow_period_end || "N/A"}`
+        ];
+        if (sec.status === "verified") {
+            basisText.push(`SEC: ${sec.form || "filing"} filed ${sec.filed_date || "N/A"} for ${sec.report_period || "N/A"}`);
+        } else {
+            basisText.push("SEC filing check: unavailable or not applicable");
+        }
+        if (secFacts.status === "matched") {
+            basisText.push(`SEC value check: ${secFacts.matched}/${secFacts.checked} latest-quarter core facts matched`);
+        } else if (secFacts.status === "mismatch") {
+            basisText.push(`SEC value check: ${secFacts.matched}/${secFacts.checked} core facts matched; review warning`);
+        } else {
+            basisText.push("SEC value check: unavailable or not applicable");
+        }
+        if (quality.verification_scope) basisText.push(quality.verification_scope);
+        if (calculationCoverage.core_input_count) {
+            basisText.push(
+                `Calculation inputs: ${calculationCoverage.available_core_input_count || 0}/${calculationCoverage.core_input_count} core inputs available`
+            );
+        }
+        el("heroQualityDetails").innerHTML = `
+            <div class="quality-basis">${basisText.map(text => `<span>${escapeHtml(text)}</span>`).join("")}</div>
+            ${warnings.length ? `<div class="quality-warning">${escapeHtml(warnings.join(" "))}</div>` : ""}
+        `;
+    }
 }
 
 // Render 8 KPI Cards
@@ -451,19 +517,21 @@ function renderKPIs() {
     const info = currentData.info;
     const el = (id) => document.getElementById(id);
     
-    const valid = value => Number.isFinite(Number(value));
-    if (el("kpiPrice")) el("kpiPrice").innerText = valid(info.price) ? `$${Number(info.price).toFixed(2)}` : "N/A";
-    if (el("kpiMarketCap")) el("kpiMarketCap").innerText = valid(info.market_cap) ? `$${(Number(info.market_cap) / 1e9).toFixed(2)}B` : "N/A";
-    if (el("kpiEV")) el("kpiEV").innerText = valid(info.enterprise_value) ? `$${(Number(info.enterprise_value) / 1e9).toFixed(2)}B` : "N/A";
+    const valid = isNumericValue;
+    const marketPrefix = currencyPrefix(info.market_currency || info.currency);
+    const statementPrefix = currencyPrefix(info.currency);
+    if (el("kpiPrice")) el("kpiPrice").innerText = valid(info.price) ? `${marketPrefix}${Number(info.price).toFixed(2)}` : "N/A";
+    if (el("kpiMarketCap")) el("kpiMarketCap").innerText = valid(info.market_cap) ? `${marketPrefix}${(Number(info.market_cap) / 1e9).toFixed(2)}B` : "N/A";
+    if (el("kpiEV")) el("kpiEV").innerText = valid(info.enterprise_value) ? `${statementPrefix}${(Number(info.enterprise_value) / 1e9).toFixed(2)}B` : "N/A";
     if (el("kpiPE")) el("kpiPE").innerText = valid(info.pe_ratio) ? `${Number(info.pe_ratio).toFixed(2)}x` : "N/A";
     if (el("kpiEVEBITDA")) el("kpiEVEBITDA").innerText = valid(info.ev_ebitda) ? `${Number(info.ev_ebitda).toFixed(2)}x` : "N/A";
     
-    const low = valid(info.fifty_two_low) ? `$${Number(info.fifty_two_low).toFixed(2)}` : "N/A";
-    const high = valid(info.fifty_two_high) ? `$${Number(info.fifty_two_high).toFixed(2)}` : "N/A";
+    const low = valid(info.fifty_two_low) ? `${marketPrefix}${Number(info.fifty_two_low).toFixed(2)}` : "N/A";
+    const high = valid(info.fifty_two_high) ? `${marketPrefix}${Number(info.fifty_two_high).toFixed(2)}` : "N/A";
     if (el("kpiRange")) el("kpiRange").innerText = `${low} - ${high}`;
 
     if (el("kpiDivYield")) el("kpiDivYield").innerText = valid(info.dividend_yield) ? `${(Number(info.dividend_yield) * 100).toFixed(2)}%` : "N/A";
-    if (el("kpiTargetPrice")) el("kpiTargetPrice").innerText = valid(info.target_price) ? `$${Number(info.target_price).toFixed(2)}` : "N/A";
+    if (el("kpiTargetPrice")) el("kpiTargetPrice").innerText = valid(info.target_price) ? `${marketPrefix}${Number(info.target_price).toFixed(2)}` : "N/A";
 }
 
 // Render AI Briefing & Health Score Gauge
@@ -481,8 +549,14 @@ function renderAIBriefing() {
         statusText.innerText = (metrics.health_status || "INSUFFICIENT DATA").toUpperCase();
         statusText.style.color = scoreColor(metrics.health_score);
     }
+    const coverageText = el("scoreCoverageText");
+    if (coverageText) {
+        const coverage = metrics.score_coverage || {};
+        coverageText.innerText = coverage.withheld_reason ||
+            `${coverage.applicable_ratio_count || 0} of ${coverage.model_ratio_count || 10} model ratios available`;
+    }
 
-    renderGaugeChart(metrics.health_score);
+    renderGaugeChart(metrics.health_score, metrics.health_status);
 }
 
 // Render 5 Pillars Scorecard Matrix
@@ -557,7 +631,7 @@ function renderStrengthsWeaknesses() {
 }
 
 // Render Gauge Chart with Theme Palette
-function renderGaugeChart(score) {
+function renderGaugeChart(score, status = "Insufficient data") {
     if (typeof Plotly === "undefined" || !document.getElementById("healthGaugeChart")) return;
 
     const textColor = themeColor("--text-main", "#f2f4ec");
@@ -567,14 +641,14 @@ function renderGaugeChart(score) {
     const cautionColor = themeColor("--gauge-caution", "#ff982b");
     const healthyColor = themeColor("--gauge-healthy", "#2ed477");
 
-    if (!Number.isFinite(Number(score))) {
+    if (!isNumericValue(score)) {
         Plotly.newPlot("healthGaugeChart", [], {
             paper_bgcolor: "rgba(0,0,0,0)",
             plot_bgcolor: "rgba(0,0,0,0)",
             xaxis: { visible: false },
             yaxis: { visible: false },
             annotations: [{
-                text: "N/A<br><span style='font-size:11px'>INSUFFICIENT DATA</span>",
+                text: `N/A<br><span style='font-size:11px'>${String(status || "Insufficient data").toUpperCase()}</span>`,
                 x: 0.5, y: 0.5, showarrow: false, align: "center",
                 font: { size: 28, color: mutedColor, family: "DM Mono" }
             }],
@@ -681,6 +755,12 @@ function renderCharts() {
     const purple = themeColor("--accent-purple", "#c5adff");
     const amber = themeColor("--accent-amber", "#e7c26f");
     const panelColor = themeColor("--card-bg", "#191a16");
+    const reportingCurrency = String((currentData.info || {}).currency || "").toUpperCase() || "Reporting currency";
+    const chartPrefix = currencyPrefix(reportingCurrency);
+    const revenueUnits = document.getElementById("chartRevenueUnits");
+    const liquidityUnits = document.getElementById("chartLiquidityUnits");
+    if (revenueUnits) revenueUnits.innerText = `${reportingCurrency} billions`;
+    if (liquidityUnits) liquidityUnits.innerText = `Cash vs debt · ${reportingCurrency} billions`;
     const legendLayout = {
         orientation: "h",
         x: 0,
@@ -707,7 +787,7 @@ function renderCharts() {
         const revTrace = {
             x: perf.years,
             y: perf.revenue,
-            name: "Revenue ($B)",
+            name: `Revenue (${reportingCurrency} B)`,
             type: "bar",
             marker: { color: blue, opacity: 0.84, line: { color: blue, width: 1 } },
             hoverinfo: "none"
@@ -716,7 +796,7 @@ function renderCharts() {
         const niTrace = {
             x: perf.years,
             y: perf.net_income,
-            name: "Net Income ($B)",
+            name: `Net Income (${reportingCurrency} B)`,
             type: "scatter",
             mode: "lines+markers",
             line: { color: green, width: 2.5, shape: "spline" },
@@ -740,8 +820,8 @@ function renderCharts() {
 
         Plotly.newPlot("chartRevenueNetIncome", [revTrace, niTrace], layout1, { responsive: true, displayModeBar: false }).then(() => {
             bindChartInspector("chartRevenueNetIncome", "inspectorRevenue", perf.years, [
-                { label: "Revenue", values: perf.revenue, prefix: "$", suffix: "B", tone: "blue" },
-                { label: "Net income", values: perf.net_income, prefix: "$", suffix: "B", tone: "green" }
+                { label: "Revenue", values: perf.revenue, prefix: chartPrefix, suffix: "B", tone: "blue" },
+                { label: "Net income", values: perf.net_income, prefix: chartPrefix, suffix: "B", tone: "green" }
             ]);
         });
     }
@@ -783,8 +863,8 @@ function renderCharts() {
 
         Plotly.newPlot("chartCashVsDebt", [cashTrace, debtTrace], layout2, { responsive: true, displayModeBar: false }).then(() => {
             bindChartInspector("chartCashVsDebt", "inspectorCashDebt", cashDebt.years, [
-                { label: "Cash", values: cashDebt.cash, prefix: "$", suffix: "B", tone: "green" },
-                { label: "Debt", values: cashDebt.debt, prefix: "$", suffix: "B", tone: "red" }
+                { label: "Cash", values: cashDebt.cash, prefix: chartPrefix, suffix: "B", tone: "green" },
+                { label: "Debt", values: cashDebt.debt, prefix: chartPrefix, suffix: "B", tone: "red" }
             ]);
         });
     }
@@ -909,6 +989,7 @@ function renderRatioCards() {
                 </div>
                 <div class="ratio-name">${item.name}</div>
                 <div class="ratio-val-large">${valStr}</div>
+                <div class="ratio-formula">${item.formula || "Formula unavailable"}</div>
                 <div class="ratio-target-caption">Benchmark Target: ${item.target}</div>
             `;
 
@@ -919,10 +1000,58 @@ function renderRatioCards() {
     });
 }
 
+function renderSupplementalMetrics() {
+    const container = document.getElementById("supplementalMetricsContainer");
+    if (!container || !currentData || !currentData.metrics) return;
+    const values = currentData.metrics.supplemental_metrics || {};
+    const reportingPrefix = currencyPrefix((currentData.info || {}).currency);
+    const definitions = [
+        ["working_capital", "Working capital", "money", "Current assets minus current liabilities"],
+        ["cash_ratio", "Cash ratio", "multiple", "Cash and short-term investments divided by current liabilities"],
+        ["operating_cash_flow", "Operating cash flow", "money", "Cash generated by operating activities"],
+        ["free_cash_flow", "Free cash flow", "money", "Operating cash flow less capital spending, with source signs normalized"],
+        ["free_cash_flow_margin", "Free cash flow margin", "percent", "Free cash flow divided by revenue"],
+        ["free_cash_flow_yield", "Free cash flow yield", "percent", "Free cash flow divided by market capitalization"],
+        ["cash_conversion", "Cash conversion", "multiple", "Operating cash flow divided by net income"],
+        ["interest_coverage", "Interest coverage", "multiple", "Operating income divided by absolute interest expense"],
+        ["debt_to_ebitda", "Debt / EBITDA", "multiple", "Total debt divided by EBITDA"],
+        ["net_debt", "Net debt", "money", "Total debt minus cash and short-term investments"],
+        ["net_debt_to_ebitda", "Net debt / EBITDA", "multiple", "Net debt divided by EBITDA"],
+        ["operating_margin", "Operating margin", "percent", "Operating income divided by revenue"],
+        ["annual_revenue_growth", "Annual revenue growth", "percent", "Latest annual revenue versus prior annual revenue"],
+        ["annual_net_income_growth", "Annual net income growth", "percent", "Latest annual net income versus prior annual net income"],
+        ["revenue_cagr", "Revenue CAGR", "percent", "Compound annual revenue growth across the available three-year span"],
+        ["diluted_share_change", "Diluted share change", "percent", "Latest annual diluted average shares versus the prior year"],
+    ];
+    const format = (value, kind) => {
+        if (!isNumericValue(value)) return "N/A";
+        const number = Number(value);
+        if (kind === "percent") return `${(number * 100).toFixed(1)}%`;
+        if (kind === "multiple") return `${number.toFixed(2)}x`;
+        if (kind === "money") {
+            const absolute = Math.abs(number);
+            if (absolute >= 1e9) return `${number < 0 ? "-" : ""}${reportingPrefix}${(absolute / 1e9).toFixed(2)}B`;
+            return `${number < 0 ? "-" : ""}${reportingPrefix}${(absolute / 1e6).toFixed(2)}M`;
+        }
+        return number.toFixed(2);
+    };
+
+    container.innerHTML = definitions.map(([key, label, kind, description]) => `
+        <article class="supplemental-card">
+            <span>${label}</span>
+            <strong>${format(values[key], kind)}</strong>
+            <small>${description}</small>
+        </article>
+    `).join("");
+}
+
 // Render Financial Statement Table
 function renderFinancialStatementTable() {
     if (!currentData || !currentData.statements) return;
-    const stmtData = currentData.statements[activeStatementType];
+    const statementKey = activeStatementFrequency === "quarterly"
+        ? `quarterly_${activeStatementType}`
+        : activeStatementType;
+    const stmtData = currentData.statements[statementKey];
     const container = document.getElementById("statementTableContainer");
     if (!container) return;
     
@@ -933,6 +1062,39 @@ function renderFinancialStatementTable() {
 
     const searchInput = document.getElementById("statementSearchInput");
     const filterVal = searchInput ? searchInput.value.trim().toLowerCase() : "";
+
+    const statementValueType = metricName => {
+        const metric = String(metricName || "").toLowerCase();
+        if (metric.includes("eps") || metric.includes("per share")) return "per-share";
+        if (metric.includes("tax rate") || metric.includes("effective rate") || metric.includes("margin %")) return "percent";
+        if (
+            metric.includes("average shares") ||
+            metric.includes("shares outstanding") ||
+            metric.includes("share issued") ||
+            metric.includes("treasury shares number") ||
+            metric.includes("ordinary shares number")
+        ) return "shares";
+        if (/\bratio\b/.test(metric) || /\bturnover\b/.test(metric)) return "number";
+        return "currency";
+    };
+    const statementPrefix = currencyPrefix((currentData.info || {}).currency);
+
+    const formatStatementValue = (value, metricName) => {
+        const kind = statementValueType(metricName);
+        const absolute = Math.abs(value);
+        const sign = value < 0 ? "-" : "";
+        if (kind === "percent") return `${(value * 100).toFixed(1)}%`;
+        if (kind === "per-share") return `${sign}${statementPrefix}${absolute.toLocaleString("en-US", { maximumFractionDigits: 3 })}`;
+        if (kind === "shares") {
+            if (absolute >= 1e9) return `${sign}${(absolute / 1e9).toLocaleString("en-US", { maximumFractionDigits: 3 })}B shares`;
+            if (absolute >= 1e6) return `${sign}${(absolute / 1e6).toLocaleString("en-US", { maximumFractionDigits: 3 })}M shares`;
+            return `${value.toLocaleString("en-US", { maximumFractionDigits: 3 })} shares`;
+        }
+        if (kind === "number") return value.toLocaleString("en-US", { maximumFractionDigits: 3 });
+        if (absolute >= 1e9) return `${sign}${statementPrefix}${(absolute / 1e9).toLocaleString("en-US", { maximumFractionDigits: 3 })}B`;
+        if (absolute >= 1e6) return `${sign}${statementPrefix}${(absolute / 1e6).toLocaleString("en-US", { maximumFractionDigits: 3 })}M`;
+        return `${sign}${statementPrefix}${absolute.toLocaleString("en-US", { maximumFractionDigits: 3 })}`;
+    };
 
     let tableHtml = `<table class="financial-table"><thead><tr><th>Metric Row</th>`;
     stmtData.columns.forEach(col => {
@@ -951,7 +1113,7 @@ function renderFinancialStatementTable() {
                 tableHtml += `<td style="color: var(--text-dark);">-</td>`;
             } else if (typeof val === "number") {
                 const isNeg = val < 0;
-                const formatted = Math.abs(val) >= 1e6 ? `$${(val / 1e6).toLocaleString('en-US', {maximumFractionDigits: 0})}M` : `$${val.toLocaleString('en-US')}`;
+                const formatted = formatStatementValue(val, row.metric);
                 const valClass = isNeg ? "val-negative" : "val-positive";
                 tableHtml += `<td class="${valClass}">${formatted}</td>`;
             } else {
@@ -968,7 +1130,10 @@ function renderFinancialStatementTable() {
 // Export Table to CSV
 function handleCsvExport() {
     if (!currentData || !currentData.statements) return;
-    const stmtData = currentData.statements[activeStatementType];
+    const statementKey = activeStatementFrequency === "quarterly"
+        ? `quarterly_${activeStatementType}`
+        : activeStatementType;
+    const stmtData = currentData.statements[statementKey];
     if (!stmtData || !stmtData.rows) return;
 
     let csvContent = "data:text/csv;charset=utf-8,Metric," + stmtData.columns.join(",") + "\n";
@@ -980,7 +1145,7 @@ function handleCsvExport() {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `${currentSymbol}_${activeStatementType}.csv`);
+    link.setAttribute("download", `${currentSymbol}_${activeStatementFrequency}_${activeStatementType}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1001,10 +1166,7 @@ async function handlePdfDownload() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                symbol: currentData.symbol,
-                company_name: currentData.company_name,
-                metrics: currentData.metrics,
-                ai_insights: currentData.ai_insights
+                symbol: currentData.symbol
             })
         });
 

@@ -1,10 +1,13 @@
 import yfinance as yf
 import pandas as pd
 import numpy as np
-import requests
+import re
 import time
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
+
+from sec_filing_validator import get_latest_sec_filing
+from sec_facts_validator import validate_core_sec_facts
 
 PRESET_TICKERS = {
     "Apple Inc. (AAPL)": "AAPL",
@@ -18,6 +21,24 @@ PRESET_TICKERS = {
     "JPMorgan Chase & Co. (JPM)": "JPM",
     "Johnson & Johnson (JNJ)": "JNJ",
     "Eli Lilly and Co. (LLY)": "LLY"
+}
+
+# Stable SEC registrant identifiers for the curated coverage universe. These
+# are identifiers only, never financial values, and let the app query EDGAR
+# directly when a market-data response omits filing links.
+KNOWN_SEC_CIKS = {
+    "AAPL": "0000320193",
+    "MSFT": "0000789019",
+    "GOOGL": "0001652044",
+    "GOOG": "0001652044",
+    "AMZN": "0001018724",
+    "NVDA": "0001045810",
+    "TSLA": "0001318605",
+    "META": "0001326801",
+    "BRK-B": "0001067983",
+    "JPM": "0000019617",
+    "JNJ": "0000200406",
+    "LLY": "0000059478",
 }
 
 KNOWN_SECTORS = {
@@ -99,396 +120,144 @@ KNOWN_SECTORS = {
     "RTX": ("Industrials", "Aerospace & Defense", "RTX Corporation")
 }
 
-# Legacy snapshot fixtures retained only for historical test/reference purposes.
-# Production requests never use these values: stale or hand-entered figures must
-# never be presented as live company data.
-REAL_COMPANY_PROFILES = {
-    "AAPL": {
-        "info": {
-            "symbol": "AAPL", "shortName": "Apple Inc.", "longName": "Apple Inc.",
-            "regularMarketPrice": 332.15, "currentPrice": 332.15, "marketCap": 4892.00e9,
-            "epsTrailingTwelveMonths": 8.26, "trailingPE": 40.22,
-            "enterpriseToEbitda": 34.10, "fiftyTwoWeekHigh": 340.00, "fiftyTwoWeekLow": 210.00,
-            "dividendYield": 0.0055, "targetMeanPrice": 350.00, "sector": "Technology",
-            "industry": "Consumer Electronics", "currency": "USD", "exchange": "NASDAQ",
-            "sharesOutstanding": 14.728e9,
-            "market_data_as_of": "July 30, 2026 at 3:45:16 PM UTC (Intraday Market Snapshot)",
-            "market_data_provider": "Yahoo Finance Real-Time API (v8)"
-        },
-        "revenue": [416.161e9, 391.035e9, 383.285e9, 394.328e9],
-        "net_income": [112.010e9, 93.736e9, 96.995e9, 99.803e9],
-        "gross_profit": [195.201e9, 180.683e9, 169.148e9, 170.782e9],
-        "operating_income": [133.050e9, 123.216e9, 114.301e9, 119.437e9],
-        "depreciation_amortization": [11.698e9, 11.519e9, 11.519e9, 11.104e9],
-        "ebitda": [144.748e9, 134.735e9, 125.820e9, 130.541e9],
-        "total_assets": [359.241e9, 364.980e9, 352.583e9, 352.755e9],
-        "current_assets": [147.957e9, 152.976e9, 143.566e9, 135.405e9],
-        "inventory": [5.718e9, 6.270e9, 6.331e9, 4.946e9],
-        "cash_and_equiv": [35.934e9, 29.965e9, 29.965e9, 23.646e9],
-        "current_marketable_securities": [18.763e9, 31.590e9, 31.590e9, 24.658e9],
-        "noncurrent_marketable_securities": [77.723e9, 100.544e9, 100.544e9, 120.805e9],
-        "accounts_receivable": [39.777e9, 38.000e9, 35.000e9, 32.000e9],
-        "vendor_nontrade_receivables": [33.180e9, 30.000e9, 28.000e9, 25.000e9],
-        "current_liab": [165.631e9, 174.953e9, 174.453e9, 153.982e9],
-        "commercial_paper": [7.979e9, 5.980e9, 5.980e9, 9.982e9],
-        "current_term_debt": [12.350e9, 9.820e9, 9.820e9, 11.120e9],
-        "noncurrent_term_debt": [78.328e9, 85.800e9, 95.281e9, 98.959e9],
-        "total_debt": [98.657e9, 101.600e9, 111.081e9, 120.061e9],
-        "equity": [73.733e9, 56.950e9, 62.146e9, 60.274e9],
-        "provenance": {"filing": "Form 10-K", "accession": "0000320193-25-000079", "period_end": "2025-09-27"}
-    },
-    "LLY": {
-        "info": {
-            "symbol": "LLY", "shortName": "Eli Lilly and Co.", "longName": "Eli Lilly and Company",
-            "regularMarketPrice": 845.20, "currentPrice": 845.20, "marketCap": 803.50e9,
-            "epsTrailingTwelveMonths": 14.80, "trailingPE": 57.10,
-            "enterpriseToEbitda": 41.20, "fiftyTwoWeekHigh": 960.00, "fiftyTwoWeekLow": 540.00,
-            "dividendYield": 0.0062, "targetMeanPrice": 980.00, "sector": "Healthcare",
-            "industry": "Drug Manufacturers - General", "currency": "USD", "exchange": "NYSE",
-            "sharesOutstanding": 0.950e9,
-            "market_data_as_of": "July 30, 2026 at 3:45:16 PM UTC", "market_data_provider": "Yahoo Finance API"
-        },
-        "revenue": [34.12e9, 28.54e9, 28.32e9, 24.53e9],
-        "net_income": [5.24e9, 6.24e9, 5.58e9, 6.19e9],
-        "gross_profit": [27.05e9, 21.90e9, 21.80e9, 19.00e9],
-        "operating_income": [7.40e9, 7.80e9, 7.10e9, 7.20e9],
-        "depreciation_amortization": [2.10e9, 1.95e9, 1.80e9, 1.65e9],
-        "ebitda": [9.50e9, 9.75e9, 8.90e9, 8.85e9],
-        "total_assets": [64.20e9, 49.60e9, 48.80e9, 46.70e9],
-        "current_assets": [24.80e9, 19.50e9, 18.20e9, 17.50e9],
-        "inventory": [5.80e9, 4.90e9, 4.50e9, 4.10e9],
-        "cash_and_equiv": [2.80e9, 2.10e9, 4.30e9, 3.80e9],
-        "current_marketable_securities": [1.50e9, 1.20e9, 1.00e9, 0.80e9],
-        "noncurrent_marketable_securities": [0.50e9, 0.50e9, 0.50e9, 0.50e9],
-        "accounts_receivable": [7.80e9, 6.20e9, 5.80e9, 5.20e9],
-        "vendor_nontrade_receivables": [0.0, 0.0, 0.0, 0.0],
-        "current_liab": [18.20e9, 15.40e9, 14.80e9, 13.90e9],
-        "commercial_paper": [0.0, 0.0, 0.0, 0.0],
-        "current_term_debt": [2.10e9, 1.80e9, 1.50e9, 1.20e9],
-        "noncurrent_term_debt": [24.50e9, 18.20e9, 16.50e9, 14.80e9],
-        "total_debt": [26.60e9, 20.00e9, 18.00e9, 16.00e9],
-        "equity": [11.80e9, 10.80e9, 10.50e9, 10.10e9],
-        "provenance": {"filing": "Form 10-K", "accession": "0000059478-25-000002", "period_end": "2024-12-31"}
-    },
-    "MSFT": {
-        "info": {
-            "symbol": "MSFT", "shortName": "Microsoft Corp.", "longName": "Microsoft Corporation",
-            "regularMarketPrice": 428.50, "currentPrice": 428.50, "marketCap": 3180.00e9,
-            "epsTrailingTwelveMonths": 12.17, "trailingPE": 35.21,
-            "enterpriseToEbitda": 24.80, "fiftyTwoWeekHigh": 468.35, "fiftyTwoWeekLow": 309.45,
-            "dividendYield": 0.0072, "targetMeanPrice": 490.00, "sector": "Technology",
-            "industry": "Software - Infrastructure", "currency": "USD", "exchange": "NASDAQ",
-            "sharesOutstanding": 7.421e9,
-            "market_data_as_of": "July 30, 2026 at 3:45:16 PM UTC", "market_data_provider": "Yahoo Finance API"
-        },
-        "revenue": [245.12e9, 211.91e9, 198.27e9, 168.09e9],
-        "net_income": [88.14e9, 72.36e9, 72.74e9, 61.27e9],
-        "gross_profit": [170.73e9, 146.05e9, 135.62e9, 115.86e9],
-        "operating_income": [109.43e9, 88.52e9, 83.38e9, 69.92e9],
-        "depreciation_amortization": [15.89e9, 13.86e9, 14.46e9, 10.90e9],
-        "ebitda": [125.32e9, 102.38e9, 97.84e9, 80.82e9],
-        "total_assets": [512.16e9, 411.98e9, 364.84e9, 301.31e9],
-        "current_assets": [184.26e9, 184.26e9, 169.68e9, 134.41e9],
-        "inventory": [2.50e9, 2.50e9, 3.74e9, 2.64e9],
-        "cash_and_equiv": [75.54e9, 111.26e9, 104.75e9, 130.33e9],
-        "current_marketable_securities": [35.00e9, 40.00e9, 38.00e9, 45.00e9],
-        "noncurrent_marketable_securities": [20.00e9, 25.00e9, 22.00e9, 25.00e9],
-        "accounts_receivable": [48.00e9, 42.00e9, 38.00e9, 32.00e9],
-        "vendor_nontrade_receivables": [0.0, 0.0, 0.0, 0.0],
-        "current_liab": [104.14e9, 104.14e9, 95.08e9, 88.66e9],
-        "commercial_paper": [0.0, 0.0, 0.0, 0.0],
-        "current_term_debt": [10.00e9, 8.00e9, 5.00e9, 4.00e9],
-        "noncurrent_term_debt": [95.85e9, 97.85e9, 73.40e9, 78.43e9],
-        "total_debt": [105.85e9, 105.85e9, 78.40e9, 82.43e9],
-        "equity": [268.49e9, 206.22e9, 166.54e9, 141.99e9],
-        "provenance": {"filing": "Form 10-K", "accession": "0001193125-25-000001", "period_end": "2025-06-30"}
-    },
-    "GOOGL": {
-        "info": {
-            "symbol": "GOOGL", "shortName": "Alphabet Inc.", "longName": "Alphabet Inc. (Google)",
-            "regularMarketPrice": 185.40, "currentPrice": 185.40, "marketCap": 2290.00e9,
-            "epsTrailingTwelveMonths": 6.90, "trailingPE": 26.87,
-            "enterpriseToEbitda": 18.20, "fiftyTwoWeekHigh": 191.75, "fiftyTwoWeekLow": 129.00,
-            "dividendYield": 0.0043, "targetMeanPrice": 205.00, "sector": "Communication Services",
-            "industry": "Internet Content & Information", "currency": "USD", "exchange": "NASDAQ",
-            "sharesOutstanding": 12.350e9,
-            "market_data_as_of": "July 30, 2026 at 3:45:16 PM UTC", "market_data_provider": "Yahoo Finance API"
-        },
-        "revenue": [307.39e9, 282.84e9, 257.64e9, 182.53e9],
-        "net_income": [73.80e9, 59.97e9, 60.00e9, 40.27e9],
-        "gross_profit": [174.45e9, 156.98e9, 147.57e9, 104.96e9],
-        "operating_income": [84.29e9, 74.84e9, 69.20e9, 41.22e9],
-        "depreciation_amortization": [12.40e9, 11.80e9, 11.20e9, 9.50e9],
-        "ebitda": [96.69e9, 86.64e9, 80.40e9, 50.72e9],
-        "total_assets": [402.39e9, 365.26e9, 359.27e9, 319.62e9],
-        "current_assets": [164.79e9, 164.79e9, 162.70e9, 142.75e9],
-        "inventory": [0.0, 0.0, 0.0, 0.0],
-        "cash_and_equiv": [24.05e9, 21.88e9, 20.97e9, 26.47e9],
-        "current_marketable_securities": [86.89e9, 91.90e9, 92.80e9, 110.20e9],
-        "noncurrent_marketable_securities": [30.00e9, 32.00e9, 30.00e9, 28.00e9],
-        "accounts_receivable": [43.00e9, 40.00e9, 37.00e9, 32.00e9],
-        "vendor_nontrade_receivables": [0.0, 0.0, 0.0, 0.0],
-        "current_liab": [81.50e9, 69.30e9, 64.20e9, 56.80e9],
-        "commercial_paper": [0.0, 0.0, 0.0, 0.0],
-        "current_term_debt": [3.80e9, 2.50e9, 2.10e9, 1.80e9],
-        "noncurrent_term_debt": [25.00e9, 27.00e9, 28.00e9, 26.00e9],
-        "total_debt": [28.80e9, 29.50e9, 30.10e9, 27.80e9],
-        "equity": [283.42e9, 256.14e9, 251.64e9, 222.94e9],
-        "provenance": {"filing": "Form 10-K", "accession": "0001652044-25-000003", "period_end": "2024-12-31"}
-    },
-    "AMZN": {
-        "info": {
-            "symbol": "AMZN", "shortName": "Amazon.com Inc.", "longName": "Amazon.com, Inc.",
-            "regularMarketPrice": 186.20, "currentPrice": 186.20, "marketCap": 1940.00e9,
-            "epsTrailingTwelveMonths": 3.75, "trailingPE": 49.65,
-            "enterpriseToEbitda": 22.40, "fiftyTwoWeekHigh": 201.20, "fiftyTwoWeekLow": 118.35,
-            "dividendYield": 0.0, "targetMeanPrice": 220.00, "sector": "Consumer Cyclical",
-            "industry": "Internet Retail", "currency": "USD", "exchange": "NASDAQ",
-            "sharesOutstanding": 10.418e9,
-            "market_data_as_of": "July 30, 2026 at 3:45:16 PM UTC", "market_data_provider": "Yahoo Finance API"
-        },
-        "revenue": [574.78e9, 513.98e9, 469.82e9, 386.06e9],
-        "net_income": [30.43e9, -2.72e9, 33.36e9, 21.33e9],
-        "gross_profit": [270.04e9, 225.15e9, 197.48e9, 152.76e9],
-        "operating_income": [36.85e9, 12.25e9, 24.88e9, 22.90e9],
-        "depreciation_amortization": [48.66e9, 41.92e9, 34.29e9, 25.25e9],
-        "ebitda": [85.51e9, 54.17e9, 59.17e9, 48.15e9],
-        "total_assets": [527.85e9, 462.67e9, 420.55e9, 321.19e9],
-        "current_assets": [170.83e9, 146.79e9, 161.58e9, 126.39e9],
-        "inventory": [33.32e9, 34.40e9, 32.64e9, 23.79e9],
-        "cash_and_equiv": [54.88e9, 53.89e9, 36.48e9, 42.14e9],
-        "current_marketable_securities": [31.83e9, 16.14e9, 59.53e9, 42.27e9],
-        "noncurrent_marketable_securities": [12.00e9, 10.00e9, 8.00e9, 5.00e9],
-        "accounts_receivable": [42.00e9, 38.00e9, 32.00e9, 24.00e9],
-        "vendor_nontrade_receivables": [0.0, 0.0, 0.0, 0.0],
-        "current_liab": [156.40e9, 155.39e9, 142.27e9, 126.39e9],
-        "commercial_paper": [0.0, 0.0, 0.0, 0.0],
-        "current_term_debt": [15.00e9, 12.00e9, 10.00e9, 8.00e9],
-        "noncurrent_term_debt": [125.78e9, 128.00e9, 106.00e9, 76.00e9],
-        "total_debt": [140.78e9, 140.00e9, 116.00e9, 84.00e9],
-        "equity": [201.88e9, 146.04e9, 138.24e9, 93.40e9],
-        "provenance": {"filing": "Form 10-K", "accession": "0001018724-25-000004", "period_end": "2024-12-31"}
-    },
-    "NVDA": {
-        "info": {
-            "symbol": "NVDA", "shortName": "NVIDIA Corp.", "longName": "NVIDIA Corporation",
-            "regularMarketPrice": 118.50, "currentPrice": 118.50, "marketCap": 2910.00e9,
-            "epsTrailingTwelveMonths": 2.45, "trailingPE": 48.36,
-            "enterpriseToEbitda": 38.50, "fiftyTwoWeekHigh": 140.76, "fiftyTwoWeekLow": 45.00,
-            "dividendYield": 0.0003, "targetMeanPrice": 135.00, "sector": "Technology",
-            "industry": "Semiconductors", "currency": "USD", "exchange": "NASDAQ",
-            "sharesOutstanding": 24.557e9,
-            "market_data_as_of": "July 30, 2026 at 3:45:16 PM UTC", "market_data_provider": "Yahoo Finance API"
-        },
-        "revenue": [60.92e9, 26.97e9, 26.91e9, 16.68e9],
-        "net_income": [29.76e9, 4.37e9, 9.75e9, 4.33e9],
-        "gross_profit": [44.35e9, 15.36e9, 17.48e9, 10.40e9],
-        "operating_income": [32.97e9, 4.22e9, 10.04e9, 4.53e9],
-        "depreciation_amortization": [1.51e9, 1.54e9, 1.17e9, 1.09e9],
-        "ebitda": [34.48e9, 5.76e9, 11.21e9, 5.62e9],
-        "total_assets": [65.73e9, 41.18e9, 44.19e9, 27.30e9],
-        "current_assets": [44.35e9, 23.07e9, 28.84e9, 16.03e9],
-        "inventory": [5.28e9, 5.16e9, 5.16e9, 2.61e9],
-        "cash_and_equiv": [7.28e9, 3.39e9, 1.99e9, 2.00e9],
-        "current_marketable_securities": [18.70e9, 9.91e9, 11.30e9, 8.60e9],
-        "noncurrent_marketable_securities": [2.00e9, 1.50e9, 1.00e9, 0.50e9],
-        "accounts_receivable": [10.00e9, 4.00e9, 4.50e9, 2.50e9],
-        "vendor_nontrade_receivables": [0.0, 0.0, 0.0, 0.0],
-        "current_liab": [10.63e9, 6.56e9, 6.56e9, 4.35e9],
-        "commercial_paper": [0.0, 0.0, 0.0, 0.0],
-        "current_term_debt": [1.25e9, 1.25e9, 1.25e9, 1.00e9],
-        "noncurrent_term_debt": [9.80e9, 9.70e9, 9.70e9, 10.95e9],
-        "total_debt": [11.05e9, 10.95e9, 10.95e9, 11.95e9],
-        "equity": [42.98e9, 22.10e9, 22.10e9, 16.90e9],
-        "provenance": {"filing": "Form 10-K", "accession": "0001045810-25-000002", "period_end": "2025-01-26"}
-    },
-    "TSLA": {
-        "info": {
-            "symbol": "TSLA", "shortName": "Tesla Inc.", "longName": "Tesla, Inc.",
-            "regularMarketPrice": 220.40, "currentPrice": 220.40, "marketCap": 702.00e9,
-            "epsTrailingTwelveMonths": 4.30, "trailingPE": 51.25,
-            "enterpriseToEbitda": 32.40, "fiftyTwoWeekHigh": 271.00, "fiftyTwoWeekLow": 138.80,
-            "dividendYield": 0.0, "targetMeanPrice": 225.00, "sector": "Consumer Cyclical",
-            "industry": "Auto Manufacturers", "currency": "USD", "exchange": "NASDAQ",
-            "sharesOutstanding": 3.185e9,
-            "market_data_as_of": "July 30, 2026 at 3:45:16 PM UTC", "market_data_provider": "Yahoo Finance API"
-        },
-        "revenue": [96.77e9, 81.46e9, 53.82e9, 31.54e9],
-        "net_income": [15.00e9, 12.58e9, 5.51e9, 0.72e9],
-        "gross_profit": [17.66e9, 20.85e9, 13.61e9, 6.63e9],
-        "operating_income": [8.89e9, 13.66e9, 6.50e9, 2.00e9],
-        "depreciation_amortization": [4.67e9, 3.75e9, 2.91e9, 2.32e9],
-        "ebitda": [13.56e9, 17.41e9, 9.41e9, 4.32e9],
-        "total_assets": [106.62e9, 82.34e9, 62.13e9, 52.15e9],
-        "current_assets": [49.62e9, 40.92e9, 27.10e9, 26.71e9],
-        "inventory": [13.63e9, 12.84e9, 5.76e9, 4.10e9],
-        "cash_and_equiv": [16.40e9, 16.25e9, 17.58e9, 19.38e9],
-        "current_marketable_securities": [12.70e9, 5.93e9, 0.0, 0.0],
-        "noncurrent_marketable_securities": [0.0, 0.0, 0.0, 0.0],
-        "accounts_receivable": [3.50e9, 2.95e9, 1.91e9, 1.89e9],
-        "vendor_nontrade_receivables": [0.0, 0.0, 0.0, 0.0],
-        "current_liab": [28.73e9, 26.71e9, 19.71e9, 14.25e9],
-        "commercial_paper": [0.0, 0.0, 0.0, 0.0],
-        "current_term_debt": [2.37e9, 1.50e9, 1.50e9, 1.20e9],
-        "noncurrent_term_debt": [7.20e9, 5.70e9, 5.20e9, 9.50e9],
-        "total_debt": [9.57e9, 7.20e9, 6.70e9, 10.70e9],
-        "equity": [62.63e9, 44.70e9, 30.19e9, 22.23e9],
-        "provenance": {"filing": "Form 10-K", "accession": "0001318605-25-000004", "period_end": "2024-12-31"}
-    },
-    "META": {
-        "info": {
-            "symbol": "META", "shortName": "Meta Platforms Inc.", "longName": "Meta Platforms, Inc.",
-            "regularMarketPrice": 475.20, "currentPrice": 475.20, "marketCap": 1210.00e9,
-            "epsTrailingTwelveMonths": 15.35, "trailingPE": 30.95,
-            "enterpriseToEbitda": 19.10, "fiftyTwoWeekHigh": 542.80, "fiftyTwoWeekLow": 279.40,
-            "dividendYield": 0.0042, "targetMeanPrice": 520.00, "sector": "Communication Services",
-            "industry": "Internet Content & Information", "currency": "USD", "exchange": "NASDAQ",
-            "sharesOutstanding": 2.546e9,
-            "market_data_as_of": "July 30, 2026 at 3:45:16 PM UTC", "market_data_provider": "Yahoo Finance API"
-        },
-        "revenue": [134.90e9, 116.61e9, 117.93e9, 117.92e9],
-        "net_income": [39.10e9, 23.20e9, 39.37e9, 29.15e9],
-        "gross_profit": [108.90e9, 92.80e9, 94.40e9, 95.00e9],
-        "operating_income": [53.15e9, 28.94e9, 46.75e9, 42.50e9],
-        "depreciation_amortization": [10.20e9, 9.80e9, 8.90e9, 7.90e9],
-        "ebitda": [63.35e9, 38.74e9, 55.65e9, 50.40e9],
-        "total_assets": [229.60e9, 185.70e9, 185.70e9, 165.90e9],
-        "current_assets": [85.40e9, 61.80e9, 61.80e9, 66.70e9],
-        "inventory": [0.0, 0.0, 0.0, 0.0],
-        "cash_and_equiv": [43.30e9, 30.80e9, 30.80e9, 48.00e9],
-        "current_marketable_securities": [22.10e9, 10.70e9, 10.70e9, 12.00e9],
-        "noncurrent_marketable_securities": [5.00e9, 4.00e9, 3.00e9, 2.00e9],
-        "accounts_receivable": [16.00e9, 13.50e9, 13.50e9, 11.50e9],
-        "vendor_nontrade_receivables": [0.0, 0.0, 0.0, 0.0],
-        "current_liab": [31.80e9, 27.00e9, 27.00e9, 21.10e9],
-        "commercial_paper": [0.0, 0.0, 0.0, 0.0],
-        "current_term_debt": [2.50e9, 1.80e9, 1.50e9, 1.00e9],
-        "noncurrent_term_debt": [34.70e9, 18.30e9, 18.30e9, 14.80e9],
-        "total_debt": [37.20e9, 20.10e9, 20.10e9, 15.80e9],
-        "equity": [153.20e9, 125.70e9, 125.70e9, 124.90e9],
-        "provenance": {"filing": "Form 10-K", "accession": "0001326801-25-000003", "period_end": "2024-12-31"}
-    },
-    "BRK-B": {
-        "info": {
-            "symbol": "BRK-B", "shortName": "Berkshire Hathaway", "longName": "Berkshire Hathaway Inc.",
-            "regularMarketPrice": 450.10, "currentPrice": 450.10, "marketCap": 980.00e9,
-            "epsTrailingTwelveMonths": 21.50, "trailingPE": 20.93,
-            "enterpriseToEbitda": 15.40, "fiftyTwoWeekHigh": 475.00, "fiftyTwoWeekLow": 340.00,
-            "dividendYield": 0.0, "targetMeanPrice": 480.00, "sector": "Financial Services",
-            "industry": "Financial - Conglomerates", "currency": "USD", "exchange": "NYSE",
-            "sharesOutstanding": 2.177e9,
-            "market_data_as_of": "July 30, 2026 at 3:45:16 PM UTC", "market_data_provider": "Yahoo Finance API"
-        },
-        "revenue": [364.48e9, 302.09e9, 276.09e9, 245.50e9],
-        "net_income": [96.22e9, -22.82e9, 89.80e9, 42.50e9],
-        "gross_profit": [115.40e9, 95.20e9, 88.40e9, 78.50e9],
-        "operating_income": [49.20e9, 37.35e9, 30.80e9, 27.40e9],
-        "depreciation_amortization": [14.50e9, 13.80e9, 13.10e9, 12.00e9],
-        "ebitda": [63.70e9, 51.15e9, 43.90e9, 39.40e9],
-        "total_assets": [1069.90e9, 948.50e9, 958.80e9, 871.20e9],
-        "current_assets": [298.40e9, 220.50e9, 210.40e9, 190.50e9],
-        "inventory": [0.0, 0.0, 0.0, 0.0],
-        "cash_and_equiv": [38.00e9, 35.00e9, 32.00e9, 30.00e9],
-        "current_marketable_securities": [130.00e9, 100.00e9, 95.00e9, 85.00e9],
-        "noncurrent_marketable_securities": [180.00e9, 160.00e9, 150.00e9, 140.00e9],
-        "accounts_receivable": [45.00e9, 40.00e9, 38.00e9, 35.00e9],
-        "vendor_nontrade_receivables": [0.0, 0.0, 0.0, 0.0],
-        "current_liab": [120.50e9, 110.20e9, 105.40e9, 98.20e9],
-        "commercial_paper": [0.0, 0.0, 0.0, 0.0],
-        "current_term_debt": [15.40e9, 12.80e9, 10.50e9, 9.80e9],
-        "noncurrent_term_debt": [110.00e9, 105.00e9, 102.00e9, 95.00e9],
-        "total_debt": [125.40e9, 117.80e9, 112.50e9, 104.80e9],
-        "equity": [561.30e9, 472.30e9, 506.20e9, 436.20e9],
-        "provenance": {"filing": "Form 10-K", "accession": "0001067983-25-000003", "period_end": "2024-12-31"}
-    },
-    "JPM": {
-        "info": {
-            "symbol": "JPM", "shortName": "JPMorgan Chase & Co.", "longName": "JPMorgan Chase & Co.",
-            "regularMarketPrice": 210.80, "currentPrice": 210.80, "marketCap": 605.00e9,
-            "epsTrailingTwelveMonths": 17.20, "trailingPE": 12.25,
-            "enterpriseToEbitda": 9.80, "fiftyTwoWeekHigh": 218.00, "fiftyTwoWeekLow": 138.00,
-            "dividendYield": 0.0225, "targetMeanPrice": 225.00, "sector": "Financial Services",
-            "industry": "Banks - Diversified", "currency": "USD", "exchange": "NYSE",
-            "sharesOutstanding": 2.870e9,
-            "market_data_as_of": "July 30, 2026 at 3:45:16 PM UTC", "market_data_provider": "Yahoo Finance API"
-        },
-        "revenue": [158.10e9, 128.69e9, 121.65e9, 119.54e9],
-        "net_income": [49.55e9, 37.68e9, 48.33e9, 29.13e9],
-        "gross_profit": [158.10e9, 128.69e9, 121.65e9, 119.54e9],
-        "operating_income": [64.20e9, 48.50e9, 58.20e9, 38.10e9],
-        "depreciation_amortization": [8.90e9, 8.20e9, 7.80e9, 7.10e9],
-        "ebitda": [73.10e9, 56.70e9, 66.00e9, 45.20e9],
-        "total_assets": [3875.40e9, 3665.70e9, 3743.50e9, 3384.80e9],
-        "current_assets": [1250.00e9, 1150.00e9, 1100.00e9, 1050.00e9],
-        "inventory": [0.0, 0.0, 0.0, 0.0],
-        "cash_and_equiv": [550.00e9, 520.00e9, 560.00e9, 500.00e9],
-        "current_marketable_securities": [320.00e9, 300.00e9, 280.00e9, 260.00e9],
-        "noncurrent_marketable_securities": [400.00e9, 380.00e9, 360.00e9, 340.00e9],
-        "accounts_receivable": [180.00e9, 160.00e9, 150.00e9, 140.00e9],
-        "vendor_nontrade_receivables": [0.0, 0.0, 0.0, 0.0],
-        "current_liab": [1400.00e9, 1350.00e9, 1300.00e9, 1250.00e9],
-        "commercial_paper": [0.0, 0.0, 0.0, 0.0],
-        "current_term_debt": [40.00e9, 35.00e9, 30.00e9, 25.00e9],
-        "noncurrent_term_debt": [340.00e9, 320.00e9, 300.00e9, 280.00e9],
-        "total_debt": [380.00e9, 355.00e9, 330.00e9, 305.00e9],
-        "equity": [327.90e9, 292.30e9, 294.10e9, 258.90e9],
-        "provenance": {"filing": "Form 10-K", "accession": "0000019617-25-000002", "period_end": "2024-12-31"}
-    },
-    "JNJ": {
-        "info": {
-            "symbol": "JNJ", "shortName": "Johnson & Johnson", "longName": "Johnson & Johnson",
-            "regularMarketPrice": 155.60, "currentPrice": 155.60, "marketCap": 374.00e9,
-            "epsTrailingTwelveMonths": 14.60, "trailingPE": 10.65,
-            "enterpriseToEbitda": 12.80, "fiftyTwoWeekHigh": 168.00, "fiftyTwoWeekLow": 143.00,
-            "dividendYield": 0.0315, "targetMeanPrice": 172.00, "sector": "Healthcare",
-            "industry": "Drug Manufacturers - General", "currency": "USD", "exchange": "NYSE",
-            "sharesOutstanding": 2.403e9,
-            "market_data_as_of": "July 30, 2026 at 3:45:16 PM UTC", "market_data_provider": "Yahoo Finance API"
-        },
-        "revenue": [85.15e9, 79.99e9, 94.94e9, 82.58e9],
-        "net_income": [35.15e9, 17.94e9, 20.88e9, 14.71e9],
-        "gross_profit": [58.20e9, 54.10e9, 64.20e9, 55.80e9],
-        "operating_income": [22.80e9, 19.50e9, 23.40e9, 19.20e9],
-        "depreciation_amortization": [7.10e9, 6.80e9, 6.50e9, 6.10e9],
-        "ebitda": [29.90e9, 26.30e9, 29.90e9, 25.30e9],
-        "total_assets": [167.50e9, 171.40e9, 182.00e9, 174.90e9],
-        "current_assets": [54.20e9, 51.80e9, 60.50e9, 54.80e9],
-        "inventory": [10.50e9, 10.10e9, 9.80e9, 9.20e9],
-        "cash_and_equiv": [21.90e9, 14.20e9, 14.10e9, 13.70e9],
-        "current_marketable_securities": [5.20e9, 8.50e9, 9.20e9, 8.40e9],
-        "noncurrent_marketable_securities": [2.00e9, 1.80e9, 1.50e9, 1.20e9],
-        "accounts_receivable": [14.80e9, 14.10e9, 15.20e9, 14.00e9],
-        "vendor_nontrade_receivables": [0.0, 0.0, 0.0, 0.0],
-        "current_liab": [42.10e9, 45.20e9, 48.50e9, 43.10e9],
-        "commercial_paper": [0.0, 0.0, 0.0, 0.0],
-        "current_term_debt": [5.20e9, 4.80e9, 4.50e9, 4.10e9],
-        "noncurrent_term_debt": [29.50e9, 28.20e9, 27.10e9, 25.80e9],
-        "total_debt": [34.70e9, 33.00e9, 31.60e9, 29.90e9],
-        "equity": [72.10e9, 76.50e9, 76.80e9, 74.20e9],
-        "provenance": {"filing": "Form 10-K", "accession": "0000200406-25-000003", "period_end": "2024-12-31"}
-    }
-}
-
+# Production financial values are fetched live; no static financial snapshots are retained.
 # Cache Store
 _CACHE: Dict[str, Dict[str, Any]] = {}
-CACHE_TTL = 1800
+CACHE_TTL = 900
+ERROR_CACHE_TTL = 60
+MAX_CACHE_ENTRIES = 8
 
-def get_session():
-    session = requests.Session()
-    session.headers.update({
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-    })
-    return session
+def normalize_statement(df: Optional[pd.DataFrame]) -> pd.DataFrame:
+    """Return a numeric statement with unique periods ordered newest first."""
+    if df is None or not isinstance(df, pd.DataFrame) or df.empty:
+        return pd.DataFrame()
 
-def fetch_stock_data(ticker_symbol: str) -> Dict[str, Any]:
+    normalized = df.copy()
+    parsed_columns = pd.to_datetime(normalized.columns, errors="coerce")
+    valid_positions = [i for i, value in enumerate(parsed_columns) if not pd.isna(value)]
+    if not valid_positions:
+        return pd.DataFrame()
+
+    normalized = normalized.iloc[:, valid_positions]
+    normalized.columns = pd.DatetimeIndex([parsed_columns[i] for i in valid_positions])
+    normalized = normalized.loc[:, ~normalized.columns.duplicated(keep="first")]
+    normalized = normalized.sort_index(axis=1, ascending=False)
+    normalized = normalized.apply(pd.to_numeric, errors="coerce")
+    normalized = normalized.dropna(axis=0, how="all").dropna(axis=1, how="all")
+    return normalized
+
+
+def _ticker_frame(ticker: Any, *attribute_names: str) -> pd.DataFrame:
+    """Read the first non-empty statement exposed by the provider."""
+    for name in attribute_names:
+        try:
+            value = getattr(ticker, name)
+        except Exception:
+            continue
+        normalized = normalize_statement(value)
+        if not normalized.empty:
+            return normalized
+    return pd.DataFrame()
+
+
+def _latest_period(df: pd.DataFrame) -> Optional[pd.Timestamp]:
+    if df is None or df.empty:
+        return None
+    try:
+        return pd.Timestamp(df.columns[0]).tz_localize(None)
+    except Exception:
+        return None
+
+
+def _select_latest_balance_sheet(annual: pd.DataFrame, quarterly: pd.DataFrame) -> tuple[pd.DataFrame, str]:
+    annual_period = _latest_period(annual)
+    quarterly_period = _latest_period(quarterly)
+    if quarterly_period is not None and (annual_period is None or quarterly_period >= annual_period):
+        return quarterly, "latest_quarter"
+    if annual_period is not None:
+        return annual, "latest_annual"
+    return pd.DataFrame(), "unavailable"
+
+
+def _select_flow_statement(ttm: pd.DataFrame, annual: pd.DataFrame) -> tuple[pd.DataFrame, str]:
+    if ttm is not None and not ttm.empty:
+        return ttm, "trailing_twelve_months"
+    if annual is not None and not annual.empty:
+        return annual, "latest_annual_fallback"
+    return pd.DataFrame(), "unavailable"
+
+
+def _is_financial_institution(info: Dict[str, Any]) -> bool:
+    """Identify institutions needing bank/insurer-specific analysis.
+
+    Broad `Financial Services` sector membership is not enough: payment
+    networks such as Visa and Mastercard still have ordinary current-asset and
+    operating-profit statements and should not be treated as banks.
+    """
+    industry = str(info.get("industry") or "").lower()
+    institution_terms = (
+        "bank", "insurance", "capital markets", "financial conglomerate",
+        "mortgage finance", "asset management", "credit services - banks",
+    )
+    return any(term in industry for term in institution_terms)
+
+
+def _iso_period(df: pd.DataFrame) -> Optional[str]:
+    period = _latest_period(df)
+    return period.date().isoformat() if period is not None else None
+
+
+def _period_age_days(period_text: Optional[str]) -> Optional[int]:
+    if not period_text:
+        return None
+    try:
+        return max(0, (datetime.now(timezone.utc).date() - datetime.fromisoformat(period_text).date()).days)
+    except (TypeError, ValueError):
+        return None
+
+
+def _period_is_materially_newer(
+    filed_period: Optional[str],
+    provider_period: Optional[str],
+    tolerance_days: int = 14,
+) -> bool:
+    """Allow small fiscal-calendar normalization differences between sources."""
+    if not filed_period or not provider_period:
+        return False
+    try:
+        filed_date = datetime.fromisoformat(filed_period).date()
+        provider_date = datetime.fromisoformat(provider_period).date()
+    except (TypeError, ValueError):
+        return False
+    return (filed_date - provider_date).days > tolerance_days
+
+
+def _provider_cik(ticker: Any) -> Optional[str]:
+    """Extract a CIK hint from provider filing links, then verify at SEC."""
+    try:
+        filings = ticker.sec_filings or []
+    except Exception:
+        return None
+    for filing in filings:
+        for url in (filing.get("exhibits") or {}).values():
+            match = re.search(r"/sec-filings/(\d{1,10})/", str(url))
+            if match:
+                return match.group(1).zfill(10)
+        match = re.search(r"_(\d{1,10})(?:$|\D)", str(filing.get("edgarUrl") or ""))
+        if match:
+            return match.group(1).zfill(10)
+    return None
+
+def fetch_stock_data(ticker_symbol: str, force_refresh: bool = False) -> Dict[str, Any]:
     symbol = ticker_symbol.strip().upper()
     if not symbol:
         symbol = "AAPL"
 
     now = time.time()
-    if symbol in _CACHE:
+    if not force_refresh and symbol in _CACHE:
         cached_entry = _CACHE[symbol]
-        if now - cached_entry["timestamp"] < CACHE_TTL:
+        ttl = ERROR_CACHE_TTL if cached_entry["data"].get("error") else CACHE_TTL
+        if now - cached_entry["timestamp"] < ttl:
             return cached_entry["data"]
 
     result = None
@@ -499,10 +268,23 @@ def fetch_stock_data(ticker_symbol: str) -> Dict[str, Any]:
     try:
         ticker = yf.Ticker(symbol)
         info = ticker.info or {}
-        income_stmt = ticker.financials if ticker.financials is not None and not ticker.financials.empty else ticker.income_stmt
-        balance_sheet = ticker.balance_sheet if ticker.balance_sheet is not None and not ticker.balance_sheet.empty else ticker.bs
-        cash_flow = ticker.cashflow if ticker.cashflow is not None and not ticker.cashflow.empty else ticker.cash_flow
-        history = ticker.history(period="1y")
+        quote_type = str(info.get("quoteType") or "").strip().upper()
+        if quote_type and quote_type != "EQUITY":
+            raise ValueError(
+                f"{symbol} is classified as {quote_type}, not a public-company equity. "
+                "StatementIQ analyzes operating-company financial statements rather than funds, indexes, currencies, or derivatives."
+            )
+        income_stmt = _ticker_frame(ticker, "income_stmt", "financials")
+        balance_sheet = _ticker_frame(ticker, "balance_sheet", "bs")
+        cash_flow = _ticker_frame(ticker, "cashflow", "cash_flow")
+        quarterly_income_stmt = _ticker_frame(ticker, "quarterly_income_stmt", "quarterly_financials")
+        quarterly_balance_sheet = _ticker_frame(ticker, "quarterly_balance_sheet", "quarterly_bs")
+        quarterly_cash_flow = _ticker_frame(ticker, "quarterly_cashflow", "quarterly_cash_flow")
+        ttm_income_stmt = _ticker_frame(ticker, "ttm_income_stmt")
+        ttm_cash_flow = _ticker_frame(ticker, "ttm_cashflow")
+        # Price history is not used by the statement analysis. Avoid an extra
+        # provider request so searches for arbitrary companies return faster.
+        history = pd.DataFrame()
 
         # Only fill descriptive labels from the maintained symbol directory. No
         # numerical financial or market value is supplied by this mapping.
@@ -524,8 +306,100 @@ def fetch_stock_data(ticker_symbol: str) -> Dict[str, Any]:
         info["statement_data_provider"] = "Yahoo Finance"
         info["data_source"] = "live"
 
-        sec = info.get("sector", "")
-        is_fin = symbol in {"JPM", "BRK-B", "BAC", "WFC", "C", "GS", "MS", "V", "MA", "AXP", "BLK"} or any(kw in str(sec).lower() for kw in ["financial", "bank", "insurance"])
+        is_fin = _is_financial_institution(info)
+
+        analysis_income_stmt, income_basis = _select_flow_statement(ttm_income_stmt, income_stmt)
+        analysis_cash_flow, cash_flow_basis = _select_flow_statement(ttm_cash_flow, cash_flow)
+        analysis_balance_sheet, balance_basis = _select_latest_balance_sheet(balance_sheet, quarterly_balance_sheet)
+
+        analysis_periods = {
+            "income": _iso_period(analysis_income_stmt),
+            "balance_sheet": _iso_period(analysis_balance_sheet),
+            "cash_flow": _iso_period(analysis_cash_flow),
+        }
+        analysis_period_ages = {
+            name: _period_age_days(period)
+            for name, period in analysis_periods.items()
+        }
+        latest_statement_period = max(
+            (p for p in [
+                _latest_period(analysis_income_stmt),
+                _latest_period(analysis_balance_sheet),
+                _latest_period(analysis_cash_flow),
+            ] if p is not None),
+            default=None,
+        )
+        latest_statement_period_text = latest_statement_period.date().isoformat() if latest_statement_period is not None else None
+        statement_age_days = _period_age_days(latest_statement_period_text)
+        sec_filing = get_latest_sec_filing(
+            symbol,
+            cik_hint=_provider_cik(ticker) or KNOWN_SEC_CIKS.get(symbol),
+        )
+        sec_fact_validation = validate_core_sec_facts(
+            sec_filing.get("cik") if sec_filing.get("status") == "verified" else None,
+            quarterly_income_stmt,
+            quarterly_balance_sheet,
+            info.get("financialCurrency") or info.get("currency"),
+        )
+
+        quality_warnings = []
+        if income_basis != "trailing_twelve_months":
+            quality_warnings.append("Trailing-twelve-month income data was unavailable; the latest annual income statement is used.")
+        if balance_basis != "latest_quarter":
+            quality_warnings.append("A newer quarterly balance sheet was unavailable; the latest annual balance sheet is used.")
+        if cash_flow_basis != "trailing_twelve_months":
+            quality_warnings.append("Trailing-twelve-month cash-flow data was unavailable; the latest annual cash-flow statement is used.")
+        stale_periods = [
+            f"{name.replace('_', ' ')} ({age} days)"
+            for name, age in analysis_period_ages.items()
+            if age is not None and age > 180
+        ]
+        if stale_periods:
+            quality_warnings.append(
+                "These analysis periods are more than 180 days old: " + ", ".join(stale_periods) + "."
+            )
+        market_currency = info.get("currency")
+        statement_currency = info.get("financialCurrency") or market_currency
+        if market_currency and statement_currency and str(market_currency).upper() != str(statement_currency).upper():
+            quality_warnings.append(
+                f"Market values are in {market_currency} while statements are in {statement_currency}; enterprise value and EV/EBITDA are withheld."
+            )
+        if sec_filing.get("status") == "unavailable":
+            quality_warnings.append(sec_filing.get("reason") or "SEC filing-recency validation was unavailable.")
+        if sec_fact_validation.get("status") == "mismatch":
+            mismatch_names = ", ".join(item["metric"] for item in sec_fact_validation.get("mismatches", []))
+            quality_warnings.append(f"Provider values differed from comparable SEC Company Facts for: {mismatch_names}.")
+        elif sec_filing.get("status") == "verified" and sec_fact_validation.get("status") == "unavailable":
+            quality_warnings.append(
+                sec_fact_validation.get("reason") or "Comparable SEC Company Facts were unavailable for numeric cross-checking."
+            )
+
+        if is_fin:
+            quality_warnings.append(
+                "The headline score is withheld for banks and insurers because a reliable institution analysis also requires "
+                "regulatory capital, asset quality, funding, loss-reserve, and net-interest measures not present in standardized statements."
+            )
+
+        sec_report_period = sec_filing.get("report_period") if sec_filing.get("status") == "verified" else None
+        lagging_statement_types = [
+            name.replace("_", " ")
+            for name, provider_period in analysis_periods.items()
+            if _period_is_materially_newer(sec_report_period, provider_period)
+        ]
+        provider_lags_latest_filing = bool(lagging_statement_types)
+        if provider_lags_latest_filing:
+            quality_warnings.append(
+                f"SEC shows a newer filed report period ({sec_report_period}) than the provider's "
+                f"{', '.join(lagging_statement_types)} analysis period."
+            )
+
+        integrity_hold_reason = None
+        if sec_fact_validation.get("status") == "mismatch":
+            integrity_hold_reason = "Headline score withheld because comparable provider and SEC statement facts did not agree."
+        elif provider_lags_latest_filing:
+            integrity_hold_reason = "Headline score withheld until the provider includes the newest filed report period."
+        elif is_fin:
+            integrity_hold_reason = "Headline score withheld because financial institutions require a sector-specific regulatory model."
 
         if income_stmt is not None and not income_stmt.empty and balance_sheet is not None and not balance_sheet.empty:
             result = {
@@ -535,6 +409,32 @@ def fetch_stock_data(ticker_symbol: str) -> Dict[str, Any]:
                 "income_stmt": income_stmt,
                 "balance_sheet": balance_sheet,
                 "cash_flow": cash_flow if cash_flow is not None else pd.DataFrame(),
+                "quarterly_income_stmt": quarterly_income_stmt,
+                "quarterly_balance_sheet": quarterly_balance_sheet,
+                "quarterly_cash_flow": quarterly_cash_flow,
+                "analysis_income_stmt": analysis_income_stmt,
+                "analysis_balance_sheet": analysis_balance_sheet,
+                "analysis_cash_flow": analysis_cash_flow,
+                "analysis_basis": {
+                    "income": income_basis,
+                    "income_period_end": analysis_periods["income"],
+                    "income_age_days": analysis_period_ages["income"],
+                    "balance_sheet": balance_basis,
+                    "balance_sheet_period_end": analysis_periods["balance_sheet"],
+                    "balance_sheet_age_days": analysis_period_ages["balance_sheet"],
+                    "cash_flow": cash_flow_basis,
+                    "cash_flow_period_end": analysis_periods["cash_flow"],
+                    "cash_flow_age_days": analysis_period_ages["cash_flow"],
+                    "latest_statement_period": latest_statement_period_text,
+                    "statement_age_days": statement_age_days,
+                },
+                "sec_filing": sec_filing,
+                "sec_fact_validation": sec_fact_validation,
+                "verification_scope": "SEC validation checks filing recency and comparable latest-quarter core facts; TTM and other rows remain provider-standardized figures.",
+                "integrity_hold_reason": integrity_hold_reason,
+                "provider_lags_latest_filing": provider_lags_latest_filing,
+                "quality_warnings": quality_warnings,
+                "fetched_at": datetime.now(timezone.utc).isoformat(),
                 "history": history if history is not None else pd.DataFrame(),
                 "error": None
             }
@@ -544,8 +444,8 @@ def fetch_stock_data(ticker_symbol: str) -> Dict[str, Any]:
         fetch_error = f"The live provider request failed: {exc}"
 
     if result is None:
-        sec, _, _ = KNOWN_SECTORS.get(symbol, ("", "", symbol))
-        is_fin = symbol in {"JPM", "BRK-B", "BAC", "WFC", "C", "GS", "MS", "V", "MA", "AXP", "BLK"} or any(kw in str(sec).lower() for kw in ["financial", "bank", "insurance"])
+        sec, industry, _ = KNOWN_SECTORS.get(symbol, ("", "", symbol))
+        is_fin = _is_financial_institution({"sector": sec, "industry": industry})
         result = {
             "symbol": symbol,
             "is_financial_sector": is_fin,
@@ -553,95 +453,24 @@ def fetch_stock_data(ticker_symbol: str) -> Dict[str, Any]:
             "income_stmt": pd.DataFrame(),
             "balance_sheet": pd.DataFrame(),
             "cash_flow": pd.DataFrame(),
+            "quarterly_income_stmt": pd.DataFrame(),
+            "quarterly_balance_sheet": pd.DataFrame(),
+            "quarterly_cash_flow": pd.DataFrame(),
+            "analysis_income_stmt": pd.DataFrame(),
+            "analysis_balance_sheet": pd.DataFrame(),
+            "analysis_cash_flow": pd.DataFrame(),
+            "analysis_basis": {},
+            "sec_filing": {"status": "unavailable", "reason": "No live statement data was available to validate."},
+            "sec_fact_validation": {"status": "unavailable", "checked": 0, "matched": 0, "mismatches": []},
+            "verification_scope": "No filing validation was possible because live statement data was unavailable.",
+            "quality_warnings": [],
             "history": pd.DataFrame(),
             "error": f"Live financial data for {symbol} is unavailable. {fetch_error or ''} No substitute values were used.".strip()
         }
 
     _CACHE[symbol] = {"timestamp": now, "data": result}
+    if len(_CACHE) > MAX_CACHE_ENTRIES:
+        oldest_symbol = min(_CACHE, key=lambda key: _CACHE[key]["timestamp"])
+        if oldest_symbol != symbol:
+            _CACHE.pop(oldest_symbol, None)
     return result
-
-def build_from_company_profile(symbol: str) -> Dict[str, Any]:
-    prof = REAL_COMPANY_PROFILES.get(symbol)
-    
-    if not prof:
-        # Determine correct sector and industry for non-preset tickers
-        sector, industry, company_long_name = KNOWN_SECTORS.get(
-            symbol, 
-            ("Technology" if symbol in ["AMD", "INTC", "CRM", "ORCL"] else "General Business Sector", "General Business Industry", f"{symbol} Corporation")
-        )
-
-        is_fin = symbol in {"JPM", "BRK-B", "BAC", "WFC", "C", "GS", "MS", "V", "MA", "AXP", "BLK"} or any(kw in str(sector).lower() for kw in ["financial", "bank", "insurance"])
-
-        info = {
-            "symbol": symbol, "shortName": f"{symbol} Inc.", "longName": company_long_name,
-            "regularMarketPrice": None, "currentPrice": None, "marketCap": None,
-            "epsTrailingTwelveMonths": None, "trailingPE": None,
-            "enterpriseToEbitda": None, "fiftyTwoWeekHigh": None, "fiftyTwoWeekLow": None,
-            "dividendYield": None, "targetMeanPrice": None, "sector": sector,
-            "industry": industry, "currency": "USD", "exchange": "NYSE/NASDAQ",
-            "market_data_as_of": "Data Unavailable", "market_data_provider": "StatementIQ Engine"
-        }
-
-        years = [pd.Timestamp('2025-09-27'), pd.Timestamp('2024-09-28'), pd.Timestamp('2023-09-30'), pd.Timestamp('2022-09-24')]
-        income_stmt = pd.DataFrame(index=["Total Revenue", "Gross Profit", "Operating Income", "Net Income"], columns=years)
-        balance_sheet = pd.DataFrame(index=["Total Assets", "Current Assets", "Current Liabilities", "Total Debt", "Stockholders Equity"], columns=years)
-        cash_flow = pd.DataFrame(index=["Operating Cash Flow", "Free Cash Flow"], columns=years)
-
-        return {
-            "symbol": symbol,
-            "is_financial_sector": is_fin,
-            "info": info,
-            "income_stmt": income_stmt,
-            "balance_sheet": balance_sheet,
-            "cash_flow": cash_flow,
-            "history": pd.DataFrame(),
-            "error": f"Financial statement data for ticker {symbol} is currently unavailable."
-        }
-
-    info = prof["info"].copy()
-    sector = info.get("sector", "")
-    is_fin = symbol in {"JPM", "BRK-B", "BAC", "WFC", "C", "GS", "MS", "V", "MA", "AXP", "BLK"} or any(kw in str(sector).lower() for kw in ["financial", "bank", "insurance"])
-
-    years = [pd.Timestamp('2025-09-27'), pd.Timestamp('2024-09-28'), pd.Timestamp('2023-09-30'), pd.Timestamp('2022-09-24')]
-
-    income_stmt = pd.DataFrame(index=[
-        "Total Revenue", "Gross Profit", "Operating Income", "Net Income", "Normalized EBITDA"
-    ], columns=years)
-    for i, col in enumerate(years):
-        income_stmt.loc["Total Revenue", col] = prof["revenue"][i]
-        income_stmt.loc["Gross Profit", col] = prof["gross_profit"][i]
-        income_stmt.loc["Operating Income", col] = prof["operating_income"][i]
-        income_stmt.loc["Net Income", col] = prof["net_income"][i]
-        income_stmt.loc["Normalized EBITDA", col] = prof["ebitda"][i]
-
-    balance_sheet = pd.DataFrame(index=[
-        "Total Assets", "Current Assets", "Cash And Cash Equivalents", "Other Short Term Investments",
-        "Receivables", "Vendor Nontrade Receivables", "Inventory", 
-        "Current Liabilities", "Total Debt", "Stockholders Equity"
-    ], columns=years)
-    for i, col in enumerate(years):
-        balance_sheet.loc["Total Assets", col] = prof["total_assets"][i]
-        balance_sheet.loc["Current Assets", col] = prof["current_assets"][i]
-        balance_sheet.loc["Cash And Cash Equivalents", col] = prof["cash_and_equiv"][i]
-        balance_sheet.loc["Other Short Term Investments", col] = prof["current_marketable_securities"][i]
-        balance_sheet.loc["Receivables", col] = prof["accounts_receivable"][i]
-        balance_sheet.loc["Vendor Nontrade Receivables", col] = prof["vendor_nontrade_receivables"][i]
-        balance_sheet.loc["Inventory", col] = prof["inventory"][i]
-        balance_sheet.loc["Current Liabilities", col] = prof["current_liab"][i]
-        balance_sheet.loc["Total Debt", col] = prof["total_debt"][i]
-        balance_sheet.loc["Stockholders Equity", col] = prof["equity"][i]
-
-    # Cash-flow rows are intentionally not synthesized from revenue or net
-    # income. Legacy fixtures do not contain sourced cash-flow statement facts.
-    cash_flow = pd.DataFrame()
-
-    return {
-        "symbol": symbol,
-        "is_financial_sector": is_fin,
-        "info": info,
-        "income_stmt": income_stmt,
-        "balance_sheet": balance_sheet,
-        "cash_flow": cash_flow,
-        "history": pd.DataFrame(),
-        "error": None
-    }

@@ -40,3 +40,14 @@ def test_live_failure_never_uses_static_profile(monkeypatch):
     assert data["info"]["data_source"] == "unavailable"
     assert data["income_stmt"].empty
     assert data["balance_sheet"].empty
+
+
+def test_non_company_security_is_rejected_instead_of_forcing_company_ratios(monkeypatch):
+    class FundTicker:
+        def __init__(self, symbol):
+            self.info = {"symbol": symbol, "quoteType": "ETF"}
+
+    monkeypatch.setattr(data_fetcher.yf, "Ticker", FundTicker)
+    data = fetch_stock_data("SPY", force_refresh=True)
+    assert data["error"] is not None
+    assert "not a public-company equity" in data["error"]
