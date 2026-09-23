@@ -248,6 +248,150 @@ def _provider_cik(ticker: Any) -> Optional[str]:
             return match.group(1).zfill(10)
     return None
 
+
+def _usable_market_value(value: Any) -> bool:
+    """Return True only for source values that can safely be published."""
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    try:
+        return bool(np.isfinite(value))
+    except (TypeError, ValueError):
+        return True
+
+
+def _set_market_value_if_missing(info: Dict[str, Any], key: str, value: Any) -> bool:
+    if _usable_market_value(info.get(key)) or not _usable_market_value(value):
+        return False
+    info[key] = value
+    return True
+
+
+def _read_mapping_value(mapping: Any, *keys: str) -> Any:
+    """Read lazy provider mappings without allowing one failed key to abort a run."""
+    for key in keys:
+        try:
+            value = mapping.get(key) if hasattr(mapping, "get") else mapping[key]
+        except Exception:
+            continue
+        if _usable_market_value(value):
+            return value
+    return None
+
+
+def _enrich_info_with_live_market_fallbacks(ticker: Any, raw_info: Any) -> Dict[str, Any]:
+    """Fill missing quote-summary fields from independent live Yahoo routes.
+
+    Yahoo's quote-summary/profile route can return an empty payload from a
+    hosted server while its chart and fast-quote routes continue to work. This
+    function merges only live provider values; it never supplies stored prices
+    or estimates.
+    """
+    info = dict(raw_info) if isinstance(raw_info, dict) else {}
+    recovered_fields = []
+
+    try:
+        fast_info = ticker.fast_info
+    except Exception:
+        fast_info = {}
+
+    fast_field_map = {
+        "regularMarketPrice": ("lastPrice",),
+        "currentPrice": ("lastPrice",),
+        "previousClose": ("regularMarketPreviousClose", "previousClose"),
+        "marketCap": ("marketCap",),
+        "sharesOutstanding": ("shares",),
+        "currency": ("currency",),
+        "exchange": ("exchange",),
+        "quoteType": ("quoteType",),
+        "fiftyTwoWeekHigh": ("yearHigh",),
+        "fiftyTwoWeekLow": ("yearLow",),
+    }
+    for destination, source_keys in fast_field_map.items():
+        if _set_market_value_if_missing(
+            info,
+            destination,
+            _read_mapping_value(fast_info, *source_keys),
+        ):
+            recovered_fields.append(destination)
+
+    # The chart route provides a second independent source for price/range and
+    # also makes a zero dividend distinguishable from missing dividend data.
+    try:
+        market_history = ticker.history(
+            period="1y",
+            auto_adjust=False,
+            actions=True,
+            raise_errors=False,
+        )
+    except Exception:
+        market_history = pd.DataFrame()
+    if isinstance(market_history, pd.DataFrame) and not market_history.empty:
+        closes = (
+            pd.to_numeric(market_history["Close"], errors="coerce").dropna()
+            if "Close" in market_history else pd.Series(dtype=float)
+        )
+        highs = (
+            pd.to_numeric(market_history["High"], errors="coerce").dropna()
+            if "High" in market_history else pd.Series(dtype=float)
+        )
+        lows = (
+            pd.to_numeric(market_history["Low"], errors="coerce").dropna()
+            if "Low" in market_history else pd.Series(dtype=float)
+        )
+        if not closes.empty:
+            latest_close = float(closes.iloc[-1])
+            prior_close = float(closes.iloc[-2]) if len(closes) > 1 else None
+            for key, value in (
+                ("regularMarketPrice", latest_close),
+                ("currentPrice", latest_close),
+                ("previousClose", prior_close),
+            ):
+                if _set_market_value_if_missing(info, key, value):
+                    recovered_fields.append(key)
+        if not highs.empty and _set_market_value_if_missing(info, "fiftyTwoWeekHigh", float(highs.max())):
+            recovered_fields.append("fiftyTwoWeekHigh")
+        if not lows.empty and _set_market_value_if_missing(info, "fiftyTwoWeekLow", float(lows.min())):
+            recovered_fields.append("fiftyTwoWeekLow")
+        if not _usable_market_value(info.get("dividendRate")) and "Dividends" in market_history:
+            dividends = pd.to_numeric(market_history["Dividends"], errors="coerce").dropna()
+            info["dividendRate"] = float(dividends.sum()) if not dividends.empty else 0.0
+            info["dividendRateBasis"] = "trailing_twelve_months_cash_dividends"
+            recovered_fields.append("dividendRate")
+
+    try:
+        metadata = ticker.get_history_metadata() or {}
+    except Exception:
+        metadata = {}
+    metadata_field_map = {
+        "regularMarketTime": ("regularMarketTime",),
+        "currency": ("currency",),
+        "exchange": ("exchangeName",),
+        "quoteType": ("instrumentType",),
+    }
+    for destination, source_keys in metadata_field_map.items():
+        if _set_market_value_if_missing(
+            info,
+            destination,
+            _read_mapping_value(metadata, *source_keys),
+        ):
+            recovered_fields.append(destination)
+
+    if not _usable_market_value(info.get("targetMeanPrice")):
+        try:
+            targets = ticker.analyst_price_targets or {}
+        except Exception:
+            targets = {}
+        if _set_market_value_if_missing(info, "targetMeanPrice", _read_mapping_value(targets, "mean")):
+            recovered_fields.append("targetMeanPrice")
+
+    if _usable_market_value(info.get("dividendRate")) and not info.get("dividendRateBasis"):
+        info["dividendRateBasis"] = "provider_forward_annual_rate"
+    info["market_data_route"] = "quote_summary+live_fallbacks" if recovered_fields else "quote_summary"
+    info["market_data_recovered_fields"] = sorted(set(recovered_fields))
+    return info
+
 def fetch_stock_data(ticker_symbol: str, force_refresh: bool = False) -> Dict[str, Any]:
     symbol = ticker_symbol.strip().upper()
     if not symbol:
@@ -267,7 +411,11 @@ def fetch_stock_data(ticker_symbol: str, force_refresh: bool = False) -> Dict[st
     # missing; the application never falls back to static estimates or snapshots.
     try:
         ticker = yf.Ticker(symbol)
-        info = ticker.info or {}
+        try:
+            raw_info = ticker.info or {}
+        except Exception:
+            raw_info = {}
+        info = _enrich_info_with_live_market_fallbacks(ticker, raw_info)
         quote_type = str(info.get("quoteType") or "").strip().upper()
         if quote_type and quote_type != "EQUITY":
             raise ValueError(

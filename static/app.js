@@ -534,6 +534,11 @@ function renderKPIs() {
     const high = valid(info.fifty_two_high) ? `${marketPrefix}${Number(info.fifty_two_high).toFixed(2)}` : "N/A";
     if (el("kpiRange")) el("kpiRange").innerText = `${low} - ${high}`;
 
+    if (el("kpiDivYieldLabel")) {
+        el("kpiDivYieldLabel").innerText = info.dividend_yield_basis === "trailing_twelve_months_cash_dividends"
+            ? "TRAILING DIVIDEND YIELD"
+            : "FORWARD DIVIDEND YIELD";
+    }
     if (el("kpiDivYield")) el("kpiDivYield").innerText = valid(info.dividend_yield) ? `${(Number(info.dividend_yield) * 100).toFixed(2)}%` : "N/A";
     if (el("kpiTargetPrice")) el("kpiTargetPrice").innerText = valid(info.target_price) ? `${marketPrefix}${Number(info.target_price).toFixed(2)}` : "N/A";
 }
