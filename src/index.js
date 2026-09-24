@@ -1,4 +1,99 @@
 const CANONICAL_HOSTNAME = "statementiq-lb.com";
+const PERIODIC_FILING_FORMS = new Set(["10-K", "10-K/A", "20-F", "20-F/A", "40-F", "40-F/A"]);
+const MAX_EXTRACTED_FILING_CHARS = 45 * 1024 * 1024;
+
+// SEC full-submission files may contain hundreds of exhibits and can be much
+// larger than the annual report itself. Read the response as a stream and keep
+// only the official periodic-report <DOCUMENT>, so large issuers remain
+// reviewable without forwarding unrelated exhibits or buffering the bundle.
+export async function extractPeriodicDocument(response) {
+  if (!response.body) return null;
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let mode = "search";
+  let pending = "";
+  let extracted = "";
+
+  const appendExtracted = (value) => {
+    if (extracted.length + value.length > MAX_EXTRACTED_FILING_CHARS) {
+      throw new RangeError("Extracted periodic filing exceeds review size limit");
+    }
+    extracted += value;
+  };
+
+  while (true) {
+    const { value, done } = await reader.read();
+    pending += decoder.decode(value || new Uint8Array(), { stream: !done });
+
+    let needsMoreData = false;
+    while (!needsMoreData) {
+      if (mode === "search") {
+        const documentStart = pending.search(/<DOCUMENT>/i);
+        if (documentStart < 0) {
+          pending = pending.slice(-32);
+          needsMoreData = true;
+          continue;
+        }
+        pending = pending.slice(documentStart);
+        const typeMatch = pending.match(/<TYPE>\s*([^\r\n<]+)/i);
+        if (!typeMatch) {
+          needsMoreData = true;
+          continue;
+        }
+        const form = typeMatch[1].trim().toUpperCase();
+        mode = PERIODIC_FILING_FORMS.has(form) ? "await_text" : "skip";
+        continue;
+      }
+
+      if (mode === "await_text") {
+        const textStart = pending.search(/<TEXT>/i);
+        const documentEnd = pending.search(/<\/DOCUMENT>/i);
+        if (textStart >= 0 && (documentEnd < 0 || textStart < documentEnd)) {
+          pending = pending.slice(textStart + "<TEXT>".length);
+          mode = "capture";
+          continue;
+        }
+        if (documentEnd >= 0) return null;
+        needsMoreData = true;
+        continue;
+      }
+
+      if (mode === "skip") {
+        const documentEnd = pending.search(/<\/DOCUMENT>/i);
+        if (documentEnd >= 0) {
+          pending = pending.slice(documentEnd + "</DOCUMENT>".length);
+          mode = "search";
+          continue;
+        }
+        pending = pending.slice(-32);
+        needsMoreData = true;
+        continue;
+      }
+
+      const textEnd = pending.search(/<\/TEXT>/i);
+      const documentEnd = pending.search(/<\/DOCUMENT>/i);
+      const closingIndexes = [textEnd, documentEnd].filter((index) => index >= 0);
+      if (closingIndexes.length) {
+        appendExtracted(pending.slice(0, Math.min(...closingIndexes)));
+        return extracted;
+      }
+      if (pending.length > 64) {
+        appendExtracted(pending.slice(0, -64));
+        pending = pending.slice(-64);
+      }
+      needsMoreData = true;
+    }
+
+    if (done) break;
+  }
+
+  if (mode === "capture" && pending) {
+    appendExtracted(pending);
+    return extracted;
+  }
+  return null;
+}
 
 function applyPublicHeaders(response, { preventIndexing = false } = {}) {
   const headers = new Headers(response.headers);
@@ -109,6 +204,7 @@ export default {
         headers: secHeaders,
         cf: { cacheEverything: true, cacheTtl: 21600 }
       });
+      let usedFullSubmissionFallback = false;
       // The SEC archive sometimes blocks primary HTML for data-center IPs but
       // serves the official full-submission text. Derive that URL only from a
       // validated EDGAR accession directory.
@@ -124,6 +220,23 @@ export default {
             headers: secHeaders,
             cf: { cacheEverything: true, cacheTtl: 21600 }
           });
+          usedFullSubmissionFallback = secResponse.ok;
+        }
+      }
+      if (usedFullSubmissionFallback) {
+        try {
+          const periodicDocument = await extractPeriodicDocument(secResponse);
+          if (!periodicDocument) {
+            return applyPublicHeaders(Response.json({ detail: "Annual report document was not found in SEC submission" }, { status: 422 }), { preventIndexing: true });
+          }
+          const headers = new Headers({
+            "content-type": "text/html; charset=utf-8",
+            "cache-control": "public, max-age=21600"
+          });
+          return applyPublicHeaders(new Response(periodicDocument, { status: 200, headers }), { preventIndexing: true });
+        } catch (error) {
+          const status = error instanceof RangeError ? 413 : 502;
+          return applyPublicHeaders(Response.json({ detail: error instanceof Error ? error.message : "SEC filing extraction failed" }, { status }), { preventIndexing: true });
         }
       }
       const contentLength = Number(secResponse.headers.get("content-length") || 0);

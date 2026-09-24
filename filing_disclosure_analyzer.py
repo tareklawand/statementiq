@@ -16,6 +16,7 @@ import requests
 _CACHE: Dict[str, Dict[str, Any]] = {}
 _LOCK = threading.Lock()
 _CACHE_TTL = 6 * 60 * 60
+_UNAVAILABLE_CACHE_TTL = 60
 
 _TOPICS = (
     (
@@ -89,8 +90,14 @@ def scan_annual_filing(filing_url: str) -> Dict[str, Any]:
     now = time.time()
     with _LOCK:
         cached = _CACHE.get(filing_url)
-        if cached and now - cached["timestamp"] < _CACHE_TTL:
-            return cached["data"]
+        if cached:
+            cache_ttl = (
+                _CACHE_TTL
+                if cached["data"].get("status") == "analyzed"
+                else _UNAVAILABLE_CACHE_TTL
+            )
+            if now - cached["timestamp"] < cache_ttl:
+                return cached["data"]
     try:
         request_headers = {
             "User-Agent": os.environ.get(
