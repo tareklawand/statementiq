@@ -28,12 +28,14 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
     # Only actual financial institutions use the institution-specific model.
     # Payment networks (for example Visa and Mastercard) remain in the standard
     # corporate model even though their broad market sector is Financial Services.
-    financial_tickers = {"JPM", "BRK-B", "BAC", "WFC", "C", "GS", "MS"}
     industry = str(info.get("industry") or "").lower()
     is_financial_sector = (
-        symbol in financial_tickers or
         data.get("is_financial_sector", False) or
-        any(kw in industry for kw in ["bank", "insurance", "capital markets", "financial conglomerate"])
+        any(kw in industry for kw in [
+            "bank", "insurance", "capital markets", "financial conglomerate",
+            "financial - conglomerate", "mortgage finance", "asset management",
+            "credit services - banks", "savings & loan", "credit union",
+        ])
     )
 
     income_stmt = data.get("analysis_income_stmt", data.get("income_stmt", pd.DataFrame()))
@@ -332,7 +334,7 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
         else None
     )
 
-    # Advanced, unscored diagnostics. Every figure below is calculated only
+    # Advanced diagnostics. Every figure below is calculated only
     # when each required source line is present. Missing accounting values are
     # never treated as zero and no peer/sector values are inferred.
     pretax_income = get_row_value(
@@ -666,6 +668,27 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
         "revenue_per_share_growth": revenue_per_share_growth,
     }
 
+    supplemental_metrics = {
+        "working_capital": working_capital,
+        "cash_ratio": cash_ratio,
+        "operating_cash_flow": operating_cash_flow_display,
+        "capital_expenditure": capital_expenditure,
+        "free_cash_flow": free_cash_flow_display,
+        "free_cash_flow_method": free_cash_flow_method,
+        "free_cash_flow_margin": free_cash_flow_margin,
+        "free_cash_flow_yield": free_cash_flow_yield,
+        "cash_conversion": cash_conversion,
+        "interest_coverage": interest_coverage,
+        "debt_to_ebitda": debt_to_ebitda,
+        "net_debt": net_debt,
+        "net_debt_to_ebitda": net_debt_to_ebitda,
+        "operating_margin": operating_margin,
+        "annual_revenue_growth": revenue_growth,
+        "annual_net_income_growth": net_income_growth,
+        "revenue_cagr": revenue_cagr,
+        "diluted_share_change": diluted_share_change,
+    }
+
     ratios = {
         "current_ratio": current_ratio,
         "quick_ratio": quick_ratio,
@@ -680,10 +703,17 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
     # Evaluate Benchmarks and Calculate Deterministic Score
-    health_evaluation = evaluate_financial_health(ratios, is_financial_sector=is_financial_sector, eps_ttm=eps_ttm, equity=stockholder_equity)
+    health_evaluation = evaluate_connected_financial_model(
+        ratios,
+        supplemental_metrics,
+        advanced_metrics,
+        is_financial_sector=is_financial_sector,
+        eps_ttm=eps_ttm,
+        equity=stockholder_equity,
+        sector=info.get("sector"),
+        industry=info.get("industry"),
+    )
     integrity_hold_reason = data.get("integrity_hold_reason")
-    if is_financial_sector and not integrity_hold_reason:
-        integrity_hold_reason = "Headline score withheld because financial institutions require a sector-specific regulatory model."
     if integrity_hold_reason:
         health_evaluation["score"] = None
         health_evaluation["status"] = "Verification Hold"
@@ -722,7 +752,7 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
         "ev_ebitda": "(Market cap + debt - cash and short-term investments) / EBITDA",
     }
     for key, item in health_evaluation["evaluations"].items():
-        item["formula"] = formula_map.get(key)
+        item.setdefault("formula", formula_map.get(key))
         item["period_basis"] = analysis_basis
 
     return {
@@ -731,6 +761,11 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
         "ratios": ratios,
         "health_score": health_evaluation["score"],
         "health_status": health_evaluation["status"],
+        "valuation_score": health_evaluation.get("valuation_score"),
+        "valuation_status": health_evaluation.get("valuation_status"),
+        "financial_health_components": health_evaluation.get("component_scores") or {},
+        "applicability_profile": health_evaluation.get("applicability_profile") or {},
+        "model_disclosure": health_evaluation.get("model_disclosure"),
         "score_coverage": health_evaluation["coverage"],
         "calculation_coverage": {
             "available_core_input_count": len(available_core_inputs),
@@ -761,29 +796,13 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
             "statement_currency": statement_currency,
             "currencies_compatible": currencies_compatible,
         },
-        "supplemental_metrics": {
-            "working_capital": working_capital,
-            "cash_ratio": cash_ratio,
-            "operating_cash_flow": operating_cash_flow_display,
-            "capital_expenditure": capital_expenditure,
-            "free_cash_flow": free_cash_flow_display,
-            "free_cash_flow_method": free_cash_flow_method,
-            "free_cash_flow_margin": free_cash_flow_margin,
-            "free_cash_flow_yield": free_cash_flow_yield,
-            "cash_conversion": cash_conversion,
-            "interest_coverage": interest_coverage,
-            "debt_to_ebitda": debt_to_ebitda,
-            "net_debt": net_debt,
-            "net_debt_to_ebitda": net_debt_to_ebitda,
-            "operating_margin": operating_margin,
-            "annual_revenue_growth": revenue_growth,
-            "annual_net_income_growth": net_income_growth,
-            "revenue_cagr": revenue_cagr,
-            "diluted_share_change": diluted_share_change,
-        },
+        "supplemental_metrics": supplemental_metrics,
         "advanced_metrics": advanced_metrics,
         "advanced_metric_scope": {
-            "score_effect": "Unscored. Advanced diagnostics do not alter the rules-based headline score.",
+            "score_effect": (
+                "Metrics explicitly labelled Health score input feed the financial-health model; metrics labelled "
+                "Valuation score input feed the separate valuation screen; Context only metrics do not affect either score."
+            ),
             "missing_value_policy": "N/A means one or more exact source inputs were not reported; no value was estimated.",
             "period_basis": analysis_basis,
             "financial_institution_model": (
@@ -1028,4 +1047,369 @@ def evaluate_financial_health(ratios: Dict[str, Optional[float]], is_financial_s
             "minimum_required": minimum_required,
             "sufficient_for_score": final_score is not None,
         },
+    }
+
+
+def evaluate_connected_financial_model(
+    ratios: Dict[str, Optional[float]],
+    supplemental: Dict[str, Any],
+    advanced: Dict[str, Any],
+    is_financial_sector: bool = False,
+    eps_ttm: Optional[float] = None,
+    equity: Optional[float] = None,
+    sector: Optional[str] = None,
+    industry: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Build separate financial-health and valuation screens from connected evidence.
+
+    The health score uses five capped components so overlapping ratios cannot
+    dominate the result. Metrics without a consistently favorable direction
+    remain context-only. Banks, insurers and REITs are withheld when the
+    regulatory/property inputs required for a responsible sector model are not
+    present in the standardized statement feed.
+    """
+    sector_text = str(sector or "").lower()
+    industry_text = str(industry or "").lower()
+    is_reit = "reit" in industry_text
+    is_regulated_utility = "utilities" in sector_text or "regulated utility" in industry_text
+    classification_available = bool(sector_text or industry_text)
+    if not classification_available:
+        profile_key = "classification_unavailable"
+        profile_label = "Company type unverified"
+        profile_rationale = "Sector and industry metadata are unavailable, so metric applicability cannot be verified."
+    elif is_financial_sector:
+        profile_key = "financial_institution"
+        profile_label = "Financial institution"
+        profile_rationale = "Uses a regulatory-capital and asset-quality model, not an industrial-company ratio model."
+    elif is_reit:
+        profile_key = "reit"
+        profile_label = "REIT"
+        profile_rationale = "Requires property-specific FFO/AFFO, occupancy, lease and debt-maturity evidence."
+    elif is_regulated_utility:
+        profile_key = "regulated_utility"
+        profile_label = "Regulated utility"
+        profile_rationale = "Uses operating-company evidence with utility-adjusted leverage and coverage ranges."
+    else:
+        profile_key = "operating_company"
+        profile_label = "Operating company"
+        profile_rationale = "Uses the general operating-company model; industry-sensitive measures remain context only."
+    evaluations: Dict[str, Dict[str, Any]] = {}
+    component_totals: Dict[str, Dict[str, float]] = {}
+    model_totals = {
+        "financial_health": {"expected": 0.0, "available": 0.0, "points": 0.0, "count": 0.0},
+        "valuation": {"expected": 0.0, "available": 0.0, "points": 0.0, "count": 0.0},
+    }
+
+    value_map = {**ratios, **supplemental, **advanced}
+
+    def usable(value: Any) -> bool:
+        if value is None:
+            return False
+        try:
+            return bool(np.isfinite(float(value)))
+        except (TypeError, ValueError):
+            return False
+
+    def register(
+        spec: Dict[str, Any],
+        value: Any,
+        forced_status: Optional[str] = None,
+        applicability_reason: Optional[str] = None,
+    ) -> None:
+        model = spec.get("score_model", "context")
+        weight = float(spec.get("weight", 0.0))
+        component = spec.get("component")
+        if model in model_totals:
+            model_totals[model]["expected"] += weight
+            if model == "financial_health" and component:
+                component_totals.setdefault(component, {"expected": 0.0, "available": 0.0, "points": 0.0, "count": 0.0})
+                component_totals[component]["expected"] += weight
+
+        status = forced_status
+        points = 0.0
+        numeric_value = float(value) if usable(value) else None
+        if status is None and numeric_value is None:
+            status = "N/A"
+        elif status is None and spec.get("positive_only") and numeric_value <= 0:
+            status = "N/M"
+        elif status is None:
+            direction = spec["direction"]
+            healthy = float(spec["healthy"])
+            caution = float(spec["caution"])
+            if direction == "higher":
+                if numeric_value >= healthy:
+                    status, points = "Healthy", 1.0
+                elif numeric_value >= caution:
+                    status, points = "Caution", 0.6
+                else:
+                    status, points = "Warning", 0.2
+            else:
+                if numeric_value <= healthy:
+                    status, points = "Healthy", 1.0
+                elif numeric_value <= caution:
+                    status, points = "Caution", 0.6
+                else:
+                    status, points = "Warning", 0.2
+
+        applicable = status in {"Healthy", "Caution", "Warning"}
+        weighted_points = points * weight * 100.0 if applicable and model in model_totals else 0.0
+        if applicable and model in model_totals:
+            model_totals[model]["available"] += weight
+            model_totals[model]["points"] += weighted_points
+            model_totals[model]["count"] += 1
+            if model == "financial_health" and component:
+                component_totals[component]["available"] += weight
+                component_totals[component]["points"] += weighted_points
+                component_totals[component]["count"] += 1
+
+        status_label = status
+        if model == "valuation":
+            status_label = {"Healthy": "Favorable", "Caution": "Mixed", "Warning": "Stretched"}.get(status, status)
+        evaluations[spec["key"]] = {
+            "name": spec["name"],
+            "category": spec["category"],
+            "component": component,
+            "value": numeric_value,
+            "status": status,
+            "status_label": status_label,
+            "target": spec["target"],
+            "format": spec["format"],
+            "formula": spec["formula"],
+            "pts": points,
+            "weight": weight if model in model_totals else 0.0,
+            "w_pts": weighted_points,
+            "score_model": model,
+            "applicable_to_score": applicable and model in model_totals,
+            "applicability_reason": applicability_reason or spec.get("applicability_reason"),
+        }
+
+    health_specs = [
+        # Liquidity: 15%
+        dict(key="current_ratio", name="Current Ratio", category="Liquidity", component="liquidity", weight=.05, direction="higher", healthy=1.50, caution=1.00, format="{:.2f}", target="Healthy ≥ 1.50 | Caution 1.00–1.49 | Warning < 1.00", formula="Current assets / current liabilities"),
+        dict(key="quick_ratio", name="Strict Quick Ratio", category="Liquidity", component="liquidity", weight=.05, direction="higher", healthy=1.00, caution=.80, format="{:.2f}", target="Healthy ≥ 1.00 | Caution 0.80–0.99 | Warning < 0.80", formula="(Cash + short-term investments + receivables) / current liabilities"),
+        dict(key="cash_ratio", name="Cash Ratio", category="Liquidity", component="liquidity", weight=.05, direction="higher", healthy=.50, caution=.20, format="{:.2f}", target="Healthy ≥ 0.50 | Caution 0.20–0.49 | Warning < 0.20", formula="Cash and short-term investments / current liabilities"),
+        # Solvency: 25%
+        dict(key="debt_to_equity", name="Debt-to-Equity", category="Leverage", component="solvency", weight=.05, direction="lower", healthy=1.50, caution=2.00, format="{:.2f}", target="Healthy ≤ 1.50 | Caution 1.51–2.00 | Warning > 2.00", formula="Total debt / stockholders' equity"),
+        dict(key="interest_coverage", name="Interest Coverage", category="Leverage", component="solvency", weight=.07, direction="higher", healthy=5.00, caution=2.00, format="{:.2f}", target="Healthy ≥ 5.00 | Caution 2.00–4.99 | Warning < 2.00", formula="Operating income / absolute interest expense"),
+        dict(key="debt_to_ebitda", name="Debt / EBITDA", category="Leverage", component="solvency", weight=.07, direction="lower", healthy=2.00, caution=4.00, format="{:.2f}", target="Healthy ≤ 2.00 | Caution 2.01–4.00 | Warning > 4.00", formula="Total debt / EBITDA"),
+        dict(key="net_debt_to_ebitda", name="Net Debt / EBITDA", category="Leverage", component="solvency", weight=.06, direction="lower", healthy=1.50, caution=3.00, format="{:.2f}", target="Healthy ≤ 1.50 | Caution 1.51–3.00 | Warning > 3.00", formula="(Total debt - cash and short-term investments) / EBITDA"),
+        # Profitability and efficiency: 25%
+        dict(key="operating_margin", name="Operating Margin", category="Profitability", component="profitability_efficiency", weight=.05, direction="higher", healthy=.15, caution=.05, format="{:.1%}", target="Healthy ≥ 15% | Caution 5%–14.9% | Warning < 5%", formula="Operating income / revenue"),
+        dict(key="net_margin", name="Net Margin", category="Profitability", component="profitability_efficiency", weight=.04, direction="higher", healthy=.15, caution=.05, format="{:.1%}", target="Healthy ≥ 15% | Caution 5%–14.9% | Warning < 5%", formula="Net income / revenue"),
+        dict(key="roa", name="Return on Assets (ROA)", category="Profitability", component="profitability_efficiency", weight=.04, direction="higher", healthy=.08, caution=.03, format="{:.1%}", target="Healthy ≥ 8% | Caution 3%–7.9% | Warning < 3%", formula="Net income / average total assets"),
+        dict(key="roe", name="Return on Equity (ROE)", category="Profitability", component="profitability_efficiency", weight=.02, direction="higher", healthy=.15, caution=.08, format="{:.1%}", target="Healthy ≥ 15% | Caution 8%–14.9% | Warning < 8%", formula="Net income / average stockholders' equity"),
+        dict(key="roic", name="Return on Invested Capital", category="Profitability", component="profitability_efficiency", weight=.06, direction="higher", healthy=.12, caution=.06, format="{:.1%}", target="Healthy ≥ 12% | Caution 6%–11.9% | Warning < 6%", formula="NOPAT / average invested capital"),
+        dict(key="operating_cash_flow_margin", name="Operating Cash Flow Margin", category="Profitability", component="profitability_efficiency", weight=.04, direction="higher", healthy=.12, caution=.05, format="{:.1%}", target="Healthy ≥ 12% | Caution 5%–11.9% | Warning < 5%", formula="Operating cash flow / revenue"),
+        # Cash-flow quality: 20%
+        dict(key="free_cash_flow_margin", name="Free Cash Flow Margin", category="Profitability", component="cash_flow_quality", weight=.08, direction="higher", healthy=.10, caution=0.00, format="{:.1%}", target="Healthy ≥ 10% | Caution 0%–9.9% | Warning < 0%", formula="Free cash flow / revenue"),
+        dict(key="cash_conversion", name="Cash Conversion", category="Efficiency", component="cash_flow_quality", weight=.06, direction="higher", healthy=1.00, caution=.80, format="{:.2f}", target="Healthy ≥ 1.00 | Caution 0.80–0.99 | Warning < 0.80", formula="Operating cash flow / net income"),
+        dict(key="accrual_ratio", name="Accrual Ratio", category="Profitability", component="cash_flow_quality", weight=.06, direction="lower", healthy=0.00, caution=.10, format="{:.1%}", target="Healthy ≤ 0% | Caution 0.1%–10% | Warning > 10%", formula="(Net income - operating cash flow) / average assets"),
+        # Growth and per-share resilience: 15%
+        dict(key="annual_revenue_growth", name="Annual Revenue Growth", category="Growth", component="growth_per_share", weight=.035, direction="higher", healthy=.05, caution=0.00, format="{:.1%}", target="Healthy ≥ 5% | Caution 0%–4.9% | Warning < 0%", formula="Latest annual revenue / prior annual revenue - 1"),
+        dict(key="annual_net_income_growth", name="Annual Net Income Growth", category="Growth", component="growth_per_share", weight=.02, direction="higher", healthy=.05, caution=0.00, format="{:.1%}", target="Healthy ≥ 5% | Caution 0%–4.9% | Warning < 0%", formula="Latest annual net income / prior annual net income - 1"),
+        dict(key="annual_eps_growth", name="Annual Diluted EPS Growth", category="Growth", component="growth_per_share", weight=.03, direction="higher", healthy=.05, caution=0.00, format="{:.1%}", target="Healthy ≥ 5% | Caution 0%–4.9% | Warning < 0%", formula="Latest annual diluted EPS / prior annual diluted EPS - 1"),
+        dict(key="annual_fcf_growth", name="Annual Free Cash Flow Growth", category="Growth", component="growth_per_share", weight=.025, direction="higher", healthy=.05, caution=0.00, format="{:.1%}", target="Healthy ≥ 5% | Caution 0%–4.9% | Warning < 0%", formula="Latest annual free cash flow / prior annual free cash flow - 1"),
+        dict(key="revenue_per_share_growth", name="Revenue-per-Share Growth", category="Growth", component="growth_per_share", weight=.025, direction="higher", healthy=.05, caution=0.00, format="{:.1%}", target="Healthy ≥ 5% | Caution 0%–4.9% | Warning < 0%", formula="Latest annual revenue per diluted share / prior year - 1"),
+        dict(key="diluted_share_change", name="Diluted Share Change", category="Capital allocation", component="growth_per_share", weight=.015, direction="lower", healthy=0.00, caution=.02, format="{:.1%}", target="Healthy ≤ 0% | Caution 0.1%–2% | Warning > 2%", formula="Latest annual diluted average shares / prior year - 1"),
+    ]
+    context_specs = [
+        dict(key="gross_margin", name="Gross Margin", category="Profitability", component=None, weight=0.0, direction="higher", healthy=.40, caution=.20, format="{:.1%}", target="Context only: desirable levels vary materially by industry", formula="Gross profit / revenue", score_model="context"),
+        dict(key="asset_turnover", name="Asset Turnover", category="Efficiency", component=None, weight=0.0, direction="higher", healthy=.75, caution=.40, format="{:.2f}", target="Context only: asset intensity varies materially by industry", formula="Revenue / average total assets", score_model="context"),
+        dict(key="effective_tax_rate", name="Effective Tax Rate", category="Profitability", component=None, weight=0.0, direction="higher", healthy=.15, caution=0.00, format="{:.1%}", target="Context only: tax rates reflect jurisdiction and one-time items", formula="Tax provision / pretax income", score_model="context"),
+    ]
+    valuation_specs = [
+        dict(key="pe_ratio", name="TTM P/E Ratio", category="Valuation", component=None, weight=.25, direction="lower", healthy=25.0, caution=40.0, format="{:.2f}", target="Favorable ≤ 25.0 | Mixed 25.1–40.0 | Stretched > 40.0", formula="Current share price / trailing diluted EPS", score_model="valuation", positive_only=True),
+        dict(key="ev_ebitda", name="EV / EBITDA", category="Valuation", component=None, weight=.25, direction="lower", healthy=15.0, caution=25.0, format="{:.2f}", target="Favorable ≤ 15.0 | Mixed 15.1–25.0 | Stretched > 25.0", formula="Enterprise value / EBITDA", score_model="valuation", positive_only=True),
+        dict(key="free_cash_flow_yield", name="Free Cash Flow Yield", category="Valuation", component=None, weight=.20, direction="higher", healthy=.05, caution=.02, format="{:.1%}", target="Favorable ≥ 5% | Mixed 2%–4.9% | Stretched < 2%", formula="Free cash flow / market capitalization", score_model="valuation"),
+        dict(key="price_to_sales", name="Price / Sales", category="Valuation", component=None, weight=.10, direction="lower", healthy=4.0, caution=8.0, format="{:.2f}", target="Favorable ≤ 4.0 | Mixed 4.1–8.0 | Stretched > 8.0", formula="Market capitalization / TTM revenue", score_model="valuation", positive_only=True),
+        dict(key="price_to_book", name="Price / Book", category="Valuation", component=None, weight=.10, direction="lower", healthy=3.0, caution=6.0, format="{:.2f}", target="Favorable ≤ 3.0 | Mixed 3.1–6.0 | Stretched > 6.0", formula="Market capitalization / stockholders' equity", score_model="valuation", positive_only=True),
+        dict(key="ev_to_sales", name="Enterprise Value / Sales", category="Valuation", component=None, weight=.10, direction="lower", healthy=4.0, caution=8.0, format="{:.2f}", target="Favorable ≤ 4.0 | Mixed 4.1–8.0 | Stretched > 8.0", formula="Enterprise value / TTM revenue", score_model="valuation", positive_only=True),
+    ]
+
+    applicability_hold = None
+    if not classification_available:
+        applicability_hold = (
+            "Financial-health score withheld because current sector and industry metadata are unavailable; "
+            "the site cannot verify which financial model applies."
+        )
+    elif is_financial_sector:
+        applicability_hold = (
+            "Financial-health score withheld because banks, insurers and similar institutions require regulatory capital, "
+            "asset-quality and funding-liquidity inputs that are not consistently available in the standardized statement feed."
+        )
+    elif is_reit:
+        applicability_hold = (
+            "Financial-health score withheld because REIT analysis requires FFO/AFFO, occupancy, lease maturity and property-level debt inputs."
+        )
+
+    utility_overrides = {
+        "current_ratio": (1.00, .70, "Healthy ≥ 1.00 | Caution 0.70–0.99 | Warning < 0.70 (utility-adjusted)"),
+        "debt_to_equity": (2.00, 3.00, "Healthy ≤ 2.00 | Caution 2.01–3.00 | Warning > 3.00 (utility-adjusted)"),
+        "interest_coverage": (3.00, 1.50, "Healthy ≥ 3.00 | Caution 1.50–2.99 | Warning < 1.50 (utility-adjusted)"),
+        "debt_to_ebitda": (4.00, 5.50, "Healthy ≤ 4.00 | Caution 4.01–5.50 | Warning > 5.50 (utility-adjusted)"),
+        "net_debt_to_ebitda": (3.50, 5.00, "Healthy ≤ 3.50 | Caution 3.51–5.00 | Warning > 5.00 (utility-adjusted)"),
+    }
+
+    for base_spec in health_specs:
+        spec = {**base_spec, "score_model": "context" if applicability_hold else "financial_health", "weight": 0.0 if applicability_hold else base_spec["weight"]}
+        if is_regulated_utility and spec["key"] in utility_overrides:
+            healthy, caution, target = utility_overrides[spec["key"]]
+            spec.update(healthy=healthy, caution=caution, target=target)
+        value = value_map.get(spec["key"])
+        forced = None
+        if equity is not None and equity <= 0 and spec["key"] in {"debt_to_equity", "roe"}:
+            forced = "N/M"
+        if is_financial_sector and spec["key"] in {"current_ratio", "quick_ratio", "cash_ratio"}:
+            value = None
+        applicability_reason = None
+        if applicability_hold:
+            forced = "Context" if usable(value) else "N/A"
+            applicability_reason = applicability_hold
+        register(spec, value, forced_status=forced, applicability_reason=applicability_reason)
+
+    for spec in context_specs:
+        value = None if is_financial_sector and spec["key"] == "gross_margin" else value_map.get(spec["key"])
+        register(
+            spec,
+            value,
+            forced_status="Context" if usable(value) else "N/A",
+            applicability_reason=spec["target"],
+        )
+
+    active_valuation_specs = valuation_specs
+    if not classification_available:
+        active_valuation_specs = []
+    elif is_financial_sector:
+        # Enterprise value and industrial cash-flow multiples are not meaningful
+        # for deposit-funded institutions; use only P/E and P/B when both exist.
+        active_valuation_specs = [
+            {**valuation_specs[0], "weight": .50},
+            {**valuation_specs[4], "weight": .50},
+        ]
+    elif is_reit:
+        active_valuation_specs = []
+    for spec in active_valuation_specs:
+        forced = "N/M" if spec["key"] == "pe_ratio" and eps_ttm is not None and eps_ttm <= 0 else None
+        register(spec, value_map.get(spec["key"]), forced_status=forced)
+    active_valuation_keys = {spec["key"] for spec in active_valuation_specs}
+    for base_spec in valuation_specs:
+        if base_spec["key"] in active_valuation_keys:
+            continue
+        if not classification_available:
+            reason = "Not scored until current sector and industry metadata establish the applicable company model."
+        elif is_financial_sector:
+            reason = "Not used for deposit-funded financial institutions; the separate valuation screen uses P/E and P/B."
+        else:
+            reason = "Not scored for REITs without FFO/AFFO and property-specific valuation inputs."
+        register(
+            {**base_spec, "score_model": "context", "weight": 0.0},
+            value_map.get(base_spec["key"]),
+            forced_status="Context" if usable(value_map.get(base_spec["key"])) else "N/A",
+            applicability_reason=reason,
+        )
+
+    health_total = model_totals["financial_health"]
+    health_coverage = health_total["available"] / health_total["expected"] if health_total["expected"] else 0.0
+    covered_components = sum(1 for values in component_totals.values() if values["available"] > 0)
+    health_score = None
+    if not applicability_hold and health_coverage >= .80 and covered_components == 5:
+        health_score = int(round(health_total["points"] / (health_total["available"] * 100.0) * 100.0))
+
+    health_score_range = None
+    if health_score is not None and health_total["expected"] > 0:
+        missing_weight = max(health_total["expected"] - health_total["available"], 0.0)
+        health_score_range = {
+            "low": int(round(health_total["points"] / (health_total["expected"] * 100.0) * 100.0)),
+            "high": int(round((health_total["points"] + missing_weight * 100.0) / (health_total["expected"] * 100.0) * 100.0)),
+        }
+
+    if health_score is None:
+        health_status = (
+            "Company Classification Required" if not classification_available else
+            "Sector Model Required" if applicability_hold else
+            "Insufficient Data"
+        )
+    elif health_score >= 80:
+        health_status = "Strong Financial Condition Screen"
+    elif health_score >= 60:
+        health_status = "Moderate Financial Condition Screen"
+    else:
+        health_status = "Weak Financial Condition Screen"
+
+    component_scores = {}
+    component_labels = {
+        "liquidity": "Liquidity",
+        "solvency": "Solvency",
+        "profitability_efficiency": "Profitability & efficiency",
+        "cash_flow_quality": "Cash-flow quality",
+        "growth_per_share": "Growth & per-share resilience",
+    }
+    for key, values in component_totals.items():
+        score = (
+            int(round(values["points"] / (values["available"] * 100.0) * 100.0))
+            if values["available"] > 0 else None
+        )
+        component_scores[key] = {
+            "label": component_labels[key],
+            "score": score,
+            "coverage": values["available"] / values["expected"] if values["expected"] else 0.0,
+            "available_metric_count": int(values["count"]),
+        }
+
+    valuation_total = model_totals["valuation"]
+    valuation_coverage = valuation_total["available"] / valuation_total["expected"] if valuation_total["expected"] else 0.0
+    minimum_valuation_metrics = 2 if is_financial_sector else 3
+    valuation_score = None
+    if not is_reit and valuation_coverage >= .50 and valuation_total["count"] >= minimum_valuation_metrics:
+        valuation_score = int(round(valuation_total["points"] / (valuation_total["available"] * 100.0) * 100.0))
+    if not classification_available:
+        valuation_status = "Company Classification Required"
+    elif is_reit:
+        valuation_status = "REIT Valuation Inputs Required"
+    elif valuation_score is None:
+        valuation_status = "Insufficient Data"
+    elif valuation_score >= 80:
+        valuation_status = "Lower-Multiple Screen"
+    elif valuation_score >= 60:
+        valuation_status = "Mixed Valuation Screen"
+    else:
+        valuation_status = "Higher-Multiple Screen"
+
+    coverage_label = "High" if health_coverage >= .90 else ("Moderate" if health_coverage >= .80 else "Low")
+    return {
+        "score": health_score,
+        "status": health_status,
+        "valuation_score": valuation_score,
+        "valuation_status": valuation_status,
+        "component_scores": component_scores,
+        "applicability_profile": {
+            "key": profile_key,
+            "label": profile_label,
+            "rationale": profile_rationale,
+            "sector": sector,
+            "industry": industry,
+            "health_model_available": applicability_hold is None,
+        },
+        "evaluations": evaluations,
+        "coverage": {
+            "applicable_ratio_count": int(health_total["count"]),
+            "model_ratio_count": len(health_specs),
+            "minimum_required": "80% model weight with evidence in all five components",
+            "sufficient_for_score": health_score is not None,
+            "coverage_percent": health_coverage,
+            "coverage_label": coverage_label,
+            "covered_component_count": covered_components,
+            "component_count": 5,
+            "score_range": health_score_range,
+            "valuation_score": valuation_score,
+            "valuation_status": valuation_status,
+            "valuation_coverage_percent": valuation_coverage,
+            "withheld_reason": applicability_hold,
+        },
+        "model_disclosure": (
+            "Financial health and valuation are separate rules-based screens, not investment recommendations. "
+            "Health uses five capped evidence components; unavailable metrics reduce coverage and are never estimated. "
+            "The company profile is selected from current sector, industry and statement evidence for every searched ticker. "
+            "Context-only or non-applicable metrics remain visible but contribute no points."
+        ),
     }

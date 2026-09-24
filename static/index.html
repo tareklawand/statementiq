@@ -330,7 +330,7 @@
         .val-positive { color: var(--accent-green); }
         .val-negative { color: var(--accent-red); }
     </style>
-    <link rel="stylesheet" href="/static/redesign.css?v=diagnostic_structure_v24">
+    <link rel="stylesheet" href="/static/redesign.css?v=connected_model_v25">
 </head>
 <body>
     <section class="intro-page" id="introPage" aria-labelledby="introTitle">
@@ -584,11 +584,18 @@
                         
                         <!-- Health Score Panel & Sub-Pillars Breakdown -->
                         <div class="glass-card score-panel">
-                            <div class="card-subtitle">RULES-BASED MODEL SCORE</div>
+                            <div class="card-subtitle">FINANCIAL HEALTH MODEL</div>
                             <div id="healthGaugeChart" class="gauge-container"></div>
                             <div class="health-status-badge" id="healthStatusText">STRONG FINANCIAL HEALTH</div>
                             <div class="score-coverage" id="scoreCoverageText">Checking ratio coverage…</div>
-                            <p class="score-disclaimer">General screening benchmarks—not a peer valuation, credit opinion, or investment recommendation.</p>
+                            <div class="model-profile" id="applicabilityProfileText">Selecting the applicable company model…</div>
+                            <p class="score-disclaimer">A transparent financial-condition screen. Valuation is separate; neither result is a buy or sell recommendation.</p>
+
+                            <div class="valuation-score-summary">
+                                <span>SEPARATE VALUATION SCREEN</span>
+                                <strong id="valuationScoreText">N/A</strong>
+                                <small id="valuationStatusText">Checking market inputs…</small>
+                            </div>
                             
                             <hr class="card-divider" />
                             
@@ -667,7 +674,7 @@
                     <div class="section-header-row">
                         <div>
                             <h2 class="section-heading" style="margin:0;"><i data-lucide="scan-line"></i> Fundamental ratio diagnostics</h2>
-                            <p class="section-subheading">Scored and informational diagnostics organized by financial purpose, with every formula shown.</p>
+                            <p class="section-subheading">Every metric states whether it affects financial health, valuation, or context only.</p>
                         </div>
                     </div>
 
@@ -681,7 +688,7 @@
                                 <span>SUPPORTING ANALYSIS</span>
                                 <h3 id="supportingAnalysisTitle">Growth, capital allocation &amp; per-share performance</h3>
                             </div>
-                            <p>Measures that do not belong to the five ratio families. They are informational and do not alter the score.</p>
+                            <p>Additional evidence is connected to the financial-health model when relevant; context-only measures are labelled clearly.</p>
                         </div>
                         <div id="supportingAnalysisContainer"></div>
                     </section>
@@ -766,6 +773,6 @@
     </div>
 
     <!-- Script Entry -->
-    <script src="/static/app.js?v=diagnostic_structure_v24"></script>
+    <script src="/static/app.js?v=connected_model_v25"></script>
 </body>
 </html>

@@ -197,7 +197,8 @@ def _is_financial_institution(info: Dict[str, Any]) -> bool:
     industry = str(info.get("industry") or "").lower()
     institution_terms = (
         "bank", "insurance", "capital markets", "financial conglomerate",
-        "mortgage finance", "asset management", "credit services - banks",
+        "financial - conglomerate", "mortgage finance", "asset management",
+        "credit services - banks", "savings & loan", "credit union",
     )
     return any(term in industry for term in institution_terms)
 
@@ -546,8 +547,9 @@ def fetch_stock_data(ticker_symbol: str, force_refresh: bool = False) -> Dict[st
             integrity_hold_reason = "Headline score withheld because comparable provider and SEC statement facts did not agree."
         elif provider_lags_latest_filing:
             integrity_hold_reason = "Headline score withheld until the provider includes the newest filed report period."
-        elif is_fin:
-            integrity_hold_reason = "Headline score withheld because financial institutions require a sector-specific regulatory model."
+        # Sector-model applicability is handled by the connected scoring model,
+        # not by the data-integrity gate. Keep this field exclusively for source
+        # mismatches or provider lag so the UI can distinguish the two cases.
 
         if income_stmt is not None and not income_stmt.empty and balance_sheet is not None and not balance_sheet.empty:
             result = {

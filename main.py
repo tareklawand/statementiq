@@ -121,7 +121,8 @@ def analyze_ticker(
     api_key: Optional[str] = Query(None),
 ):
     """
-    Fetches financial data, computes 10 ratios, health score, chart data, and AI insights.
+    Fetches current financial data, computes connected health and valuation diagnostics,
+    prepares chart data, and generates a deterministic evidence briefing.
     """
     symbol = normalize_ticker(ticker)
 

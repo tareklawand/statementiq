@@ -23,12 +23,13 @@ def test_statement_analysis_and_filing_review_live_with_reported_statements():
     assert 'id="filingReviewContainer"' in statement_tab
 
 
-def test_ratio_diagnostics_explain_scored_and_informational_metrics():
+def test_ratio_diagnostics_explain_health_valuation_and_context_metrics():
     script = (ROOT / "static" / "app.js").read_text()
 
     for category in ("Liquidity", "Leverage", "Profitability", "Efficiency", "Valuation"):
         assert category in script
-    assert "Scored diagnostic" in script
-    assert "Informational" in script
-    assert "Not included in the headline score" in script
+    assert "Health score input" in script
+    assert "Valuation score input" in script
+    assert "Context only" in script
+    assert "contributes no score points" in script
     assert "renderSupportingAnalysis" in script

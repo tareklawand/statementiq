@@ -564,9 +564,25 @@ function renderAIBriefing() {
     const coverageText = el("scoreCoverageText");
     if (coverageText) {
         const coverage = metrics.score_coverage || {};
+        const percent = Math.round(Number(coverage.coverage_percent || 0) * 100);
+        const range = coverage.score_range;
+        const rangeText = range && isNumericValue(range.low) && isNumericValue(range.high)
+            ? ` · evidence range ${Math.round(Number(range.low))}–${Math.round(Number(range.high))}`
+            : "";
         coverageText.innerText = coverage.withheld_reason ||
-            `${coverage.applicable_ratio_count || 0} of ${coverage.model_ratio_count || 10} model ratios available`;
+            `${coverage.applicable_ratio_count || 0} of ${coverage.model_ratio_count || 0} health inputs · ${coverage.coverage_label || "Low"} coverage (${percent}%)${rangeText}`;
     }
+    const profileText = el("applicabilityProfileText");
+    if (profileText) {
+        const profile = metrics.applicability_profile || {};
+        profileText.innerText = profile.label
+            ? `${profile.label}: ${profile.rationale || "Model selected from current company data."}`
+            : "Company-specific applicability unavailable.";
+    }
+    const valuationScoreText = el("valuationScoreText");
+    if (valuationScoreText) valuationScoreText.innerText = isNumericValue(metrics.valuation_score) ? `${Math.round(Number(metrics.valuation_score))}/100` : "N/A";
+    const valuationStatusText = el("valuationStatusText");
+    if (valuationStatusText) valuationStatusText.innerText = metrics.valuation_status || "Insufficient Data";
 
     renderGaugeChart(metrics.health_score, metrics.health_status);
 }
@@ -577,38 +593,29 @@ function renderPillarsMatrix() {
     if (!container || !currentData || !currentData.metrics) return;
     container.innerHTML = "";
 
-    const ratioEvals = currentData.metrics.ratio_evaluations || {};
+    const components = currentData.metrics.financial_health_components || {};
 
-    const pillars = ["Liquidity", "Leverage", "Profitability", "Efficiency", "Valuation"];
-
-    pillars.forEach(name => {
-        const categoryItems = Object.values(ratioEvals).filter(item => item.category === name);
-        const statuses = categoryItems.map(item => item.status);
-        let status = "N/A";
-        let color = themeColor("--accent-green", "#83dca5");
-        if (statuses.includes("Warning")) {
-            status = "Warning";
-            color = themeColor("--accent-red", "#ed8d87");
-        } else if (statuses.includes("Caution")) {
-            status = "Caution";
-            color = themeColor("--accent-amber", "#e7c26f");
-        } else if (statuses.includes("Healthy")) {
-            status = "Healthy";
-        } else if (statuses.includes("N/M")) {
-            status = "N/M";
-            color = themeColor("--accent-amber", "#e7c26f");
-        } else {
-            color = themeColor("--text-dark", "#717a71");
+    Object.values(components).forEach(component => {
+        const score = isNumericValue(component.score) ? Math.round(Number(component.score)) : null;
+        const coverage = Math.round(Number(component.coverage || 0) * 100);
+        let color = themeColor("--text-dark", "#717a71");
+        if (score !== null) {
+            color = score >= 80
+                ? themeColor("--accent-green", "#83dca5")
+                : score >= 60
+                    ? themeColor("--accent-amber", "#e7c26f")
+                    : themeColor("--accent-red", "#ed8d87");
         }
 
         const div = document.createElement("div");
         div.className = "pillar-item";
         div.innerHTML = `
-            <span class="pillar-name">${name}</span>
+            <span class="pillar-name">${escapeHtml(component.label || "Component")}</span>
             <div class="pillar-track">
-                <div class="pillar-fill" style="width: ${status === 'N/A' ? 0 : 100}%; background: ${color};"></div>
+                <div class="pillar-fill" style="width: ${score === null ? 0 : score}%; background: ${color};"></div>
             </div>
-            <span class="pillar-val" style="color: ${color};">${status}</span>
+            <span class="pillar-val" style="color: ${color};">${score === null ? "N/A" : `${score}`}</span>
+            <span class="pillar-coverage">${coverage}% evidence</span>
         `;
         container.appendChild(div);
     });
@@ -1201,24 +1208,36 @@ function renderRatioCards() {
         Warning: "warning",
         "N/M": "nm",
         "N/A": "na",
+        Context: "informational",
     }[status] || "healthy");
 
     container.innerHTML = categoryOrder.map((category, categoryIndex) => {
         const scoredItems = scoredByCategory[category];
-        const informationalItems = additions[category] || [];
+        const informationalItems = (additions[category] || []).filter(item => !ratioEvals[item.key]);
         const cards = [
             ...scoredItems.map(item => {
                 const status = item.status || "N/A";
+                const statusLabel = item.status_label || status;
+                const modelLabel = item.score_model === "financial_health"
+                    ? "Health score input"
+                    : item.score_model === "valuation"
+                        ? "Valuation score input"
+                        : "Context only";
+                const weightText = item.score_model === "financial_health"
+                    ? `Financial-health weight: ${(Number(item.weight || 0) * 100).toFixed(1)}%`
+                    : item.score_model === "valuation"
+                        ? `Valuation weight: ${(Number(item.weight || 0) * 100).toFixed(1)}%`
+                        : "Context only · contributes no score points";
                 return `
-                    <article class="ratio-card">
+                    <article class="ratio-card ${item.score_model === "context" ? "is-informational" : ""}">
                         <div class="ratio-card-header">
-                            <span class="ratio-cat-tag">Scored diagnostic</span>
-                            <span class="status-pill ${scoredStatusClass(status)}">● ${escapeHtml(status.toUpperCase())}</span>
+                            <span class="ratio-cat-tag">${escapeHtml(modelLabel)}</span>
+                            <span class="status-pill ${scoredStatusClass(status)}">● ${escapeHtml(String(statusLabel).toUpperCase())}</span>
                         </div>
                         <div class="ratio-name">${escapeHtml(item.name)}</div>
                         <div class="ratio-val-large">${escapeHtml(scoredValue(item))}</div>
                         <div class="ratio-formula">${escapeHtml(item.formula || "Formula unavailable")}</div>
-                        <div class="ratio-target-caption">Benchmark target: ${escapeHtml(item.target || "Not available")}</div>
+                        <div class="ratio-target-caption">${escapeHtml(weightText)}<br>${escapeHtml(item.target || "Benchmark unavailable")}</div>
                     </article>`;
             }),
             ...informationalItems.map(item => {
@@ -1227,23 +1246,24 @@ function renderRatioCards() {
                 return `
                     <article class="ratio-card is-informational ${available ? "" : "is-unavailable"}">
                         <div class="ratio-card-header">
-                            <span class="ratio-cat-tag">Informational</span>
-                            <span class="status-pill ${available ? "informational" : "na"}">● ${available ? "UNSCORED" : "N/A"}</span>
+                            <span class="ratio-cat-tag">Context only</span>
+                            <span class="status-pill ${available ? "informational" : "na"}">● ${available ? "CONTEXT" : "N/A"}</span>
                         </div>
                         <div class="ratio-name">${escapeHtml(item.name)}</div>
                         <div class="ratio-val-large">${escapeHtml(analysisValue(value, item.kind, currency))}</div>
                         <div class="ratio-formula">${escapeHtml(item.formula)}</div>
-                        <div class="ratio-target-caption">Analytical context only · Not included in the headline score</div>
+                        <div class="ratio-target-caption">Context only · contributes no score points</div>
                     </article>`;
             }),
         ].join("");
         const total = scoredItems.length + informationalItems.length;
+        const modelInputCount = scoredItems.filter(item => ["financial_health", "valuation"].includes(item.score_model)).length;
         return `
             <section class="ratio-category-section" data-category="${category.toLowerCase()}">
                 <div class="category-title">
                     <span class="category-index">${String(categoryIndex + 1).padStart(2, "0")}</span>
                     <span class="category-copy"><strong>${escapeHtml(category)}</strong><small>${escapeHtml(categoryDescriptions[category])}</small></span>
-                    <span class="category-count">${total} metrics · ${scoredItems.length} scored</span>
+                    <span class="category-count">${total} metrics · ${modelInputCount} model input${modelInputCount === 1 ? "" : "s"}</span>
                 </div>
                 <div class="ratio-cards-grid">${cards}</div>
             </section>`;
@@ -1255,6 +1275,7 @@ function renderSupportingAnalysis() {
     if (!container || !currentData || !currentData.metrics) return;
     const supplemental = currentData.metrics.supplemental_metrics || {};
     const advanced = currentData.metrics.advanced_metrics || {};
+    const ratioEvals = currentData.metrics.ratio_evaluations || {};
     const currency = (currentData.info || {}).currency;
     const groups = [
         ["Cash flow & capital base · absolute measures", [
@@ -1303,7 +1324,14 @@ function renderSupportingAnalysis() {
             <div class="analysis-metric-grid">
                 ${definitions.map(([source, key, label, kind, formula]) => {
                     const value = valueFor(source, key);
+                    const evaluation = ratioEvals[key];
+                    const modelTag = evaluation && evaluation.score_model === "financial_health"
+                        ? `HEALTH SCORE INPUT · ${(Number(evaluation.weight || 0) * 100).toFixed(1)}%`
+                        : evaluation && evaluation.score_model === "valuation"
+                            ? `VALUATION SCORE INPUT · ${(Number(evaluation.weight || 0) * 100).toFixed(1)}%`
+                            : "CONTEXT ONLY";
                     return `<article class="analysis-metric-card ${isNumericValue(value) ? "" : "is-unavailable"}">
+                        <em class="analysis-model-tag">${escapeHtml(modelTag)}</em>
                         <span>${escapeHtml(label)}</span>
                         <strong>${escapeHtml(analysisValue(value, kind, currency))}</strong>
                         <small>${escapeHtml(formula)}</small>

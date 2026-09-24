@@ -89,8 +89,11 @@ def generate_pdf_report(
     integrity_hold_reason = data_quality.get("integrity_hold_reason")
     
     health_score = metrics.get("health_score")
+    valuation_score = metrics.get("valuation_score")
+    valuation_status = metrics.get("valuation_status") or "Insufficient Data"
+    applicability_profile = metrics.get("applicability_profile") or {}
 
-    header_text = Paragraph(f"<b>Financial Health & Valuation Report: {company_name} ({symbol})</b><br/><font size=8.5 color='#2563EB'>Provider-Sourced Fundamentals with Current Market Valuation</font><br/><font size=6.5 color='#64748B'>Report Generated: {report_generated_at}<br/>Market Data Captured: {market_data_as_of}<br/>Income Basis: {basis.get('income', 'unavailable')} through {basis.get('income_period_end', 'unavailable')}<br/>Balance Sheet: {basis.get('balance_sheet', 'unavailable')} at {basis.get('balance_sheet_period_end', 'unavailable')}</font>", title_style)
+    header_text = Paragraph(f"<b>Financial Statement Analysis Report: {company_name} ({symbol})</b><br/><font size=8.5 color='#2563EB'>Provider-Sourced Fundamentals with Separate Health and Valuation Screens</font><br/><font size=6.5 color='#64748B'>Report Generated: {report_generated_at}<br/>Market Data Captured: {market_data_as_of}<br/>Income Basis: {basis.get('income', 'unavailable')} through {basis.get('income_period_end', 'unavailable')}<br/>Balance Sheet: {basis.get('balance_sheet', 'unavailable')} at {basis.get('balance_sheet_period_end', 'unavailable')}</font>", title_style)
 
     if health_score is None:
         score_color = colors.HexColor("#64748B")
@@ -98,7 +101,13 @@ def generate_pdf_report(
     else:
         score_color = SUCCESS if health_score >= 80 else (WARNING if health_score >= 60 else DANGER)
         score_display = f"{health_score}/100"
-    score_box_html = f"<font size=16 color='{score_color.hexval()}'><b>{score_display}</b></font><br/><font size=6.5 color='#64748B'>Rules-Based Model Score</font>"
+    valuation_display = f"{valuation_score}/100" if valuation_score is not None else "N/A"
+    score_box_html = (
+        f"<font size=16 color='{score_color.hexval()}'><b>{score_display}</b></font>"
+        "<br/><font size=6.5 color='#64748B'>Financial Health</font>"
+        f"<br/><font size=8 color='#0F172A'><b>{valuation_display}</b></font>"
+        f"<br/><font size=5.8 color='#64748B'>Valuation · {valuation_status}</font>"
+    )
     score_p = Paragraph(score_box_html, ParagraphStyle('ScoreP', align=TA_CENTER))
 
     header_table = Table([[header_text, score_p]], colWidths=[420, 120])
@@ -184,13 +193,35 @@ def generate_pdf_report(
         elements.append(Paragraph(f"<b>Score hold:</b> {integrity_hold_reason}", body_style))
         elements.append(Spacer(1, 4))
 
-    # Section 2: Core Financial Ratios
-    elements.append(Paragraph("2. Calculated Financial Ratios with Explicit Weightings & Benchmarks", section_heading))
+    # Section 2: Connected health, valuation and contextual diagnostics
+    elements.append(Paragraph("2. Connected Financial-Health, Valuation & Context Diagnostics", section_heading))
+    if applicability_profile:
+        elements.append(Paragraph(
+            f"<b>Applicable company model:</b> {applicability_profile.get('label', 'Unavailable')}. "
+            f"{applicability_profile.get('rationale', '')}",
+            body_style,
+        ))
+        elements.append(Spacer(1, 4))
+    score_coverage = metrics.get("score_coverage") or {}
+    if score_coverage:
+        score_range = score_coverage.get("score_range") or {}
+        range_text = (
+            f" Evidence range: {score_range.get('low')}–{score_range.get('high')}/100."
+            if score_range.get("low") is not None and score_range.get("high") is not None else ""
+        )
+        elements.append(Paragraph(
+            f"<b>Health-model coverage:</b> {score_coverage.get('applicable_ratio_count', 0)} of "
+            f"{score_coverage.get('model_ratio_count', 0)} inputs; "
+            f"{score_coverage.get('coverage_label', 'Low')} coverage "
+            f"({float(score_coverage.get('coverage_percent') or 0):.0%}).{range_text}",
+            body_style,
+        ))
+        elements.append(Spacer(1, 4))
     ratio_evals = metrics.get("ratio_evaluations", {})
 
     table_data = [
         [
-            Paragraph("<b>Category</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7, textColor=PRIMARY)),
+            Paragraph("<b>Model / Category</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7, textColor=PRIMARY)),
             Paragraph("<b>Financial Metric</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7, textColor=PRIMARY)),
             Paragraph("<b>Result</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7, textColor=PRIMARY)),
             Paragraph("<b>Benchmark Ranges</b>", ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=7, textColor=PRIMARY)),
@@ -208,6 +239,8 @@ def generate_pdf_report(
         fmt = item.get("format", "{:.2f}")
         target = item.get("target", "")
         status = item.get("status", "N/A")
+        status_label = item.get("status_label") or status
+        score_model = item.get("score_model", "context")
         pts = item.get("pts", 0.0)
         weight = item.get("weight", 0.10)
         w_pts = item.get("w_pts", 0.0)
@@ -218,28 +251,36 @@ def generate_pdf_report(
             val_str = status
 
         if status == "Healthy":
-            status_cell = Paragraph(f"<font color='{SUCCESS.hexval()}'><b>Healthy</b></font>", ParagraphStyle('TD', fontSize=7))
+            status_cell = Paragraph(f"<font color='{SUCCESS.hexval()}'><b>{status_label}</b></font>", ParagraphStyle('TD', fontSize=7))
         elif status == "Caution":
-            status_cell = Paragraph(f"<font color='{WARNING.hexval()}'><b>Caution</b></font>", ParagraphStyle('TD', fontSize=7))
+            status_cell = Paragraph(f"<font color='{WARNING.hexval()}'><b>{status_label}</b></font>", ParagraphStyle('TD', fontSize=7))
         elif status == "Warning":
-            status_cell = Paragraph(f"<font color='{DANGER.hexval()}'><b>Warning</b></font>", ParagraphStyle('TD', fontSize=7))
+            status_cell = Paragraph(f"<font color='{DANGER.hexval()}'><b>{status_label}</b></font>", ParagraphStyle('TD', fontSize=7))
         elif status == "N/M":
             status_cell = Paragraph("<font color='#D97706'><b>N/M</b></font>", ParagraphStyle('TD', fontSize=7))
+        elif status == "Context":
+            status_cell = Paragraph("<font color='#2563EB'><b>Context</b></font>", ParagraphStyle('TD', fontSize=7))
         else:
-            status_cell = Paragraph("<font color='#64748B'><b>N/A</b></font>", ParagraphStyle('TD', fontSize=7))
+            status_cell = Paragraph(f"<font color='#64748B'><b>{status_label}</b></font>", ParagraphStyle('TD', fontSize=7))
+
+        model_label = {
+            "financial_health": "Health",
+            "valuation": "Valuation",
+            "context": "Context",
+        }.get(score_model, "Context")
 
         table_data.append([
-            Paragraph(cat, ParagraphStyle('TD', fontSize=7)),
+            Paragraph(f"<b>{model_label}</b><br/>{cat}", ParagraphStyle('TD', fontSize=7)),
             Paragraph(name, ParagraphStyle('TD', fontSize=7)),
             Paragraph(val_str, ParagraphStyle('TD', fontSize=7, fontName='Helvetica-Bold')),
             Paragraph(target, ParagraphStyle('TD', fontSize=6)),
             status_cell,
             Paragraph(f"{pts:.1f}", ParagraphStyle('TD', fontSize=7)),
-            Paragraph(f"{int(weight*100)}%", ParagraphStyle('TD', fontSize=7)),
-            Paragraph(f"{w_pts:.1f}", ParagraphStyle('TD', fontSize=7, fontName='Helvetica-Bold'))
+            Paragraph(f"{weight*100:.1f}%" if score_model in {"financial_health", "valuation"} else "—", ParagraphStyle('TD', fontSize=7)),
+            Paragraph(f"{w_pts:.1f}" if score_model in {"financial_health", "valuation"} else "—", ParagraphStyle('TD', fontSize=7, fontName='Helvetica-Bold'))
         ])
 
-    ratio_table = Table(table_data, colWidths=[55, 140, 45, 145, 55, 30, 40, 30])
+    ratio_table = Table(table_data, colWidths=[66, 129, 45, 145, 55, 30, 40, 30], repeatRows=1)
     ratio_table.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), BG_LIGHT),
         ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#E2E8F0")),
@@ -249,8 +290,8 @@ def generate_pdf_report(
     elements.append(ratio_table)
     elements.append(Spacer(1, 6))
 
-    # Section 3: Advanced unscored diagnostics
-    elements.append(Paragraph("3. Advanced Financial Diagnostics (Unscored)", section_heading))
+    # Section 3: Advanced diagnostics and supporting context
+    elements.append(Paragraph("3. Advanced Financial Diagnostics & Supporting Context", section_heading))
     advanced = metrics.get("advanced_metrics") or {}
     advanced_definitions = [
         ("roic", "Return on invested capital", "percent", "NOPAT / average invested capital"),
@@ -304,7 +345,7 @@ def generate_pdf_report(
     ]))
     elements.append(advanced_table)
     elements.append(Paragraph(
-        "Advanced diagnostics are calculated only from exact reported inputs and do not alter the rules-based headline score. N/A means at least one required input was unavailable; no value was estimated.",
+        "These measures are calculated only from exact reported inputs. Some feed the health or valuation screen as identified in Section 2; the remainder are context only. N/A means at least one required input was unavailable; no value was estimated.",
         body_style,
     ))
     elements.append(Spacer(1, 6))
@@ -377,7 +418,7 @@ def generate_pdf_report(
 
     # Footer note
     elements.append(Spacer(1, 6))
-    footer_p = Paragraph(f"<font color='#94A3B8'>StatementIQ Financial Analysis Report for {company_name} ({symbol}). Rules-Based Model Score: {score_display}. Missing source values are shown as N/A. This general research screen is not investment advice, a credit opinion, or a substitute for reviewing the complete filings.</font>", ParagraphStyle('Foot', fontName='Helvetica-Oblique', fontSize=6.5, align=TA_CENTER))
+    footer_p = Paragraph(f"<font color='#94A3B8'>StatementIQ Financial Analysis Report for {company_name} ({symbol}). Financial Health: {score_display}. Separate Valuation Screen: {valuation_display}. Missing source values are shown as N/A. These transparent rules-based screens are not investment advice, a credit opinion, or a substitute for reviewing complete filings and industry context.</font>", ParagraphStyle('Foot', fontName='Helvetica-Oblique', fontSize=6.5, align=TA_CENTER))
     elements.append(footer_p)
 
     doc.build(elements)
