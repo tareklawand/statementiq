@@ -180,3 +180,15 @@ def test_filing_review_uses_locked_edge_fallback_after_sec_rate_limit(monkeypatc
     )
     assert result["status"] == "analyzed"
     assert calls[1].startswith("https://statementiq-lb.com/api/sec-filing-text?")
+
+
+def test_full_submission_scan_ignores_exhibit_language():
+    submission = """
+        <DOCUMENT><TYPE>10-K\n<TEXT><html><body>Critical audit matter and operating leases.</body></html></TEXT></DOCUMENT>
+        <DOCUMENT><TYPE>EX-99\n<TEXT><html><body>Management identified a material weakness.</body></html></TEXT></DOCUMENT>
+    """
+    result = analyze_filing_text(submission)
+    topics = {topic["key"]: topic for topic in result["topics"]}
+    assert topics["critical_audit_matter"]["status"] == "located"
+    assert topics["leases"]["status"] == "located"
+    assert topics["material_weakness"]["status"] == "not_located_by_phrase_scan"

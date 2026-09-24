@@ -62,14 +62,32 @@ export default {
       ) {
         return applyPublicHeaders(Response.json({ detail: "Only official SEC filing documents are allowed" }, { status: 400 }), { preventIndexing: true });
       }
-      const secResponse = await fetch(sourceUrl.toString(), {
-        headers: {
-          "user-agent": "StatementIQ/1.0 statementiq-lb.com",
-          "accept": "text/html,text/plain;q=0.9",
-          "accept-language": "en-US,en;q=0.9"
-        },
+      const secHeaders = {
+        "user-agent": "StatementIQ/1.0 statementiq-lb.com",
+        "accept": "text/html,text/plain;q=0.9",
+        "accept-language": "en-US,en;q=0.9"
+      };
+      let secResponse = await fetch(sourceUrl.toString(), {
+        headers: secHeaders,
         cf: { cacheEverything: true, cacheTtl: 21600 }
       });
+      // The SEC archive sometimes blocks primary HTML for data-center IPs but
+      // serves the official full-submission text. Derive that URL only from a
+      // validated EDGAR accession directory.
+      if (secResponse.status === 403 || secResponse.status === 429) {
+        const pathParts = sourceUrl.pathname.split("/").filter(Boolean);
+        const accessionCompact = pathParts[4] || "";
+        if (/^\d{18}$/.test(accessionCompact)) {
+          const accessionDashed = `${accessionCompact.slice(0, 10)}-${accessionCompact.slice(10, 12)}-${accessionCompact.slice(12)}`;
+          const textUrl = new URL(sourceUrl.toString());
+          textUrl.pathname = `/Archives/edgar/data/${pathParts[3]}/${accessionCompact}/${accessionDashed}.txt`;
+          textUrl.search = "";
+          secResponse = await fetch(textUrl.toString(), {
+            headers: secHeaders,
+            cf: { cacheEverything: true, cacheTtl: 21600 }
+          });
+        }
+      }
       const contentLength = Number(secResponse.headers.get("content-length") || 0);
       if (contentLength > 20 * 1024 * 1024) {
         return applyPublicHeaders(Response.json({ detail: "SEC filing exceeds review size limit" }, { status: 413 }), { preventIndexing: true });

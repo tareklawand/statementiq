@@ -44,6 +44,18 @@ _TOPICS = (
 
 
 def _plain_text(document: str) -> str:
+    # Full-submission .txt files can contain exhibits after the annual report.
+    # Isolate the actual periodic report document so exhibit language cannot
+    # trigger accounting-quality or disclosure-topic signals.
+    if re.search(r"(?i)<DOCUMENT>", document):
+        for block in re.findall(r"(?is)<DOCUMENT>(.*?)</DOCUMENT>", document):
+            form_match = re.search(r"(?im)^<TYPE>\s*([^\r\n<]+)", block)
+            form = form_match.group(1).strip().upper() if form_match else ""
+            if form not in {"10-K", "10-K/A", "20-F", "20-F/A", "40-F", "40-F/A"}:
+                continue
+            text_match = re.search(r"(?is)<TEXT>(.*?)</TEXT>", block)
+            document = text_match.group(1) if text_match else block
+            break
     text = re.sub(r"(?is)<script.*?>.*?</script>|<style.*?>.*?</style>", " ", document)
     text = re.sub(r"(?s)<[^>]+>", " ", text)
     text = html.unescape(text)
