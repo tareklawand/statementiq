@@ -39,6 +39,48 @@ export default {
       requestUrl.pathname.startsWith("/api/") ||
       requestUrl.pathname === "/health";
 
+    // Render hosting IPs can be rate-limited by the SEC archive even while
+    // SEC data endpoints remain available. This narrowly scoped edge route
+    // fetches only official filing documents; it is not a general web proxy.
+    if (requestUrl.pathname === "/api/sec-filing-text") {
+      if (request.method !== "GET") {
+        return applyPublicHeaders(Response.json({ detail: "Method not allowed" }, { status: 405 }), { preventIndexing: true });
+      }
+      let sourceUrl;
+      try {
+        sourceUrl = new URL(requestUrl.searchParams.get("url") || "");
+      } catch (error) {
+        return applyPublicHeaders(Response.json({ detail: "Invalid SEC filing URL" }, { status: 400 }), { preventIndexing: true });
+      }
+      const validArchivePath = /^\/Archives\/edgar\/data\/\d+\/[A-Za-z0-9._\/-]+$/i.test(sourceUrl.pathname);
+      const validDocumentType = /\.(?:html?|txt)$/i.test(sourceUrl.pathname);
+      if (
+        sourceUrl.protocol !== "https:" ||
+        sourceUrl.hostname !== "www.sec.gov" ||
+        !validArchivePath ||
+        !validDocumentType
+      ) {
+        return applyPublicHeaders(Response.json({ detail: "Only official SEC filing documents are allowed" }, { status: 400 }), { preventIndexing: true });
+      }
+      const secResponse = await fetch(sourceUrl.toString(), {
+        headers: {
+          "user-agent": "StatementIQ/1.0 statementiq-lb.com",
+          "accept": "text/html,text/plain;q=0.9",
+          "accept-language": "en-US,en;q=0.9"
+        },
+        cf: { cacheEverything: true, cacheTtl: 21600 }
+      });
+      const contentLength = Number(secResponse.headers.get("content-length") || 0);
+      if (contentLength > 20 * 1024 * 1024) {
+        return applyPublicHeaders(Response.json({ detail: "SEC filing exceeds review size limit" }, { status: 413 }), { preventIndexing: true });
+      }
+      const headers = new Headers({
+        "content-type": secResponse.headers.get("content-type") || "text/html; charset=utf-8",
+        "cache-control": "public, max-age=21600"
+      });
+      return applyPublicHeaders(new Response(secResponse.body, { status: secResponse.status, headers }), { preventIndexing: true });
+    }
+
     // FastAPI serves browser files from /static locally. Cloudflare Assets
     // publishes the contents of that directory at the site root, so preserve
     // the same HTML paths by translating them at the edge.

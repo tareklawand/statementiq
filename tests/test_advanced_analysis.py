@@ -5,6 +5,7 @@ from metrics_calculator import compute_metrics
 from sec_filing_validator import _filing_signals
 from statement_analysis import prepare_statement_analysis
 from filing_disclosure_analyzer import analyze_filing_text
+import filing_disclosure_analyzer
 
 
 def complete_company_fixture():
@@ -151,3 +152,31 @@ def test_filing_phrase_review_locates_topics_without_making_risk_conclusions():
     assert topics["revenue_recognition"]["status"] == "located"
     assert topics["going_concern"]["status"] == "not_located_by_phrase_scan"
     assert "not a conclusion" in result["scope"]
+
+
+def test_filing_review_uses_locked_edge_fallback_after_sec_rate_limit(monkeypatch):
+    calls = []
+
+    class FakeResponse:
+        def __init__(self, status_code, text=""):
+            self.status_code = status_code
+            self.text = text
+            self.content = text.encode()
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                raise RuntimeError(f"status {self.status_code}")
+
+    def fake_get(url, **kwargs):
+        calls.append(url)
+        if len(calls) == 1:
+            return FakeResponse(403)
+        return FakeResponse(200, "<html><body>Critical audit matter</body></html>")
+
+    filing_disclosure_analyzer._CACHE.clear()
+    monkeypatch.setattr(filing_disclosure_analyzer.requests, "get", fake_get)
+    result = filing_disclosure_analyzer.scan_annual_filing(
+        "https://www.sec.gov/Archives/edgar/data/1/example.htm"
+    )
+    assert result["status"] == "analyzed"
+    assert calls[1].startswith("https://statementiq-lb.com/api/sec-filing-text?")

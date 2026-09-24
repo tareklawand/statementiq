@@ -8,6 +8,7 @@ import re
 import threading
 import time
 from typing import Any, Dict
+from urllib.parse import urlencode
 
 import requests
 
@@ -79,18 +80,29 @@ def scan_annual_filing(filing_url: str) -> Dict[str, Any]:
         if cached and now - cached["timestamp"] < _CACHE_TTL:
             return cached["data"]
     try:
+        request_headers = {
+            "User-Agent": os.environ.get(
+                "SEC_USER_AGENT",
+                "StatementIQ/1.0 statementiq-lb.com",
+            ),
+            "Accept": "text/html,application/xhtml+xml",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
         response = requests.get(
             filing_url,
-            headers={
-                "User-Agent": os.environ.get(
-                    "SEC_USER_AGENT",
-                    "StatementIQ/1.0 statementiq-lb.com",
-                ),
-                "Accept": "text/html,application/xhtml+xml",
-                "Accept-Language": "en-US,en;q=0.9",
-            },
+            headers=request_headers,
             timeout=10,
         )
+        if response.status_code in {403, 429}:
+            proxy_base = os.environ.get(
+                "SEC_ARCHIVE_PROXY",
+                "https://statementiq-lb.com/api/sec-filing-text",
+            )
+            response = requests.get(
+                f"{proxy_base}?{urlencode({'url': filing_url})}",
+                headers={"Accept": "text/html,application/xhtml+xml"},
+                timeout=15,
+            )
         response.raise_for_status()
         if len(response.content) > 20 * 1024 * 1024:
             raise ValueError("Annual filing exceeded the automated review size limit.")
