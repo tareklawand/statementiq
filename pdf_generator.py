@@ -249,8 +249,68 @@ def generate_pdf_report(
     elements.append(ratio_table)
     elements.append(Spacer(1, 6))
 
-    # Section 3: Market Valuation & EV/EBITDA
-    elements.append(Paragraph("3. Market Valuation & Enterprise Value Breakdown", section_heading))
+    # Section 3: Advanced unscored diagnostics
+    elements.append(Paragraph("3. Advanced Financial Diagnostics (Unscored)", section_heading))
+    advanced = metrics.get("advanced_metrics") or {}
+    advanced_definitions = [
+        ("roic", "Return on invested capital", "percent", "NOPAT / average invested capital"),
+        ("effective_tax_rate", "Effective tax rate", "percent", "Tax provision / pretax income"),
+        ("accrual_ratio", "Accrual ratio", "percent", "(Net income - operating cash flow) / average assets"),
+        ("operating_cash_flow_margin", "Operating cash flow margin", "percent", "Operating cash flow / revenue"),
+        ("capex_to_revenue", "Capital spending / revenue", "percent", "Absolute capital expenditure / revenue"),
+        ("dso", "Days sales outstanding", "days", "365 × average receivables / revenue"),
+        ("dio", "Days inventory outstanding", "days", "365 × average inventory / cost of revenue"),
+        ("dpo", "Days payable outstanding", "days", "365 × average payables / cost of revenue"),
+        ("cash_conversion_cycle", "Cash conversion cycle", "days", "DSO + DIO - DPO"),
+        ("stock_comp_to_revenue", "Stock compensation / revenue", "percent", "Stock-based compensation / revenue"),
+        ("stock_comp_to_fcf", "Stock compensation / FCF", "percent", "Stock-based compensation / free cash flow"),
+        ("shareholder_yield", "Shareholder yield", "percent", "(Dividends + net buybacks) / market capitalization"),
+        ("price_to_sales", "Price / sales", "multiple", "Market capitalization / revenue"),
+        ("price_to_book", "Price / book", "multiple", "Market capitalization / equity"),
+        ("ev_to_sales", "Enterprise value / sales", "multiple", "Enterprise value / revenue"),
+        ("earnings_yield", "Earnings yield", "percent", "Net income / market capitalization"),
+        ("annual_eps_growth", "Annual diluted EPS growth", "percent", "Latest annual EPS / prior annual EPS - 1"),
+        ("annual_fcf_growth", "Annual free cash flow growth", "percent", "Latest annual FCF / prior annual FCF - 1"),
+    ]
+
+    def format_advanced(value, kind):
+        if value is None:
+            return "N/A"
+        if kind == "percent":
+            return f"{value:.1%}"
+        if kind == "multiple":
+            return f"{value:.2f}x"
+        if kind == "days":
+            return f"{value:.1f} days"
+        return f"{value:.2f}"
+
+    advanced_rows = [[
+        Paragraph("<b>Metric</b>", ParagraphStyle('ATH', fontName='Helvetica-Bold', fontSize=7, textColor=PRIMARY)),
+        Paragraph("<b>Result</b>", ParagraphStyle('ATH', fontName='Helvetica-Bold', fontSize=7, textColor=PRIMARY)),
+        Paragraph("<b>Formula</b>", ParagraphStyle('ATH', fontName='Helvetica-Bold', fontSize=7, textColor=PRIMARY)),
+    ]]
+    for key, name, kind, formula in advanced_definitions:
+        advanced_rows.append([
+            Paragraph(name, ParagraphStyle('ATD', fontSize=7)),
+            Paragraph(format_advanced(advanced.get(key), kind), ParagraphStyle('ATD', fontSize=7, fontName='Helvetica-Bold')),
+            Paragraph(formula, ParagraphStyle('ATD', fontSize=6.5)),
+        ])
+    advanced_table = Table(advanced_rows, colWidths=[145, 75, 320], repeatRows=1)
+    advanced_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), BG_LIGHT),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#E2E8F0")),
+        ('TOPPADDING', (0,0), (-1,-1), 2.5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 2.5),
+    ]))
+    elements.append(advanced_table)
+    elements.append(Paragraph(
+        "Advanced diagnostics are calculated only from exact reported inputs and do not alter the rules-based headline score. N/A means at least one required input was unavailable; no value was estimated.",
+        body_style,
+    ))
+    elements.append(Spacer(1, 6))
+
+    # Section 4: Market Valuation & EV/EBITDA
+    elements.append(Paragraph("4. Market Valuation & Enterprise Value Breakdown", section_heading))
 
     price_val = ev_b.get("share_price")
     price_str = f"{market_currency} {price_val:.2f}" if price_val else "N/A"
@@ -288,8 +348,8 @@ def generate_pdf_report(
     elements.append(ev_table)
     elements.append(Spacer(1, 6))
 
-    # Section 4: Deterministic contextual analysis
-    elements.append(Paragraph("4. Rules-Based Briefing & Contextual Financial Drivers", section_heading))
+    # Section 5: Deterministic contextual analysis
+    elements.append(Paragraph("5. Rules-Based Briefing & Contextual Financial Drivers", section_heading))
     exec_summary = ai_insights.get("executive_summary", "")
     elements.append(Paragraph(exec_summary, body_style))
     elements.append(Spacer(1, 4))

@@ -33,10 +33,11 @@ def _headers() -> Dict[str, str]:
     return {
         "User-Agent": os.environ.get(
             "SEC_USER_AGENT",
-            "StatementIQ/1.0 (statementiq-lb.com; financial-data validation)",
+            "StatementIQ/1.0 statementiq-lb.com",
         ),
         "Accept-Encoding": "gzip, deflate",
         "Accept": "application/json",
+        "Accept-Language": "en-US,en;q=0.9",
     }
 
 
@@ -69,6 +70,73 @@ def _value_at(values: Any, index: int) -> Optional[Any]:
     if isinstance(values, list) and index < len(values):
         return values[index]
     return None
+
+
+def _filing_url(cik: str, accession: Any, primary_document: Any) -> Optional[str]:
+    accession_compact = str(accession or "").replace("-", "")
+    if not accession_compact or not primary_document:
+        return None
+    return (
+        f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/"
+        f"{accession_compact}/{primary_document}"
+    )
+
+
+def _filing_record(recent: Dict[str, Any], index: int, cik: str) -> Dict[str, Any]:
+    accession = _value_at(recent.get("accessionNumber"), index)
+    primary_document = _value_at(recent.get("primaryDocument"), index)
+    return {
+        "form": _value_at(recent.get("form"), index),
+        "filed_date": _value_at(recent.get("filingDate"), index),
+        "report_period": _value_at(recent.get("reportDate"), index),
+        "items": _value_at(recent.get("items"), index),
+        "accession_number": accession,
+        "filing_url": _filing_url(cik, accession, primary_document),
+    }
+
+
+def _latest_filing(recent: Dict[str, Any], cik: str, forms: set) -> Optional[Dict[str, Any]]:
+    matching = [
+        index for index, form in enumerate(recent.get("form") or [])
+        if form in forms
+    ]
+    if not matching:
+        return None
+    index = max(
+        matching,
+        key=lambda position: str(_value_at(recent.get("filingDate"), position) or ""),
+    )
+    return _filing_record(recent, index, cik)
+
+
+def _filing_signals(recent: Dict[str, Any], cik: str) -> list:
+    """Return only signals that can be identified from official form/item codes."""
+    signals = []
+    forms = recent.get("form") or []
+    for index, form in enumerate(forms):
+        filed_date = str(_value_at(recent.get("filingDate"), index) or "")
+        if filed_date and filed_date < "2023-01-01":
+            continue
+        items = str(_value_at(recent.get("items"), index) or "")
+        signal_type = None
+        title = None
+        severity = "review"
+        if form == "8-K" and "4.02" in items:
+            signal_type = "non_reliance_restatement"
+            title = "Non-reliance or restatement disclosure (Form 8-K Item 4.02)"
+            severity = "high"
+        elif form == "8-K" and "4.01" in items:
+            signal_type = "auditor_change"
+            title = "Change in certifying accountant (Form 8-K Item 4.01)"
+        elif form in {"10-K/A", "10-Q/A", "20-F/A", "40-F/A"}:
+            signal_type = "amended_periodic_filing"
+            title = f"Amended periodic filing ({form})"
+        if not signal_type:
+            continue
+        record = _filing_record(recent, index, cik)
+        record.update({"type": signal_type, "title": title, "severity": severity})
+        signals.append(record)
+    return sorted(signals, key=lambda item: str(item.get("filed_date") or ""), reverse=True)[:12]
 
 
 def get_latest_sec_filing(symbol: str, cik_hint: Optional[str] = None) -> Dict[str, Any]:
@@ -136,13 +204,7 @@ def get_latest_sec_filing(symbol: str, cik_hint: Optional[str] = None) -> Dict[s
             else:
                 accession = _value_at(recent.get("accessionNumber"), chosen_index)
                 primary_document = _value_at(recent.get("primaryDocument"), chosen_index)
-                accession_compact = str(accession or "").replace("-", "")
-                filing_url = None
-                if accession_compact and primary_document:
-                    filing_url = (
-                        f"https://www.sec.gov/Archives/edgar/data/{int(entry['cik'])}/"
-                        f"{accession_compact}/{primary_document}"
-                    )
+                filing_url = _filing_url(entry["cik"], accession, primary_document)
                 result = {
                     "status": "verified",
                     "registrant": payload.get("name") or entry.get("title"),
@@ -152,6 +214,17 @@ def get_latest_sec_filing(symbol: str, cik_hint: Optional[str] = None) -> Dict[s
                     "report_period": _value_at(recent.get("reportDate"), chosen_index),
                     "accession_number": accession,
                     "filing_url": filing_url,
+                    "key_filings": {
+                        "annual": _latest_filing(recent, entry["cik"], {"10-K", "10-K/A", "20-F", "20-F/A", "40-F", "40-F/A"}),
+                        "quarterly": _latest_filing(recent, entry["cik"], {"10-Q", "10-Q/A"}),
+                        "current_report": _latest_filing(recent, entry["cik"], {"8-K", "6-K"}),
+                    },
+                    "filing_signals": _filing_signals(recent, entry["cik"]),
+                    "signal_scope": (
+                        "Signals use official SEC form and item codes for recent amendments, "
+                        "Item 4.02 non-reliance/restatement disclosures, and Item 4.01 auditor changes. "
+                        "Absence of a signal is not assurance that no accounting issue exists."
+                    ),
                 }
     except Exception as exc:
         result = {

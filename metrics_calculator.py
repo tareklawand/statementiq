@@ -332,6 +332,340 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
         else None
     )
 
+    # Advanced, unscored diagnostics. Every figure below is calculated only
+    # when each required source line is present. Missing accounting values are
+    # never treated as zero and no peer/sector values are inferred.
+    pretax_income = get_row_value(
+        income_stmt,
+        ["Pretax Income", "Income Before Tax"],
+        col,
+    )
+    tax_provision = get_row_value(
+        income_stmt,
+        ["Tax Provision", "Income Tax Expense", "Income Tax Expense Continuing Operations"],
+        col,
+    )
+    effective_tax_rate = None
+    if pretax_income is not None and pretax_income > 0 and tax_provision is not None:
+        candidate_tax_rate = tax_provision / pretax_income
+        if 0.0 <= candidate_tax_rate <= 0.60:
+            effective_tax_rate = candidate_tax_rate
+
+    nopat = (
+        operating_income * (1.0 - effective_tax_rate)
+        if operating_income is not None and effective_tax_rate is not None
+        else None
+    )
+    cash_and_short_term_prev = None
+    total_debt_prev = None
+    if previous_balance_col is not None:
+        combined_cash_prev = get_row_value(
+            balance_sheet, ["Cash Cash Equivalents And Short Term Investments"], previous_balance_col
+        )
+        cash_prev = get_row_value(
+            balance_sheet, ["Cash And Cash Equivalents", "Cash Financial"], previous_balance_col
+        )
+        current_marketable_prev = get_row_value(
+            balance_sheet, ["Other Short Term Investments"], previous_balance_col
+        )
+        if combined_cash_prev is not None:
+            cash_and_short_term_prev = combined_cash_prev
+        elif cash_prev is not None:
+            cash_and_short_term_prev = cash_prev + (current_marketable_prev or 0.0)
+
+        total_debt_prev = get_row_value(balance_sheet, ["Total Debt"], previous_balance_col)
+        if total_debt_prev is None:
+            current_debt_prev = get_row_value(
+                balance_sheet,
+                ["Current Debt", "Current Debt And Capital Lease Obligation"],
+                previous_balance_col,
+            )
+            long_term_debt_prev = get_row_value(
+                balance_sheet,
+                ["Long Term Debt", "Long Term Debt And Capital Lease Obligation"],
+                previous_balance_col,
+            )
+            if current_debt_prev is not None and long_term_debt_prev is not None:
+                total_debt_prev = current_debt_prev + long_term_debt_prev
+
+    invested_capital = (
+        total_debt + stockholder_equity - cash_and_short_term
+        if total_debt is not None and stockholder_equity is not None and cash_and_short_term is not None
+        else None
+    )
+    invested_capital_prev = (
+        total_debt_prev + stockholder_equity_prev - cash_and_short_term_prev
+        if total_debt_prev is not None and stockholder_equity_prev is not None and cash_and_short_term_prev is not None
+        else None
+    )
+    average_invested_capital = (
+        (invested_capital + invested_capital_prev) / 2.0
+        if invested_capital is not None and invested_capital_prev is not None
+        else None
+    )
+    roic = (
+        nopat / average_invested_capital
+        if not is_financial_sector and nopat is not None and average_invested_capital is not None and average_invested_capital > 0
+        else None
+    )
+
+    # DuPont identity uses the same TTM numerator and average balance-sheet
+    # denominators as the headline ROE calculation.
+    equity_multiplier = (
+        avg_total_assets / avg_stockholder_equity
+        if avg_total_assets is not None and avg_stockholder_equity is not None and avg_stockholder_equity > 0
+        else None
+    )
+    dupont_roe = (
+        net_margin * asset_turnover * equity_multiplier
+        if net_margin is not None and asset_turnover is not None and equity_multiplier is not None
+        else None
+    )
+
+    receivables_prev = get_row_value(
+        balance_sheet,
+        ["Receivables", "Accounts Receivable", "Current Receivables"],
+        previous_balance_col,
+    ) if previous_balance_col is not None else None
+    inventory_prev = get_row_value(balance_sheet, ["Inventory"], previous_balance_col) if previous_balance_col is not None else None
+    accounts_payable = get_row_value(
+        balance_sheet, ["Payables", "Accounts Payable", "Payables And Accrued Expenses"], col
+    )
+    accounts_payable_prev = get_row_value(
+        balance_sheet,
+        ["Payables", "Accounts Payable", "Payables And Accrued Expenses"],
+        previous_balance_col,
+    ) if previous_balance_col is not None else None
+    cost_of_revenue = get_row_value(
+        income_stmt, ["Cost Of Revenue", "Cost Of Goods Sold", "Reconciled Cost Of Revenue"], col
+    )
+    if cost_of_revenue is None and revenue is not None and gross_profit is not None:
+        cost_of_revenue = revenue - gross_profit
+
+    def average_balance(current_value: Optional[float], prior_value: Optional[float]) -> Optional[float]:
+        if current_value is None or prior_value is None:
+            return None
+        return (current_value + prior_value) / 2.0
+
+    avg_receivables = average_balance(receivables, receivables_prev)
+    avg_inventory = average_balance(inventory, inventory_prev)
+    avg_accounts_payable = average_balance(accounts_payable, accounts_payable_prev)
+    dso = (
+        365.0 * avg_receivables / revenue
+        if not is_financial_sector and avg_receivables is not None and revenue is not None and revenue > 0
+        else None
+    )
+    dio = (
+        365.0 * avg_inventory / cost_of_revenue
+        if not is_financial_sector and avg_inventory is not None and cost_of_revenue is not None and cost_of_revenue > 0
+        else None
+    )
+    dpo = (
+        365.0 * avg_accounts_payable / cost_of_revenue
+        if not is_financial_sector and avg_accounts_payable is not None and cost_of_revenue is not None and cost_of_revenue > 0
+        else None
+    )
+    cash_conversion_cycle = dso + dio - dpo if dso is not None and dio is not None and dpo is not None else None
+    accrual_ratio = (
+        (net_income - operating_cash_flow) / avg_total_assets
+        if not is_financial_sector and net_income is not None and operating_cash_flow is not None and avg_total_assets is not None and avg_total_assets > 0
+        else None
+    )
+    operating_cash_flow_margin = (
+        operating_cash_flow / revenue
+        if not is_financial_sector and operating_cash_flow is not None and revenue is not None and revenue > 0
+        else None
+    )
+    capex_to_revenue = (
+        abs(capital_expenditure) / revenue
+        if not is_financial_sector and capital_expenditure is not None and revenue is not None and revenue > 0
+        else None
+    )
+    stock_based_compensation = get_row_value(
+        cash_flow,
+        ["Stock Based Compensation", "Stock-Based Compensation", "Share Based Compensation"],
+        col,
+    )
+    stock_comp_to_revenue = (
+        stock_based_compensation / revenue
+        if stock_based_compensation is not None and revenue is not None and revenue > 0
+        else None
+    )
+    stock_comp_to_fcf = (
+        stock_based_compensation / free_cash_flow
+        if stock_based_compensation is not None and free_cash_flow is not None and free_cash_flow > 0
+        else None
+    )
+    research_and_development = get_row_value(
+        income_stmt,
+        ["Research And Development", "Research Development", "Research And Development Expense"],
+        col,
+    )
+    research_and_development_intensity = (
+        research_and_development / revenue
+        if research_and_development is not None and revenue is not None and revenue > 0
+        else None
+    )
+
+    price_to_sales = (
+        market_cap / revenue
+        if currencies_compatible and market_cap is not None and revenue is not None and revenue > 0
+        else None
+    )
+    price_to_book = (
+        market_cap / stockholder_equity
+        if currencies_compatible and market_cap is not None and stockholder_equity is not None and stockholder_equity > 0
+        else None
+    )
+    ev_to_sales = (
+        enterprise_value_std / revenue
+        if enterprise_value_std is not None and revenue is not None and revenue > 0
+        else None
+    )
+    earnings_yield = (
+        net_income / market_cap
+        if currencies_compatible and net_income is not None and net_income > 0 and market_cap is not None and market_cap > 0
+        else None
+    )
+
+    cash_dividends_paid = get_row_value(
+        cash_flow,
+        ["Cash Dividends Paid", "Common Stock Dividend Paid", "Payment Of Dividends"],
+        col,
+    )
+    stock_repurchase = get_row_value(
+        cash_flow,
+        ["Repurchase Of Capital Stock", "Repurchase Of Stock", "Common Stock Issuance Or Purchase"],
+        col,
+    )
+    stock_issuance = get_row_value(
+        cash_flow,
+        ["Issuance Of Capital Stock", "Common Stock Issuance", "Proceeds From Stock Option Exercised"],
+        col,
+    )
+    dividends_paid_abs = abs(cash_dividends_paid) if cash_dividends_paid is not None else None
+    repurchases_abs = abs(stock_repurchase) if stock_repurchase is not None else None
+    issuances_abs = abs(stock_issuance) if stock_issuance is not None else None
+    net_buybacks = (
+        repurchases_abs - issuances_abs
+        if repurchases_abs is not None and issuances_abs is not None
+        else None
+    )
+    dividend_yield_cash_flow = (
+        dividends_paid_abs / market_cap
+        if currencies_compatible and dividends_paid_abs is not None and market_cap is not None and market_cap > 0
+        else None
+    )
+    net_buyback_yield = (
+        net_buybacks / market_cap
+        if currencies_compatible and net_buybacks is not None and market_cap is not None and market_cap > 0
+        else None
+    )
+    shareholder_yield = (
+        (dividends_paid_abs + net_buybacks) / market_cap
+        if currencies_compatible and dividends_paid_abs is not None and net_buybacks is not None and market_cap is not None and market_cap > 0
+        else None
+    )
+
+    analysis_diluted_shares = get_row_value(
+        income_stmt, ["Diluted Average Shares", "Diluted Weighted Average Shares"], col
+    )
+    balance_sheet_shares = get_row_value(
+        balance_sheet,
+        ["Ordinary Shares Number", "Share Issued", "Common Stock Shares Outstanding"],
+        col,
+    )
+    revenue_per_share = (
+        revenue / analysis_diluted_shares
+        if revenue is not None and analysis_diluted_shares is not None and analysis_diluted_shares > 0
+        else None
+    )
+    free_cash_flow_per_share = (
+        free_cash_flow / analysis_diluted_shares
+        if free_cash_flow is not None and analysis_diluted_shares is not None and analysis_diluted_shares > 0
+        else None
+    )
+    book_value_per_share = (
+        stockholder_equity / balance_sheet_shares
+        if stockholder_equity is not None and balance_sheet_shares is not None and balance_sheet_shares > 0
+        else None
+    )
+
+    annual_cash_flow = data.get("cash_flow", pd.DataFrame())
+    annual_fcf = get_row_value(annual_cash_flow, ["Free Cash Flow"], 0)
+    prior_annual_fcf = get_row_value(annual_cash_flow, ["Free Cash Flow"], 1)
+    if annual_fcf is None:
+        annual_ocf = get_row_value(annual_cash_flow, ["Operating Cash Flow", "Total Cash From Operating Activities"], 0)
+        annual_capex = get_row_value(annual_cash_flow, ["Capital Expenditure", "Capital Expenditures"], 0)
+        if annual_ocf is not None and annual_capex is not None:
+            annual_fcf = annual_ocf + annual_capex if annual_capex < 0 else annual_ocf - annual_capex
+    if prior_annual_fcf is None:
+        prior_annual_ocf = get_row_value(annual_cash_flow, ["Operating Cash Flow", "Total Cash From Operating Activities"], 1)
+        prior_annual_capex = get_row_value(annual_cash_flow, ["Capital Expenditure", "Capital Expenditures"], 1)
+        if prior_annual_ocf is not None and prior_annual_capex is not None:
+            prior_annual_fcf = prior_annual_ocf + prior_annual_capex if prior_annual_capex < 0 else prior_annual_ocf - prior_annual_capex
+    annual_fcf_growth = (
+        annual_fcf / prior_annual_fcf - 1.0
+        if annual_fcf is not None and prior_annual_fcf is not None and prior_annual_fcf > 0
+        else None
+    )
+    annual_diluted_eps = get_row_value(annual_income, ["Diluted EPS", "Diluted EPS Continuing Operations"], 0)
+    prior_annual_diluted_eps = get_row_value(annual_income, ["Diluted EPS", "Diluted EPS Continuing Operations"], 1)
+    annual_eps_growth = (
+        annual_diluted_eps / prior_annual_diluted_eps - 1.0
+        if annual_diluted_eps is not None and prior_annual_diluted_eps is not None and prior_annual_diluted_eps > 0
+        else None
+    )
+    prior_revenue_per_share = (
+        prior_annual_revenue / prior_diluted_shares
+        if prior_annual_revenue is not None and prior_diluted_shares is not None and prior_diluted_shares > 0
+        else None
+    )
+    annual_revenue_per_share = (
+        annual_revenue / diluted_shares
+        if annual_revenue is not None and diluted_shares is not None and diluted_shares > 0
+        else None
+    )
+    revenue_per_share_growth = (
+        annual_revenue_per_share / prior_revenue_per_share - 1.0
+        if annual_revenue_per_share is not None and prior_revenue_per_share is not None and prior_revenue_per_share > 0
+        else None
+    )
+
+    advanced_metrics = {
+        "roic": roic,
+        "effective_tax_rate": effective_tax_rate,
+        "nopat": nopat,
+        "invested_capital": invested_capital,
+        "dupont_net_margin": net_margin,
+        "dupont_asset_turnover": asset_turnover,
+        "dupont_equity_multiplier": equity_multiplier,
+        "dupont_roe": dupont_roe,
+        "dso": dso,
+        "dio": dio,
+        "dpo": dpo,
+        "cash_conversion_cycle": cash_conversion_cycle,
+        "accrual_ratio": accrual_ratio,
+        "operating_cash_flow_margin": operating_cash_flow_margin,
+        "capex_to_revenue": capex_to_revenue,
+        "stock_comp_to_revenue": stock_comp_to_revenue,
+        "stock_comp_to_fcf": stock_comp_to_fcf,
+        "research_and_development_intensity": research_and_development_intensity,
+        "price_to_sales": price_to_sales,
+        "price_to_book": price_to_book,
+        "ev_to_sales": ev_to_sales,
+        "earnings_yield": earnings_yield,
+        "dividend_yield_cash_flow": dividend_yield_cash_flow,
+        "net_buyback_yield": net_buyback_yield,
+        "shareholder_yield": shareholder_yield,
+        "revenue_per_share": revenue_per_share,
+        "free_cash_flow_per_share": free_cash_flow_per_share,
+        "book_value_per_share": book_value_per_share,
+        "annual_eps_growth": annual_eps_growth,
+        "annual_fcf_growth": annual_fcf_growth,
+        "revenue_per_share_growth": revenue_per_share_growth,
+    }
+
     ratios = {
         "current_ratio": current_ratio,
         "quick_ratio": quick_ratio,
@@ -447,6 +781,17 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
             "revenue_cagr": revenue_cagr,
             "diluted_share_change": diluted_share_change,
         },
+        "advanced_metrics": advanced_metrics,
+        "advanced_metric_scope": {
+            "score_effect": "Unscored. Advanced diagnostics do not alter the rules-based headline score.",
+            "missing_value_policy": "N/A means one or more exact source inputs were not reported; no value was estimated.",
+            "period_basis": analysis_basis,
+            "financial_institution_model": (
+                "Generic industrial cash-flow, working-capital, ROIC, and enterprise-value metrics are withheld. "
+                "Regulatory sector KPIs require issuer-reported source lines and are not inferred."
+                if is_financial_sector else None
+            ),
+        },
         "raw_financials": {
             "revenue": revenue,
             "gross_profit": gross_profit,
@@ -469,6 +814,15 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
             "capital_expenditure": capital_expenditure,
             "free_cash_flow": free_cash_flow,
             "interest_expense": interest_expense,
+            "pretax_income": pretax_income,
+            "tax_provision": tax_provision,
+            "cost_of_revenue": cost_of_revenue,
+            "accounts_payable": accounts_payable,
+            "stock_based_compensation": stock_based_compensation,
+            "cash_dividends_paid": cash_dividends_paid,
+            "stock_repurchase": stock_repurchase,
+            "stock_issuance": stock_issuance,
+            "research_and_development": research_and_development,
         }
     }
 

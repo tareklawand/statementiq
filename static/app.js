@@ -435,6 +435,10 @@ async function loadTickerData(symbol, forceRefresh = false) {
         try { renderCharts(); } catch(e){ console.error("Charts render error:", e); }
         try { renderRatioCards(); } catch(e){ console.error("Ratio Cards render error:", e); }
         try { renderSupplementalMetrics(); } catch(e){ console.error("Supplemental metrics render error:", e); }
+        try { renderAdvancedMetrics(); } catch(e){ console.error("Advanced metrics render error:", e); }
+        try { renderStatementAnalysis(); } catch(e){ console.error("Statement analysis render error:", e); }
+        try { renderSectorAnalysis(); } catch(e){ console.error("Sector analysis render error:", e); }
+        try { renderFilingReview(); } catch(e){ console.error("Filing review render error:", e); }
         try { renderFinancialStatementTable(); } catch(e){ console.error("Statement Table render error:", e); }
         completeAnalysisProgress(progressToken);
 
@@ -1052,6 +1056,206 @@ function renderSupplementalMetrics() {
             <small>${description}</small>
         </article>
     `).join("");
+}
+
+function analysisValue(value, kind, currency) {
+    if (!isNumericValue(value)) return "N/A";
+    const number = Number(value);
+    const prefix = currencyPrefix(currency);
+    if (kind === "percent") return `${(number * 100).toFixed(1)}%`;
+    if (kind === "multiple") return `${number.toFixed(2)}x`;
+    if (kind === "days") return `${number.toFixed(1)} days`;
+    if (kind === "per_share") return `${number < 0 ? "-" : ""}${prefix}${Math.abs(number).toFixed(2)}`;
+    if (kind === "money") {
+        const absolute = Math.abs(number);
+        if (absolute >= 1e9) return `${number < 0 ? "-" : ""}${prefix}${(absolute / 1e9).toFixed(2)}B`;
+        if (absolute >= 1e6) return `${number < 0 ? "-" : ""}${prefix}${(absolute / 1e6).toFixed(2)}M`;
+        return `${number < 0 ? "-" : ""}${prefix}${absolute.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+    }
+    return number.toFixed(2);
+}
+
+function renderAdvancedMetrics() {
+    const container = document.getElementById("advancedMetricsContainer");
+    if (!container || !currentData || !currentData.metrics) return;
+    const values = currentData.metrics.advanced_metrics || {};
+    const currency = (currentData.info || {}).currency;
+    const groups = [
+        ["Capital returns & earnings quality", [
+            ["roic", "Return on invested capital", "percent", "NOPAT / average invested capital"],
+            ["effective_tax_rate", "Effective tax rate", "percent", "Tax provision / pretax income; shown only when the rate is meaningful"],
+            ["accrual_ratio", "Accrual ratio", "percent", "(Net income - operating cash flow) / average assets"],
+            ["operating_cash_flow_margin", "Operating cash flow margin", "percent", "Operating cash flow / revenue"],
+            ["capex_to_revenue", "Capital spending / revenue", "percent", "Absolute reported capital expenditure / revenue"],
+            ["research_and_development_intensity", "R&D / revenue", "percent", "Reported research and development / revenue"],
+            ["dupont_net_margin", "DuPont · net margin", "percent", "Net income / revenue"],
+            ["dupont_asset_turnover", "DuPont · asset turnover", "multiple", "Revenue / average assets"],
+            ["dupont_equity_multiplier", "DuPont · equity multiplier", "multiple", "Average assets / average equity"],
+            ["dupont_roe", "DuPont · calculated ROE", "percent", "Net margin × asset turnover × equity multiplier"],
+        ]],
+        ["Working-capital efficiency", [
+            ["dso", "Days sales outstanding", "days", "365 × average receivables / revenue"],
+            ["dio", "Days inventory outstanding", "days", "365 × average inventory / cost of revenue"],
+            ["dpo", "Days payable outstanding", "days", "365 × average payables / cost of revenue"],
+            ["cash_conversion_cycle", "Cash conversion cycle", "days", "DSO + DIO - DPO"],
+        ]],
+        ["Capital allocation & per-share", [
+            ["stock_comp_to_revenue", "Stock compensation / revenue", "percent", "Reported stock-based compensation / revenue"],
+            ["stock_comp_to_fcf", "Stock compensation / FCF", "percent", "Reported stock-based compensation / free cash flow"],
+            ["dividend_yield_cash_flow", "Cash dividend yield", "percent", "Cash dividends paid / market capitalization"],
+            ["net_buyback_yield", "Net buyback yield", "percent", "(Share repurchases - share issuance) / market capitalization"],
+            ["shareholder_yield", "Shareholder yield", "percent", "(Dividends + net buybacks) / market capitalization"],
+            ["revenue_per_share", "Revenue per diluted share", "per_share", "Analysis-period revenue / analysis-period diluted average shares"],
+            ["free_cash_flow_per_share", "Free cash flow per diluted share", "per_share", "Analysis-period free cash flow / analysis-period diluted average shares"],
+            ["book_value_per_share", "Book value per share", "per_share", "Stockholders' equity / shares reported on the same balance sheet"],
+            ["annual_eps_growth", "Annual diluted EPS growth", "percent", "Latest annual diluted EPS / prior annual diluted EPS - 1"],
+            ["annual_fcf_growth", "Annual free cash flow growth", "percent", "Latest annual FCF / prior annual FCF - 1"],
+            ["revenue_per_share_growth", "Revenue-per-share growth", "percent", "Latest annual revenue per diluted share / prior year - 1"],
+        ]],
+        ["Market valuation", [
+            ["price_to_sales", "Price / sales", "multiple", "Market capitalization / TTM revenue"],
+            ["price_to_book", "Price / book", "multiple", "Market capitalization / stockholders' equity"],
+            ["ev_to_sales", "Enterprise value / sales", "multiple", "Standardized enterprise value / TTM revenue"],
+            ["earnings_yield", "Earnings yield", "percent", "TTM net income / market capitalization"],
+        ]],
+    ];
+    container.innerHTML = groups.map(([groupName, definitions]) => `
+        <div class="analysis-group">
+            <div class="analysis-group-title">${escapeHtml(groupName)}</div>
+            <div class="analysis-metric-grid">
+                ${definitions.map(([key, label, kind, formula]) => `
+                    <article class="analysis-metric-card ${isNumericValue(values[key]) ? "" : "is-unavailable"}">
+                        <span>${escapeHtml(label)}</span>
+                        <strong>${escapeHtml(analysisValue(values[key], kind, currency))}</strong>
+                        <small>${escapeHtml(formula)}</small>
+                    </article>
+                `).join("")}
+            </div>
+        </div>
+    `).join("");
+}
+
+function renderStatementAnalysisTable(title, section, currency, showCommonSize) {
+    if (!section || !Array.isArray(section.rows) || !section.rows.length) return "";
+    const periods = section.periods || [];
+    return `
+        <div class="statement-analysis-block">
+            <h4>${escapeHtml(title)}</h4>
+            <div class="analysis-table-scroll">
+                <table class="analysis-table">
+                    <thead><tr><th>Reported line</th>${periods.map(period => `<th>${escapeHtml(period)}</th>`).join("")}</tr></thead>
+                    <tbody>${section.rows.map(row => `
+                        <tr><td><strong>${escapeHtml(row.metric)}</strong><small>${escapeHtml(row.source_row)}</small></td>
+                        ${(row.values || []).map((value, index) => {
+                            const commonSize = (row.common_size || [])[index];
+                            const change = (row.period_over_period_change || [])[index];
+                            return `<td><strong>${escapeHtml(analysisValue(value, "money", currency))}</strong>
+                                ${showCommonSize && isNumericValue(commonSize) ? `<small>${(Number(commonSize) * 100).toFixed(1)}% of base</small>` : ""}
+                                ${isNumericValue(change) ? `<small class="change-note">${Number(change) >= 0 ? "+" : ""}${(Number(change) * 100).toFixed(1)}% vs prior</small>` : ""}
+                            </td>`;
+                        }).join("")}</tr>
+                    `).join("")}</tbody>
+                </table>
+            </div>
+        </div>
+    `;
+}
+
+function renderStatementAnalysis() {
+    const container = document.getElementById("statementAnalysisContainer");
+    if (!container || !currentData) return;
+    const analysis = currentData.statement_analysis || {};
+    const annual = analysis.annual || {};
+    const quarterly = analysis.quarterly_trends || {};
+    const currency = (currentData.info || {}).currency;
+    const latestQuarterIndex = Math.max(0, (quarterly.periods || []).length - 1);
+    const quarterlyRows = (quarterly.rows || []).map(row => {
+        const value = (row.values || [])[latestQuarterIndex];
+        const qoq = (row.quarter_over_quarter_change || [])[latestQuarterIndex];
+        const yoy = (row.year_over_year_change || [])[latestQuarterIndex];
+        return `<article class="quarterly-summary-card"><span>${escapeHtml(row.metric)}</span>
+            <strong>${escapeHtml(analysisValue(value, "money", currency))}</strong>
+            <small>${isNumericValue(qoq) ? `${Number(qoq) >= 0 ? "+" : ""}${(Number(qoq) * 100).toFixed(1)}% QoQ` : "QoQ N/A"} · ${isNumericValue(yoy) ? `${Number(yoy) >= 0 ? "+" : ""}${(Number(yoy) * 100).toFixed(1)}% YoY` : "YoY N/A"}</small>
+        </article>`;
+    }).join("");
+    const flags = analysis.large_change_flags || [];
+    container.innerHTML = `
+        ${renderStatementAnalysisTable("Income statement · common-size to revenue", annual.income_statement, currency, true)}
+        ${renderStatementAnalysisTable("Balance sheet · common-size to total assets", annual.balance_sheet, currency, true)}
+        <div class="statement-analysis-block"><h4>Latest reported quarter · change view</h4>
+            <p class="analysis-period-label">${escapeHtml((quarterly.periods || [])[latestQuarterIndex] || "Quarter unavailable")}</p>
+            <div class="quarterly-summary-grid">${quarterlyRows || `<p class="empty-analysis">Quarterly trend data is not available.</p>`}</div>
+        </div>
+        <div class="change-review-panel"><h4>Large movement review</h4>
+            ${flags.length ? `<div class="change-review-list">${flags.map(flag => `
+                <div><strong>${escapeHtml(flag.metric)}</strong><span>${escapeHtml(flag.period)} · ${Number(flag.change) >= 0 ? "+" : ""}${(Number(flag.change) * 100).toFixed(1)}%</span><small>${escapeHtml(flag.note)}</small></div>
+            `).join("")}</div>` : `<p class="empty-analysis">No reported annual line in this review set crossed the 25% movement flag.</p>`}
+        </div>
+    `;
+}
+
+function renderSectorAnalysis() {
+    const container = document.getElementById("sectorAnalysisContainer");
+    if (!container || !currentData) return;
+    const analysis = currentData.sector_analysis || {};
+    const currency = (currentData.info || {}).currency;
+    const metrics = analysis.metrics || [];
+    const missing = analysis.required_not_standardized || [];
+    container.innerHTML = `
+        <div class="sector-model-header"><strong>${escapeHtml(analysis.label || "General corporate")}</strong><span>${escapeHtml(analysis.model || "general_corporate")}</span></div>
+        <div class="analysis-metric-grid sector-metric-grid">${metrics.map(metric => `
+            <article class="analysis-metric-card ${metric.status === "available" ? "" : "is-unavailable"}">
+                <span>${escapeHtml(metric.name)}</span>
+                <strong>${escapeHtml(analysisValue(metric.value, metric.value_type, currency))}</strong>
+                <small>${escapeHtml(metric.formula)} · ${escapeHtml(metric.source)}</small>
+            </article>
+        `).join("")}</div>
+        ${missing.length ? `<div class="source-gap-note"><strong>Review directly in the issuer filing</strong><p>${missing.map(item => escapeHtml(item)).join(" · ")}</p></div>` : ""}
+        <p class="analysis-method-note">${escapeHtml(analysis.coverage_note || "")}</p>
+    `;
+}
+
+function renderFilingReview() {
+    const container = document.getElementById("filingReviewContainer");
+    if (!container || !currentData) return;
+    const sec = ((currentData.data_quality || {}).sec_filing) || {};
+    if (sec.status !== "verified") {
+        container.innerHTML = `<div class="filing-empty"><strong>SEC filing review ${escapeHtml((sec.status || "unavailable").replaceAll("_", " "))}</strong><p>${escapeHtml(sec.reason || "No SEC registrant match was available for this ticker.")}</p></div>`;
+        return;
+    }
+    const filings = sec.key_filings || {};
+    const labels = { annual: "Latest annual filing", quarterly: "Latest quarterly filing", current_report: "Latest current report" };
+    const filingLinks = Object.entries(labels).map(([key, label]) => {
+        const filing = filings[key];
+        if (!filing || !filing.filing_url) return "";
+        return `<a class="filing-link-card" href="${escapeHtml(filing.filing_url)}" target="_blank" rel="noopener noreferrer">
+            <span>${escapeHtml(label)}</span><strong>${escapeHtml(filing.form || "Filing")}</strong><small>Filed ${escapeHtml(filing.filed_date || "date unavailable")} · period ${escapeHtml(filing.report_period || "N/A")}</small>
+        </a>`;
+    }).join("");
+    const signals = sec.filing_signals || [];
+    const disclosureReview = currentData.filing_disclosure_review || {};
+    const locatedTopics = (disclosureReview.topics || []).filter(topic => topic.status === "located");
+    container.innerHTML = `
+        <div class="filing-links-grid">${filingLinks || `<p class="empty-analysis">Direct filing links are unavailable.</p>`}</div>
+        <div class="filing-signals-panel"><h4>Recent coded disclosure signals</h4>
+            ${signals.length ? `<div class="filing-signal-list">${signals.map(signal => `
+                <a href="${escapeHtml(signal.filing_url || "#")}" target="_blank" rel="noopener noreferrer" class="filing-signal ${signal.severity === "high" ? "is-high" : ""}">
+                    <strong>${escapeHtml(signal.title)}</strong><span>${escapeHtml(signal.filed_date || "Date unavailable")}</span>
+                </a>
+            `).join("")}</div>` : `<p class="empty-analysis">No recent amendment, Item 4.02 non-reliance/restatement, or Item 4.01 auditor-change code was found.</p>`}
+            <small class="filing-scope-note">${escapeHtml(sec.signal_scope || "Absence of a signal is not assurance that no accounting issue exists. Read the full filing and notes.")}</small>
+        </div>
+        <div class="filing-signals-panel disclosure-topic-panel"><h4>Annual filing topic locator</h4>
+            ${disclosureReview.status === "analyzed" ? `
+                <div class="disclosure-topic-grid">${locatedTopics.map(topic => `
+                    <div class="disclosure-topic ${topic.classification === "risk_phrase" ? "is-review" : ""}">
+                        <strong>${escapeHtml(topic.label)}</strong><span>Located in filing</span>
+                    </div>
+                `).join("") || `<p class="empty-analysis">No configured topic phrase was located by the automated scan.</p>`}</div>
+                <small class="filing-scope-note">${escapeHtml(disclosureReview.scope || "Phrase review is a navigation aid, not assurance or a risk conclusion.")}</small>
+            ` : `<p class="empty-analysis">${escapeHtml(disclosureReview.reason || "Annual filing phrase review is unavailable.")}</p>`}
+        </div>
+    `;
 }
 
 // Render Financial Statement Table

@@ -20,6 +20,9 @@ from data_fetcher import fetch_stock_data, PRESET_TICKERS
 from metrics_calculator import compute_metrics
 from deterministic_analyst import generate_ai_insights
 from pdf_generator import generate_pdf_report
+from statement_analysis import prepare_statement_analysis
+from sector_analysis import prepare_sector_analysis
+from filing_disclosure_analyzer import scan_annual_filing
 
 
 @asynccontextmanager
@@ -153,6 +156,16 @@ def analyze_ticker(
         stock_data.get("quarterly_balance_sheet", pd.DataFrame()),
         stock_data.get("quarterly_cash_flow", pd.DataFrame()),
     )
+    statement_analysis = prepare_statement_analysis(
+        income_stmt,
+        balance_sheet,
+        stock_data.get("cash_flow", pd.DataFrame()),
+        stock_data.get("quarterly_income_stmt", pd.DataFrame()),
+    )
+    sector_analysis = prepare_sector_analysis(stock_data, metrics)
+    sec_filing = stock_data.get("sec_filing") or {}
+    annual_filing = (sec_filing.get("key_filings") or {}).get("annual") or {}
+    filing_disclosure_review = scan_annual_filing(annual_filing.get("filing_url"))
 
     return {
         "symbol": symbol,
@@ -194,7 +207,10 @@ def analyze_ticker(
         "metrics": metrics,
         "ai_insights": ai_insights,
         "charts": charts_data,
-        "statements": statements_data
+        "statements": statements_data,
+        "statement_analysis": statement_analysis,
+        "sector_analysis": sector_analysis,
+        "filing_disclosure_review": filing_disclosure_review,
     }
 
 class PDFRequest(BaseModel):

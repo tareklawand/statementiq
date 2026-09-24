@@ -38,6 +38,10 @@ def test_analyze_endpoint_aapl():
     assert "ai_insights" in data
     assert "charts" in data
     assert "statements" in data
+    assert "advanced_metrics" in data["metrics"]
+    assert "statement_analysis" in data
+    assert "sector_analysis" in data
+    assert "filing_disclosure_review" in data
 
 
 def test_analyze_endpoint_rejects_malformed_ticker():
@@ -94,6 +98,10 @@ def test_frontend_contains_no_numeric_fallbacks():
     assert 'value !== null && value !== undefined && value !== ""' in app_js
     assert 'return "percent"' in app_js
     assert 'return "shares"' in app_js
+    assert "renderAdvancedMetrics" in app_js
+    assert "renderStatementAnalysis" in app_js
+    assert "renderSectorAnalysis" in app_js
+    assert "renderFilingReview" in app_js
 
 
 def test_dividend_yield_uses_rate_over_price_not_ambiguous_provider_units():
