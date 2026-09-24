@@ -49,6 +49,15 @@ def _load_ticker_map() -> Dict[str, Dict[str, Any]]:
             return _TICKER_MAP
 
         response = requests.get(SEC_TICKER_URL, headers=_headers(), timeout=8)
+        if response.status_code in {403, 429}:
+            response = requests.get(
+                os.environ.get(
+                    "SEC_TICKER_MAP_PROXY",
+                    "https://statementiq-lb.com/api/sec-ticker-map",
+                ),
+                headers={"Accept": "application/json"},
+                timeout=15,
+            )
         response.raise_for_status()
         payload = response.json()
         mapped: Dict[str, Dict[str, Any]] = {}

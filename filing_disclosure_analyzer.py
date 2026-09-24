@@ -116,7 +116,7 @@ def scan_annual_filing(filing_url: str) -> Dict[str, Any]:
                 timeout=15,
             )
         response.raise_for_status()
-        if len(response.content) > 20 * 1024 * 1024:
+        if len(response.content) > 50 * 1024 * 1024:
             raise ValueError("Annual filing exceeded the automated review size limit.")
         result = analyze_filing_text(response.text)
         result["filing_url"] = filing_url

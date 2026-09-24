@@ -39,6 +39,44 @@ export default {
       requestUrl.pathname.startsWith("/api/") ||
       requestUrl.pathname === "/health";
 
+    if (requestUrl.pathname === "/api/sec-ticker-map") {
+      if (request.method !== "GET") {
+        return applyPublicHeaders(Response.json({ detail: "Method not allowed" }, { status: 405 }), { preventIndexing: true });
+      }
+      const secHeaders = {
+        "user-agent": "StatementIQ/1.0 statementiq-lb.com",
+        "accept": "application/json,text/plain;q=0.9",
+        "accept-language": "en-US,en;q=0.9"
+      };
+      let mapResponse = await fetch("https://www.sec.gov/files/company_tickers.json", {
+        headers: secHeaders,
+        cf: { cacheEverything: true, cacheTtl: 86400 }
+      });
+      if (mapResponse.status === 403 || mapResponse.status === 429) {
+        const textResponse = await fetch("https://www.sec.gov/include/ticker.txt", {
+          headers: secHeaders,
+          cf: { cacheEverything: true, cacheTtl: 86400 }
+        });
+        if (!textResponse.ok) {
+          return applyPublicHeaders(new Response(textResponse.body, { status: textResponse.status }), { preventIndexing: true });
+        }
+        const lines = (await textResponse.text()).split(/\r?\n/).filter(Boolean);
+        const normalized = {};
+        lines.forEach((line, index) => {
+          const [ticker, cik] = line.split("\t");
+          if (ticker && /^\d+$/.test(cik || "")) {
+            normalized[index] = { ticker: ticker.toUpperCase(), cik_str: Number(cik), title: null };
+          }
+        });
+        mapResponse = Response.json(normalized);
+      }
+      const headers = new Headers({
+        "content-type": "application/json; charset=utf-8",
+        "cache-control": "public, max-age=86400"
+      });
+      return applyPublicHeaders(new Response(mapResponse.body, { status: mapResponse.status, headers }), { preventIndexing: true });
+    }
+
     // Render hosting IPs can be rate-limited by the SEC archive even while
     // SEC data endpoints remain available. This narrowly scoped edge route
     // fetches only official filing documents; it is not a general web proxy.
@@ -89,7 +127,7 @@ export default {
         }
       }
       const contentLength = Number(secResponse.headers.get("content-length") || 0);
-      if (contentLength > 20 * 1024 * 1024) {
+      if (contentLength > 50 * 1024 * 1024) {
         return applyPublicHeaders(Response.json({ detail: "SEC filing exceeds review size limit" }, { status: 413 }), { preventIndexing: true });
       }
       const headers = new Headers({

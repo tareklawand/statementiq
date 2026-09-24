@@ -3,6 +3,7 @@ import pytest
 
 from metrics_calculator import compute_metrics
 from sec_filing_validator import _filing_signals
+import sec_filing_validator
 from statement_analysis import prepare_statement_analysis
 from filing_disclosure_analyzer import analyze_filing_text
 import filing_disclosure_analyzer
@@ -192,3 +193,32 @@ def test_full_submission_scan_ignores_exhibit_language():
     assert topics["critical_audit_matter"]["status"] == "located"
     assert topics["leases"]["status"] == "located"
     assert topics["material_weakness"]["status"] == "not_located_by_phrase_scan"
+
+
+def test_sec_ticker_directory_uses_fixed_edge_fallback(monkeypatch):
+    calls = []
+
+    class FakeResponse:
+        def __init__(self, status_code, payload=None):
+            self.status_code = status_code
+            self._payload = payload or {}
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                raise RuntimeError(f"status {self.status_code}")
+
+        def json(self):
+            return self._payload
+
+    def fake_get(url, **kwargs):
+        calls.append(url)
+        if len(calls) == 1:
+            return FakeResponse(403)
+        return FakeResponse(200, {"0": {"ticker": "XOM", "cik_str": 34088, "title": "EXXON MOBIL CORP"}})
+
+    monkeypatch.setattr(sec_filing_validator, "_TICKER_MAP", {})
+    monkeypatch.setattr(sec_filing_validator, "_TICKER_MAP_FETCHED_AT", 0.0)
+    monkeypatch.setattr(sec_filing_validator.requests, "get", fake_get)
+    mapped = sec_filing_validator._load_ticker_map()
+    assert mapped["XOM"]["cik"] == "0000034088"
+    assert calls[1] == "https://statementiq-lb.com/api/sec-ticker-map"
