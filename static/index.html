@@ -330,7 +330,7 @@
         .val-positive { color: var(--accent-green); }
         .val-negative { color: var(--accent-red); }
     </style>
-    <link rel="stylesheet" href="/static/redesign.css?v=deep_analysis_v23">
+    <link rel="stylesheet" href="/static/redesign.css?v=diagnostic_structure_v24">
 </head>
 <body>
     <section class="intro-page" id="introPage" aria-labelledby="introTitle">
@@ -667,7 +667,7 @@
                     <div class="section-header-row">
                         <div>
                             <h2 class="section-heading" style="margin:0;"><i data-lucide="scan-line"></i> Fundamental ratio diagnostics</h2>
-                            <p class="section-subheading">Ten scored diagnostics with explicit formulas, plus unscored cash-flow and growth measures.</p>
+                            <p class="section-subheading">Scored and informational diagnostics organized by financial purpose, with every formula shown.</p>
                         </div>
                     </div>
 
@@ -675,37 +675,15 @@
                         <!-- Dynamically populated ratio cards -->
                     </div>
 
-                    <section class="supplemental-metrics-section" aria-labelledby="supplementalMetricsTitle">
+                    <section class="deep-analysis-section" aria-labelledby="supportingAnalysisTitle">
                         <div class="supplemental-heading">
                             <div>
-                                <span>ADDITIONAL ANALYSIS</span>
-                                <h3 id="supplementalMetricsTitle">Cash flow, coverage &amp; growth</h3>
+                                <span>SUPPORTING ANALYSIS</span>
+                                <h3 id="supportingAnalysisTitle">Growth, capital allocation &amp; per-share performance</h3>
                             </div>
-                            <p>Shown for analysis only. These values do not alter the rules-based score.</p>
+                            <p>Measures that do not belong to the five ratio families. They are informational and do not alter the score.</p>
                         </div>
-                        <div class="supplemental-metrics-grid" id="supplementalMetricsContainer"></div>
-                    </section>
-
-                    <section class="deep-analysis-section" aria-labelledby="deepAnalysisTitle">
-                        <div class="supplemental-heading">
-                            <div>
-                                <span>DEEP FINANCIAL ANALYSIS</span>
-                                <h3 id="deepAnalysisTitle">Returns, quality, working capital &amp; valuation</h3>
-                            </div>
-                            <p>Calculated only from exact reported inputs. N/A means the required source data was not reported.</p>
-                        </div>
-                        <div id="advancedMetricsContainer"></div>
-                    </section>
-
-                    <section class="deep-analysis-section" aria-labelledby="statementAnalysisTitle">
-                        <div class="supplemental-heading">
-                            <div>
-                                <span>STATEMENT STRUCTURE &amp; CHANGE</span>
-                                <h3 id="statementAnalysisTitle">Common-size and multi-period review</h3>
-                            </div>
-                            <p>Five annual periods, twelve quarterly periods where available, and large-movement review flags.</p>
-                        </div>
-                        <div id="statementAnalysisContainer"></div>
+                        <div id="supportingAnalysisContainer"></div>
                     </section>
 
                     <section class="deep-analysis-section" aria-labelledby="sectorAnalysisTitle">
@@ -719,16 +697,6 @@
                         <div id="sectorAnalysisContainer"></div>
                     </section>
 
-                    <section class="deep-analysis-section" aria-labelledby="filingReviewTitle">
-                        <div class="supplemental-heading">
-                            <div>
-                                <span>OFFICIAL FILINGS</span>
-                                <h3 id="filingReviewTitle">Disclosure and filing review</h3>
-                            </div>
-                            <p>Direct SEC filing links plus coded amendment, restatement and auditor-change signals.</p>
-                        </div>
-                        <div id="filingReviewContainer"></div>
-                    </section>
                 </div>
 
                 <!-- TAB 3: RAW FINANCIAL STATEMENTS -->
@@ -763,6 +731,28 @@
                             <!-- Dynamically generated financial table -->
                         </div>
                     </div>
+
+                    <section class="deep-analysis-section" aria-labelledby="statementAnalysisTitle">
+                        <div class="supplemental-heading">
+                            <div>
+                                <span>STATEMENT ANALYSIS</span>
+                                <h3 id="statementAnalysisTitle">Common-size and multi-period review</h3>
+                            </div>
+                            <p>The reported rows above, restated as percentages and period changes without modifying the source values.</p>
+                        </div>
+                        <div id="statementAnalysisContainer"></div>
+                    </section>
+
+                    <section class="deep-analysis-section" aria-labelledby="filingReviewTitle">
+                        <div class="supplemental-heading">
+                            <div>
+                                <span>OFFICIAL FILINGS</span>
+                                <h3 id="filingReviewTitle">Disclosure and filing review</h3>
+                            </div>
+                            <p>Direct SEC filing links plus coded amendment, restatement and auditor-change signals.</p>
+                        </div>
+                        <div id="filingReviewContainer"></div>
+                    </section>
                 </div>
 
             </div>
@@ -776,6 +766,6 @@
     </div>
 
     <!-- Script Entry -->
-    <script src="/static/app.js?v=deep_analysis_v23"></script>
+    <script src="/static/app.js?v=diagnostic_structure_v24"></script>
 </body>
 </html>

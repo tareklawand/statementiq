@@ -434,8 +434,7 @@ async function loadTickerData(symbol, forceRefresh = false) {
         try { renderStrengthsWeaknesses(); } catch(e){ console.error("Strengths render error:", e); }
         try { renderCharts(); } catch(e){ console.error("Charts render error:", e); }
         try { renderRatioCards(); } catch(e){ console.error("Ratio Cards render error:", e); }
-        try { renderSupplementalMetrics(); } catch(e){ console.error("Supplemental metrics render error:", e); }
-        try { renderAdvancedMetrics(); } catch(e){ console.error("Advanced metrics render error:", e); }
+        try { renderSupportingAnalysis(); } catch(e){ console.error("Supporting analysis render error:", e); }
         try { renderStatementAnalysis(); } catch(e){ console.error("Statement analysis render error:", e); }
         try { renderSectorAnalysis(); } catch(e){ console.error("Sector analysis render error:", e); }
         try { renderFilingReview(); } catch(e){ console.error("Filing review render error:", e); }
@@ -930,7 +929,7 @@ function renderCharts() {
 }
 
 // Render Ratio Cards Grouped by Category with Clean Un-overlapped Headers
-function renderRatioCards() {
+function renderLegacyScoredRatioCards() {
     if (!currentData || !currentData.metrics) return;
     const ratioEvals = currentData.metrics.ratio_evaluations || {};
     const container = document.getElementById("ratiosCategoriesContainer");
@@ -1013,7 +1012,7 @@ function renderRatioCards() {
     });
 }
 
-function renderSupplementalMetrics() {
+function renderLegacySupplementalMetrics() {
     const container = document.getElementById("supplementalMetricsContainer");
     if (!container || !currentData || !currentData.metrics) return;
     const values = currentData.metrics.supplemental_metrics || {};
@@ -1075,7 +1074,7 @@ function analysisValue(value, kind, currency) {
     return number.toFixed(2);
 }
 
-function renderAdvancedMetrics() {
+function renderLegacyAdvancedMetrics() {
     const container = document.getElementById("advancedMetricsContainer");
     if (!container || !currentData || !currentData.metrics) return;
     const values = currentData.metrics.advanced_metrics || {};
@@ -1130,6 +1129,186 @@ function renderAdvancedMetrics() {
                         <small>${escapeHtml(formula)}</small>
                     </article>
                 `).join("")}
+            </div>
+        </div>
+    `).join("");
+}
+
+function renderRatioCards() {
+    if (!currentData || !currentData.metrics) return;
+    const container = document.getElementById("ratiosCategoriesContainer");
+    if (!container) return;
+
+    const metrics = currentData.metrics;
+    const ratioEvals = metrics.ratio_evaluations || {};
+    const supplemental = metrics.supplemental_metrics || {};
+    const advanced = metrics.advanced_metrics || {};
+    const currency = (currentData.info || {}).currency;
+    const categoryOrder = ["Liquidity", "Leverage", "Profitability", "Efficiency", "Valuation"];
+    const categoryDescriptions = {
+        Liquidity: "Short-term obligations",
+        Leverage: "Capital structure and debt",
+        Profitability: "Earnings, returns and quality",
+        Efficiency: "Asset and working-capital use",
+        Valuation: "Market expectations"
+    };
+    const additions = {
+        Liquidity: [
+            { source: "supplemental", key: "cash_ratio", name: "Cash ratio", kind: "multiple", formula: "Cash and short-term investments / current liabilities" },
+        ],
+        Leverage: [
+            { source: "supplemental", key: "interest_coverage", name: "Interest coverage", kind: "multiple", formula: "Operating income / absolute interest expense" },
+            { source: "supplemental", key: "debt_to_ebitda", name: "Debt / EBITDA", kind: "multiple", formula: "Total debt / EBITDA" },
+            { source: "supplemental", key: "net_debt_to_ebitda", name: "Net debt / EBITDA", kind: "multiple", formula: "(Total debt - cash and short-term investments) / EBITDA" },
+        ],
+        Profitability: [
+            { source: "supplemental", key: "operating_margin", name: "Operating margin", kind: "percent", formula: "Operating income / revenue" },
+            { source: "supplemental", key: "free_cash_flow_margin", name: "Free cash flow margin", kind: "percent", formula: "Free cash flow / revenue" },
+            { source: "advanced", key: "roic", name: "Return on invested capital", kind: "percent", formula: "NOPAT / average invested capital" },
+            { source: "advanced", key: "operating_cash_flow_margin", name: "Operating cash flow margin", kind: "percent", formula: "Operating cash flow / revenue" },
+            { source: "advanced", key: "accrual_ratio", name: "Accrual ratio", kind: "percent", formula: "(Net income - operating cash flow) / average assets" },
+            { source: "advanced", key: "effective_tax_rate", name: "Effective tax rate", kind: "percent", formula: "Tax provision / pretax income" },
+        ],
+        Efficiency: [
+            { source: "supplemental", key: "cash_conversion", name: "Cash conversion", kind: "multiple", formula: "Operating cash flow / net income" },
+            { source: "advanced", key: "dso", name: "Days sales outstanding", kind: "days", formula: "365 × average receivables / revenue" },
+            { source: "advanced", key: "dio", name: "Days inventory outstanding", kind: "days", formula: "365 × average inventory / cost of revenue" },
+            { source: "advanced", key: "dpo", name: "Days payable outstanding", kind: "days", formula: "365 × average payables / cost of revenue" },
+            { source: "advanced", key: "cash_conversion_cycle", name: "Cash conversion cycle", kind: "days", formula: "DSO + DIO - DPO" },
+        ],
+        Valuation: [
+            { source: "supplemental", key: "free_cash_flow_yield", name: "Free cash flow yield", kind: "percent", formula: "Free cash flow / market capitalization" },
+            { source: "advanced", key: "price_to_sales", name: "Price / sales", kind: "multiple", formula: "Market capitalization / TTM revenue" },
+            { source: "advanced", key: "price_to_book", name: "Price / book", kind: "multiple", formula: "Market capitalization / stockholders' equity" },
+            { source: "advanced", key: "ev_to_sales", name: "Enterprise value / sales", kind: "multiple", formula: "Enterprise value / TTM revenue" },
+            { source: "advanced", key: "earnings_yield", name: "Earnings yield", kind: "percent", formula: "TTM net income / market capitalization" },
+            { source: "advanced", key: "dividend_yield_cash_flow", name: "Cash dividend yield", kind: "percent", formula: "Cash dividends paid / market capitalization" },
+        ],
+    };
+
+    const scoredByCategory = Object.fromEntries(categoryOrder.map(category => [category, []]));
+    Object.values(ratioEvals).forEach(item => {
+        if (scoredByCategory[item.category]) scoredByCategory[item.category].push(item);
+    });
+
+    const sourceValue = item => item.source === "supplemental" ? supplemental[item.key] : advanced[item.key];
+    const scoredValue = item => {
+        if (!isNumericValue(item.value)) return item.status === "N/M" ? "N/M" : "N/A";
+        return item.format === "{:.1%}" ? `${(Number(item.value) * 100).toFixed(1)}%` : Number(item.value).toFixed(2);
+    };
+    const scoredStatusClass = status => ({
+        Caution: "caution",
+        Warning: "warning",
+        "N/M": "nm",
+        "N/A": "na",
+    }[status] || "healthy");
+
+    container.innerHTML = categoryOrder.map((category, categoryIndex) => {
+        const scoredItems = scoredByCategory[category];
+        const informationalItems = additions[category] || [];
+        const cards = [
+            ...scoredItems.map(item => {
+                const status = item.status || "N/A";
+                return `
+                    <article class="ratio-card">
+                        <div class="ratio-card-header">
+                            <span class="ratio-cat-tag">Scored diagnostic</span>
+                            <span class="status-pill ${scoredStatusClass(status)}">● ${escapeHtml(status.toUpperCase())}</span>
+                        </div>
+                        <div class="ratio-name">${escapeHtml(item.name)}</div>
+                        <div class="ratio-val-large">${escapeHtml(scoredValue(item))}</div>
+                        <div class="ratio-formula">${escapeHtml(item.formula || "Formula unavailable")}</div>
+                        <div class="ratio-target-caption">Benchmark target: ${escapeHtml(item.target || "Not available")}</div>
+                    </article>`;
+            }),
+            ...informationalItems.map(item => {
+                const value = sourceValue(item);
+                const available = isNumericValue(value);
+                return `
+                    <article class="ratio-card is-informational ${available ? "" : "is-unavailable"}">
+                        <div class="ratio-card-header">
+                            <span class="ratio-cat-tag">Informational</span>
+                            <span class="status-pill ${available ? "informational" : "na"}">● ${available ? "UNSCORED" : "N/A"}</span>
+                        </div>
+                        <div class="ratio-name">${escapeHtml(item.name)}</div>
+                        <div class="ratio-val-large">${escapeHtml(analysisValue(value, item.kind, currency))}</div>
+                        <div class="ratio-formula">${escapeHtml(item.formula)}</div>
+                        <div class="ratio-target-caption">Analytical context only · Not included in the headline score</div>
+                    </article>`;
+            }),
+        ].join("");
+        const total = scoredItems.length + informationalItems.length;
+        return `
+            <section class="ratio-category-section" data-category="${category.toLowerCase()}">
+                <div class="category-title">
+                    <span class="category-index">${String(categoryIndex + 1).padStart(2, "0")}</span>
+                    <span class="category-copy"><strong>${escapeHtml(category)}</strong><small>${escapeHtml(categoryDescriptions[category])}</small></span>
+                    <span class="category-count">${total} metrics · ${scoredItems.length} scored</span>
+                </div>
+                <div class="ratio-cards-grid">${cards}</div>
+            </section>`;
+    }).join("");
+}
+
+function renderSupportingAnalysis() {
+    const container = document.getElementById("supportingAnalysisContainer");
+    if (!container || !currentData || !currentData.metrics) return;
+    const supplemental = currentData.metrics.supplemental_metrics || {};
+    const advanced = currentData.metrics.advanced_metrics || {};
+    const currency = (currentData.info || {}).currency;
+    const groups = [
+        ["Cash flow & capital base · absolute measures", [
+            ["supplemental", "working_capital", "Working capital", "money", "Current assets minus current liabilities"],
+            ["supplemental", "operating_cash_flow", "Operating cash flow", "money", "Cash generated by operating activities"],
+            ["supplemental", "free_cash_flow", "Free cash flow", "money", "Operating cash flow less capital spending, with source signs normalized"],
+            ["supplemental", "net_debt", "Net debt", "money", "Total debt minus cash and short-term investments"],
+            ["advanced", "nopat", "NOPAT", "money", "Operating income after the calculated effective tax rate"],
+            ["advanced", "invested_capital", "Invested capital", "money", "Debt plus equity minus cash and short-term investments"],
+        ]],
+        ["Growth", [
+            ["supplemental", "annual_revenue_growth", "Annual revenue growth", "percent", "Latest annual revenue versus the prior year"],
+            ["supplemental", "annual_net_income_growth", "Annual net income growth", "percent", "Latest annual net income versus the prior year"],
+            ["supplemental", "revenue_cagr", "Revenue CAGR", "percent", "Compound annual revenue growth across the available span"],
+            ["advanced", "annual_eps_growth", "Annual diluted EPS growth", "percent", "Latest annual diluted EPS versus the prior year"],
+            ["advanced", "annual_fcf_growth", "Annual free cash flow growth", "percent", "Latest annual free cash flow versus the prior year"],
+            ["advanced", "revenue_per_share_growth", "Revenue-per-share growth", "percent", "Latest annual revenue per diluted share versus the prior year"],
+        ]],
+        ["Operating reinvestment", [
+            ["advanced", "capex_to_revenue", "Capital spending / revenue", "percent", "Absolute reported capital expenditure / revenue"],
+            ["advanced", "research_and_development_intensity", "R&D / revenue", "percent", "Reported research and development / revenue"],
+        ]],
+        ["Capital allocation", [
+            ["supplemental", "diluted_share_change", "Diluted share change", "percent", "Latest annual diluted average shares versus the prior year"],
+            ["advanced", "stock_comp_to_revenue", "Stock compensation / revenue", "percent", "Reported stock-based compensation / revenue"],
+            ["advanced", "stock_comp_to_fcf", "Stock compensation / FCF", "percent", "Reported stock-based compensation / free cash flow"],
+            ["advanced", "net_buyback_yield", "Net buyback yield", "percent", "(Share repurchases - share issuance) / market capitalization"],
+            ["advanced", "shareholder_yield", "Shareholder yield", "percent", "(Dividends + net buybacks) / market capitalization"],
+        ]],
+        ["Per-share performance", [
+            ["advanced", "revenue_per_share", "Revenue per diluted share", "per_share", "Analysis-period revenue / diluted average shares"],
+            ["advanced", "free_cash_flow_per_share", "Free cash flow per diluted share", "per_share", "Analysis-period free cash flow / diluted average shares"],
+            ["advanced", "book_value_per_share", "Book value per share", "per_share", "Stockholders' equity / same-period reported shares"],
+        ]],
+        ["DuPont ROE decomposition · reconciliation view", [
+            ["advanced", "dupont_net_margin", "Net margin component", "percent", "Net income / revenue"],
+            ["advanced", "dupont_asset_turnover", "Asset turnover component", "multiple", "Revenue / average assets"],
+            ["advanced", "dupont_equity_multiplier", "Equity multiplier", "multiple", "Average assets / average equity"],
+            ["advanced", "dupont_roe", "Calculated DuPont ROE", "percent", "Net margin × asset turnover × equity multiplier"],
+        ]],
+    ];
+    const valueFor = (source, key) => source === "supplemental" ? supplemental[key] : advanced[key];
+    container.innerHTML = groups.map(([groupName, definitions]) => `
+        <div class="analysis-group">
+            <div class="analysis-group-title">${escapeHtml(groupName)}</div>
+            <div class="analysis-metric-grid">
+                ${definitions.map(([source, key, label, kind, formula]) => {
+                    const value = valueFor(source, key);
+                    return `<article class="analysis-metric-card ${isNumericValue(value) ? "" : "is-unavailable"}">
+                        <span>${escapeHtml(label)}</span>
+                        <strong>${escapeHtml(analysisValue(value, kind, currency))}</strong>
+                        <small>${escapeHtml(formula)}</small>
+                    </article>`;
+                }).join("")}
             </div>
         </div>
     `).join("");
@@ -1198,6 +1377,13 @@ function renderSectorAnalysis() {
     const container = document.getElementById("sectorAnalysisContainer");
     if (!container || !currentData) return;
     const analysis = currentData.sector_analysis || {};
+    const section = container.closest(".deep-analysis-section");
+    if ((analysis.model || "general_corporate") === "general_corporate") {
+        container.innerHTML = "";
+        if (section) section.hidden = true;
+        return;
+    }
+    if (section) section.hidden = false;
     const currency = (currentData.info || {}).currency;
     const metrics = analysis.metrics || [];
     const missing = analysis.required_not_standardized || [];

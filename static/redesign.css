@@ -2454,6 +2454,18 @@ html[data-theme="light"] .symbol-badge {
 .status-pill.nm { background: color-mix(in srgb, var(--accent-amber) 12%, transparent) !important; }
 .status-pill.warning { background: color-mix(in srgb, var(--accent-red) 12%, transparent) !important; }
 .status-pill.na { background: color-mix(in srgb, var(--text-dark) 10%, transparent) !important; }
+.status-pill.informational {
+    background: color-mix(in srgb, var(--accent-cyan) 12%, transparent) !important;
+    color: var(--accent-cyan);
+}
+
+.ratio-card.is-informational {
+    border-color: color-mix(in srgb, var(--accent-cyan) 18%, var(--card-border));
+}
+
+.ratio-card.is-unavailable .ratio-val-large {
+    color: var(--text-dark);
+}
 
 .ratio-target-caption {
     margin-top: 16px;

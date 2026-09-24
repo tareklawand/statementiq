@@ -98,7 +98,7 @@ def test_frontend_contains_no_numeric_fallbacks():
     assert 'value !== null && value !== undefined && value !== ""' in app_js
     assert 'return "percent"' in app_js
     assert 'return "shares"' in app_js
-    assert "renderAdvancedMetrics" in app_js
+    assert "renderSupportingAnalysis" in app_js
     assert "renderStatementAnalysis" in app_js
     assert "renderSectorAnalysis" in app_js
     assert "renderFilingReview" in app_js
