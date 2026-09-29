@@ -104,7 +104,8 @@ def read_root_asset(asset_name: str):
     """Serve root-level public assets consistently in local and edge hosting."""
     allowed_assets = {
         "favicon.svg", "favicon.ico", "favicon-iq-48.png", "favicon-48.png",
-        "favicon-512.png", "apple-touch-icon.png", "robots.txt", "sitemap.xml",
+        "favicon-512.png", "statementiq-favicon-96.png", "apple-touch-icon.png",
+        "robots.txt", "sitemap.xml",
     }
     if asset_name not in allowed_assets:
         raise HTTPException(status_code=404, detail="Not found")
