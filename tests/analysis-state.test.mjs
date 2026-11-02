@@ -115,3 +115,17 @@ test("invalid ticker messages remain visible and are not replaced with a hosting
     await request;
     assert.equal(h.element("analysisEmptyMessage").textContent, "Ticker not found");
 });
+
+test("repeated transient failures request startup only once per analysis", async () => {
+    const h = createFrontend();
+    let startupRequests = 0;
+    h.frontend.client.wakeService = () => { startupRequests += 1; return Promise.resolve(); };
+    const request = h.frontend.loadTickerData("AAPL");
+    h.pending[0].options.onRetry({ delayMs: 5000, status: 429 });
+    h.pending[0].options.onRetry({ delayMs: 10000, status: 503 });
+    assert.equal(startupRequests, 1);
+    assert.equal(h.element("mainDashboard").hidden, true);
+    h.pending[0].resolve(data("AAPL"));
+    await request;
+    assert.equal(h.frontend.getSymbol(), "AAPL");
+});

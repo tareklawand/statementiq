@@ -135,6 +135,19 @@ export default {
       requestUrl.pathname.startsWith("/api/") ||
       requestUrl.pathname === "/health";
 
+    // Served at the edge even if the origin is asleep. This exposes only its
+    // already-public health URL, never credentials or a financial response.
+    if (requestUrl.pathname === "/api/startup-config") {
+      if (request.method !== "GET") {
+        return applyPublicHeaders(Response.json({ detail: "Method not allowed" }, {
+          status: 405, headers: { "cache-control": "no-store" }
+        }), { preventIndexing: true });
+      }
+      return applyPublicHeaders(Response.json({
+        startup_url: new URL("/health", new URL(env.BACKEND_ORIGIN).origin).toString()
+      }, { headers: { "cache-control": "no-store" } }), { preventIndexing: true });
+    }
+
     if (requestUrl.pathname === "/api/sec-ticker-map") {
       if (request.method !== "GET") {
         return applyPublicHeaders(Response.json({ detail: "Method not allowed" }, { status: 405 }), { preventIndexing: true });

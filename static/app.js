@@ -460,6 +460,10 @@ async function performTickerLoad(request, forceRefresh) {
                 && payload.statements && payload.charts && payload.ai_insights,
             onRetry: ({ delayMs, status }) => {
                 if (activeAnalysisRequest !== request) return;
+                if (!request.startupRequested) {
+                    request.startupRequested = true;
+                    void StatementIQRequests.wakeService();
+                }
                 analysisProgressTimers.forEach(timer => window.clearTimeout(timer));
                 analysisProgressTimers = [];
                 const reason = status === 429 ? "The service asked us to pause briefly." : "The connection was interrupted.";

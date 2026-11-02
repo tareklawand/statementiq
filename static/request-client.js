@@ -1,6 +1,7 @@
 // Shared, bounded recovery for read-only requests. Never retry report POSTs.
 const StatementIQRequests = (() => {
     const transientStatuses = new Set([408, 425, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524]);
+    let startupPromise = null;
 
     class RequestError extends Error {
         constructor(message, { status = 0, retryable = false, retryAfterMs = 0 } = {}) {
@@ -115,5 +116,33 @@ const StatementIQRequests = (() => {
         throw lastError || new RequestError("The analysis service took too long to respond.", { retryable: true });
     }
 
-    return { requestJson, RequestError };
+    function wakeService() {
+        if (startupPromise) return startupPromise;
+        startupPromise = (async () => {
+            const config = await requestJson("/api/startup-config", {
+                maxAttempts: 1, maxElapsedMs: 5000, attemptTimeoutMs: 5000,
+                validate: payload => typeof payload.startup_url === "string"
+                    && new URL(payload.startup_url).protocol === "https:",
+            });
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 90000);
+            try {
+                // A single visitor-initiated health request can wake a sleeping
+                // origin when its edge is refusing the proxied request. The
+                // opaque response is NOT treated as readiness or financial data.
+                await fetch(config.startup_url, {
+                    mode: "no-cors", credentials: "omit", referrerPolicy: "no-referrer",
+                    cache: "no-store", signal: controller.signal,
+                });
+            } finally {
+                clearTimeout(timer);
+            }
+        })().catch(() => {
+            // The ordinary API retry remains the sole readiness check. A
+            // blocked startup probe must not overwrite its result or error.
+        }).finally(() => { startupPromise = null; });
+        return startupPromise;
+    }
+
+    return { requestJson, wakeService, RequestError };
 })();

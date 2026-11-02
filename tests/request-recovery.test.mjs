@@ -13,7 +13,7 @@ function harness(respond) {
     const calls = [];
     class Clock extends Date { static now() { return now; } }
     const context = vm.createContext({
-        Date: Clock, AbortController, DOMException,
+        Date: Clock, AbortController, DOMException, URL,
         setTimeout: (fn, ms) => {
             const id = ++sequence;
             timers.set(id, { fn, at: now + ms });
@@ -22,7 +22,7 @@ function harness(respond) {
         clearTimeout: id => timers.delete(id),
         fetch: async (url, options) => {
             calls.push({ url, at: now, options });
-            return respond(calls.length, options);
+            return respond(calls.length, options, url);
         },
     });
     vm.runInContext(`${source}\nglobalThis.client = StatementIQRequests;`, context);
@@ -174,4 +174,62 @@ test("edge network failures return a bounded cooldown instead of an HTML error",
     assert.equal(response.status, 502);
     assert.equal(response.headers.get("retry-after"), "5");
     assert.equal((await response.json()).code, "upstream_temporarily_unavailable");
+});
+
+test("concurrent recovery shares one browser startup request with no cookies or referrer", async () => {
+    let resolveConfig;
+    const h = harness(n => n === 1 ? new Promise(resolve => { resolveConfig = resolve; })
+        : new Response(null, { status: 200 }));
+    const first = h.client.wakeService();
+    const second = h.client.wakeService();
+    assert.equal(first, second);
+    assert.equal(h.calls.length, 1);
+    resolveConfig(Response.json({ startup_url: "https://backend.example.com/health" }));
+    await h.run(first);
+    assert.equal(h.calls.length, 2);
+    assert.equal(h.calls[1].url, "https://backend.example.com/health");
+    assert.equal(h.calls[1].options.mode, "no-cors");
+    assert.equal(h.calls[1].options.credentials, "omit");
+    assert.equal(h.calls[1].options.referrerPolicy, "no-referrer");
+    assert.equal(h.timers.size, 0);
+});
+
+test("a blocked startup probe does not prevent normal API recovery", async () => {
+    const h = harness((n, options, url) => {
+        if (url === "/api/startup-config") return Response.json({ startup_url: "https://backend.example.com/health" });
+        if (url.startsWith("https:")) throw new TypeError("Cross-site request blocked");
+        return Response.json({ symbol: "AAPL" });
+    });
+    await h.run(h.client.wakeService());
+    const data = await h.run(h.client.requestJson("/api/analyze"));
+    assert.equal(data.symbol, "AAPL");
+});
+
+test("the startup probe has its own deadline and never waits indefinitely", async () => {
+    const h = harness((n, { signal }) => n === 1
+        ? Response.json({ startup_url: "https://backend.example.com/health" })
+        : new Promise((resolve, reject) => signal.addEventListener("abort", () => {
+            reject(new DOMException("Timeout", "AbortError"));
+        }, { once: true })));
+    await h.run(h.client.wakeService());
+    assert.equal(h.calls.length, 2);
+    assert.equal(h.timers.size, 0);
+});
+
+test("startup configuration is served without contacting the sleeping backend", async t => {
+    t.mock.method(globalThis, "fetch", async () => { throw new Error("Origin must not be contacted"); });
+    const response = await worker.fetch(new Request("https://statementiq-lb.com/api/startup-config"), {
+        BACKEND_ORIGIN: "https://backend.example.com",
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { startup_url: "https://backend.example.com/health" });
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(globalThis.fetch.mock.callCount(), 0);
+});
+
+test("startup configuration never exposes credentials or query parameters from backend configuration", async () => {
+    const response = await worker.fetch(new Request("https://statementiq-lb.com/api/startup-config"), {
+        BACKEND_ORIGIN: "https://user:private@backend.example.com/internal?key=private",
+    });
+    assert.deepEqual(await response.json(), { startup_url: "https://backend.example.com/health" });
 });
