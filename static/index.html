@@ -328,7 +328,7 @@
         .val-positive { color: var(--accent-green); }
         .val-negative { color: var(--accent-red); }
     </style>
-    <link rel="stylesheet" href="/static/redesign.css?v=responsive_v27">
+    <link rel="stylesheet" href="/static/redesign.css?v=recovery_v28">
 </head>
 <body>
     <section class="intro-page" id="introPage" aria-labelledby="introTitle">
@@ -459,24 +459,36 @@
             <!-- Dynamically loaded pills -->
         </div>
 
+        <section class="analysis-data-notice" id="analysisDataNotice" role="status" hidden>
+            <p id="analysisDataNoticeText"></p>
+            <button class="analysis-retry-btn" type="button" data-retry-analysis hidden>Try again</button>
+        </section>
+
+        <section class="analysis-empty-state" id="analysisEmptyState" role="status">
+            <div class="analysis-empty-label">COMPANY RESEARCH</div>
+            <h1 id="analysisEmptyTitle">Preparing your analysis</h1>
+            <p id="analysisEmptyMessage">Financial results will appear once the analysis is complete.</p>
+            <button class="analysis-retry-btn" type="button" data-retry-analysis hidden>Try again</button>
+        </section>
+
         <!-- Main Dashboard View -->
-        <main class="main-dashboard" id="mainDashboard">
+        <main class="main-dashboard" id="mainDashboard" hidden>
             
             <!-- Company Hero Header Banner -->
             <section class="hero-card">
                 <div class="hero-header-left">
                     <div class="hero-eyebrow"><span class="live-dot"></span> Fundamental research / company overview</div>
                     <div class="company-title-row">
-                        <h1 class="company-name" id="heroCompanyName">Apple Inc.</h1>
-                        <span class="symbol-badge" id="heroSymbol">AAPL</span>
-                        <span class="exchange-badge" id="heroExchange">NASDAQ</span>
+                        <h1 class="company-name" id="heroCompanyName">—</h1>
+                        <span class="symbol-badge" id="heroSymbol">—</span>
+                        <span class="exchange-badge" id="heroExchange">—</span>
                     </div>
                     <div class="meta-row">
-                        <span>Sector <b id="heroSector">Technology</b></span>
+                        <span>Sector <b id="heroSector">—</b></span>
                         <span class="dot-separator">/</span>
-                        <span>Industry <b id="heroIndustry">Consumer Electronics</b></span>
+                        <span>Industry <b id="heroIndustry">—</b></span>
                         <span class="dot-separator">/</span>
-                        <span>Reporting currency <b class="accent-cyan" id="heroCurrency">USD</b></span>
+                        <span>Reporting currency <b class="accent-cyan" id="heroCurrency">—</b></span>
                     </div>
                     <div class="source-row" id="heroDataSource">Loading source details…</div>
                     <div class="quality-details" id="heroQualityDetails" aria-live="polite"></div>
@@ -484,7 +496,7 @@
 
                 <!-- Export Report Action -->
                 <div class="hero-actions">
-                    <button id="downloadPdfBtn" class="btn-export-pdf">
+                    <button id="downloadPdfBtn" class="btn-export-pdf" disabled>
                         <i data-lucide="file-down"></i> Download research report
                     </button>
                 </div>
@@ -497,7 +509,7 @@
                         <span class="kpi-label">SHARE PRICE</span>
                         <i data-lucide="dollar-sign" class="kpi-icon"></i>
                     </div>
-                    <div class="kpi-value accent-cyan" id="kpiPrice">$0.00</div>
+                    <div class="kpi-value accent-cyan" id="kpiPrice">—</div>
                 </div>
 
                 <div class="kpi-card">
@@ -505,7 +517,7 @@
                         <span class="kpi-label">MARKET CAP</span>
                         <i data-lucide="pie-chart" class="kpi-icon"></i>
                     </div>
-                    <div class="kpi-value" id="kpiMarketCap">$0.00B</div>
+                    <div class="kpi-value" id="kpiMarketCap">—</div>
                 </div>
 
                 <div class="kpi-card">
@@ -513,7 +525,7 @@
                         <span class="kpi-label">ENTERPRISE VALUE</span>
                         <i data-lucide="layers" class="kpi-icon"></i>
                     </div>
-                    <div class="kpi-value" id="kpiEV">$0.00B</div>
+                    <div class="kpi-value" id="kpiEV">—</div>
                 </div>
 
                 <div class="kpi-card">
@@ -521,7 +533,7 @@
                         <span class="kpi-label">P/E RATIO</span>
                         <i data-lucide="activity" class="kpi-icon"></i>
                     </div>
-                    <div class="kpi-value" id="kpiPE">0.00x</div>
+                    <div class="kpi-value" id="kpiPE">—</div>
                 </div>
 
                 <div class="kpi-card">
@@ -529,7 +541,7 @@
                         <span class="kpi-label">EV / EBITDA</span>
                         <i data-lucide="trending-up" class="kpi-icon"></i>
                     </div>
-                    <div class="kpi-value" id="kpiEVEBITDA">0.00x</div>
+                    <div class="kpi-value" id="kpiEVEBITDA">—</div>
                 </div>
 
                 <div class="kpi-card">
@@ -537,7 +549,7 @@
                         <span class="kpi-label">52-WEEK RANGE</span>
                         <i data-lucide="range" class="kpi-icon"></i>
                     </div>
-                    <div class="kpi-value-sm" id="kpiRange">$0.00 - $0.00</div>
+                    <div class="kpi-value-sm" id="kpiRange">—</div>
                 </div>
 
                 <div class="kpi-card">
@@ -545,7 +557,7 @@
                         <span class="kpi-label" id="kpiDivYieldLabel">FORWARD DIVIDEND YIELD</span>
                         <i data-lucide="percent" class="kpi-icon"></i>
                     </div>
-                    <div class="kpi-value" id="kpiDivYield">0.00%</div>
+                    <div class="kpi-value" id="kpiDivYield">—</div>
                 </div>
 
                 <div class="kpi-card">
@@ -553,7 +565,7 @@
                         <span class="kpi-label">ANALYST TARGET</span>
                         <i data-lucide="target" class="kpi-icon"></i>
                     </div>
-                    <div class="kpi-value accent-green" id="kpiTargetPrice">$0.00</div>
+                    <div class="kpi-value accent-green" id="kpiTargetPrice">—</div>
                 </div>
             </section>
 
@@ -584,7 +596,7 @@
                         <div class="glass-card score-panel">
                             <div class="card-subtitle">FINANCIAL HEALTH MODEL</div>
                             <div id="healthGaugeChart" class="gauge-container"></div>
-                            <div class="health-status-badge" id="healthStatusText">STRONG FINANCIAL HEALTH</div>
+                            <div class="health-status-badge" id="healthStatusText">Awaiting analysis</div>
                             <div class="score-coverage" id="scoreCoverageText">Checking ratio coverage…</div>
                             <div class="model-profile" id="applicabilityProfileText">Selecting the applicable company model…</div>
                             <p class="score-disclaimer">A transparent financial-condition screen. Valuation is separate; neither result is a buy or sell recommendation.</p>
@@ -771,6 +783,7 @@
     </div>
 
     <!-- Script Entry -->
-    <script src="/static/app.js?v=responsive_v27"></script>
+    <script src="/static/request-client.js?v=recovery_v28"></script>
+    <script src="/static/app.js?v=recovery_v28"></script>
 </body>
 </html>

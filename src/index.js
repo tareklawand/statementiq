@@ -1,6 +1,7 @@
 const CANONICAL_HOSTNAME = "statementiq-lb.com";
 const PERIODIC_FILING_FORMS = new Set(["10-K", "10-K/A", "20-F", "20-F/A", "40-F", "40-F/A"]);
 const MAX_EXTRACTED_FILING_CHARS = 45 * 1024 * 1024;
+const TRANSIENT_UPSTREAM_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524]);
 
 // SEC full-submission files may contain hundreds of exhibits and can be much
 // larger than the annual report itself. Read the response as a stream and keep
@@ -268,10 +269,40 @@ export default {
       `${requestUrl.pathname}${requestUrl.search}`,
       env.BACKEND_ORIGIN
     );
+    const requestId = crypto.randomUUID();
+    const startedAt = Date.now();
 
     try {
       const upstreamResponse = await fetch(new Request(upstreamUrl, request));
+      if (!upstreamResponse.ok) {
+        console.error(JSON.stringify({
+          event: "backend_response_error",
+          request_id: requestId,
+          path: requestUrl.pathname,
+          status: upstreamResponse.status,
+          duration_ms: Date.now() - startedAt,
+          upstream_request_id: upstreamResponse.headers.get("rndr-id")
+        }));
+      }
+      if (TRANSIENT_UPSTREAM_STATUSES.has(upstreamResponse.status)) {
+        const retryAfter = upstreamResponse.headers.get("retry-after") || "5";
+        await upstreamResponse.body?.cancel();
+        return applyPublicHeaders(Response.json({
+          detail: "The analysis service is temporarily unavailable. Please try again shortly.",
+          code: "upstream_temporarily_unavailable",
+          request_id: requestId
+        }, {
+          status: upstreamResponse.status,
+          headers: {
+            "retry-after": retryAfter,
+            "cache-control": "no-store",
+            "x-statementiq-request-id": requestId
+          }
+        }), { preventIndexing: true });
+      }
       const responseHeaders = new Headers(upstreamResponse.headers);
+      responseHeaders.set("cache-control", "no-store");
+      responseHeaders.set("x-statementiq-request-id", requestId);
       responseHeaders.forEach((_, key) => {
         if (key === "server" || key === "rndr-id" || key.startsWith("x-render-")) {
           responseHeaders.delete(key);
@@ -286,17 +317,25 @@ export default {
     } catch (error) {
       console.error(JSON.stringify({
         event: "backend_proxy_error",
+        request_id: requestId,
         path: requestUrl.pathname,
+        duration_ms: Date.now() - startedAt,
         message: error instanceof Error ? error.message : "Unknown proxy error"
       }));
 
       const response = Response.json(
         {
-          detail: "The financial engine is starting. Please try again in a moment."
+          detail: "The analysis service is temporarily unavailable. Please try again shortly.",
+          code: "upstream_temporarily_unavailable",
+          request_id: requestId
         },
         {
           status: 502,
-          headers: { "retry-after": "5" }
+          headers: {
+            "retry-after": "5",
+            "cache-control": "no-store",
+            "x-statementiq-request-id": requestId
+          }
         }
       );
       return applyPublicHeaders(response, { preventIndexing: true });

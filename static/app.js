@@ -10,6 +10,9 @@ let analysisProgressClock = null;
 let analysisProgressStartedAt = 0;
 let workspaceInitialized = false;
 let themeTransitionActive = false;
+let activeAnalysisRequest = null;
+let requestedSymbol = "AAPL";
+let requestedRefresh = false;
 
 function updateThemeControls() {
     const actionLabel = currentTheme === "dark" ? "Switch to light mode" : "Switch to dark mode";
@@ -215,13 +218,9 @@ function startAnalysisProgress(symbol) {
         elapsed.textContent = formatElapsed(Date.now() - analysisProgressStartedAt);
     }, 1000);
 
-    scheduleAnalysisProgress(token, 1200, 20, "Connecting to secure financial data sources…");
-    scheduleAnalysisProgress(token, 4000, 36, "Retrieving reported financial statements…");
-    scheduleAnalysisProgress(token, 10000, 52, "Running ratio and valuation checks…");
-    scheduleAnalysisProgress(token, 18000, 65, "Building the financial health assessment…");
-    scheduleAnalysisProgress(token, 30000, 74, "The financial engine may be waking up — the first analysis can take longer.");
-    scheduleAnalysisProgress(token, 48000, 84, "Still working — keeping the financial request open…");
-    scheduleAnalysisProgress(token, 70000, 90, "Final checks are taking longer than usual…");
+    scheduleAnalysisProgress(token, 4000, 24, "Waiting for financial statements and analysis…");
+    scheduleAnalysisProgress(token, 18000, 40, "Still waiting for the financial analysis service…");
+    scheduleAnalysisProgress(token, 40000, 55, "This request is taking longer. Recovery is automatic if the connection is interrupted.");
     return token;
 }
 
@@ -246,17 +245,48 @@ function failAnalysisProgress(token, message) {
     if (token !== analysisProgressToken) return;
     clearAnalysisProgressTimers();
     const panel = document.getElementById("analysisProgress");
+    const title = document.getElementById("analysisProgressTitle");
     const elapsed = document.getElementById("analysisProgressElapsed");
     if (!panel) return;
 
     if (elapsed) elapsed.textContent = "Not completed";
+    if (title) title.textContent = `Analysis unavailable for ${requestedSymbol}`;
     updateAnalysisProgress(100, message, "error");
-    const hideTimer = window.setTimeout(() => {
-        if (token !== analysisProgressToken) return;
-        panel.classList.remove("is-visible");
-        panel.setAttribute("aria-hidden", "true");
-    }, 9000);
-    analysisProgressTimers.push(hideTimer);
+}
+
+function setAnalysisAvailability(state, symbol, detail = "") {
+    const dashboard = document.getElementById("mainDashboard");
+    const empty = document.getElementById("analysisEmptyState");
+    const title = document.getElementById("analysisEmptyTitle");
+    const message = document.getElementById("analysisEmptyMessage");
+    const notice = document.getElementById("analysisDataNotice");
+    const noticeText = document.getElementById("analysisDataNoticeText");
+    const loading = state === "loading";
+    const hasData = Boolean(currentData);
+    if (dashboard) {
+        dashboard.hidden = !hasData;
+        dashboard.setAttribute("aria-busy", String(loading));
+    }
+    if (empty) empty.hidden = hasData || state === "ready";
+    if (title) title.textContent = loading ? `Analyzing ${symbol}` : `Analysis unavailable for ${symbol}`;
+    if (message) message.textContent = loading
+        ? "Retrieving financial data. Brief connection interruptions will be retried automatically."
+        : detail;
+    if (notice) notice.hidden = !hasData || state === "ready";
+    if (noticeText && hasData) {
+        const fetchedAt = new Date(currentData.data_quality?.fetched_at || "");
+        const time = Number.isNaN(fetchedAt.getTime()) ? "" : ` (retrieved ${fetchedAt.toLocaleString()})`;
+        noticeText.textContent = loading
+            ? `Analyzing ${symbol}. The dashboard below still shows the last completed analysis for ${currentSymbol}${time}.`
+            : `${detail} The dashboard below shows the last completed analysis for ${currentSymbol}${time}.`;
+    }
+    document.querySelectorAll("[data-retry-analysis]").forEach(button => {
+        button.hidden = loading || state === "ready";
+    });
+    ["downloadPdfBtn", "exportCsvBtn"].forEach(id => {
+        const button = document.getElementById(id);
+        if (button) button.disabled = loading || !hasData;
+    });
 }
 
 // Initialize Application
@@ -280,6 +310,9 @@ if (document.readyState === "loading") {
 
 // Event Listeners Setup (Ultra-Defensive)
 function setupEventListeners() {
+    document.querySelectorAll("[data-retry-analysis]").forEach(button => {
+        button.addEventListener("click", () => loadTickerData(requestedSymbol, requestedRefresh));
+    });
     // Theme Switcher Toggle
     document.querySelectorAll("[data-theme-toggle]").forEach(themeBtn => {
         themeBtn.addEventListener("click", () => animateThemeChange(themeBtn));
@@ -368,20 +401,20 @@ function setupEventListeners() {
 // Fetch Preset Bluechips
 async function fetchPresets() {
     try {
-        const res = await fetch("/api/presets");
-        const data = await res.json();
+        const data = await StatementIQRequests.requestJson("/api/presets", {
+            validate: payload => payload.presets && typeof payload.presets === "object",
+        });
         const ribbon = document.getElementById("tickerRibbon");
         if (!ribbon) return;
         
         if (data.presets) {
             ribbon.innerHTML = `<span class="ribbon-label"><i data-lucide="scan-search" class="inline-icon"></i> COVERAGE UNIVERSE</span>`;
             Object.entries(data.presets).forEach(([label, symbol]) => {
-                const pill = document.createElement("div");
+                const pill = document.createElement("button");
+                pill.type = "button";
                 pill.className = `ticker-pill ${symbol === currentSymbol ? 'active' : ''}`;
                 pill.innerText = symbol;
                 pill.addEventListener("click", () => {
-                    document.querySelectorAll(".ticker-pill").forEach(p => p.classList.remove("active"));
-                    pill.classList.add("active");
                     const searchInput = document.getElementById("tickerSearchInput");
                     if (searchInput) searchInput.value = symbol;
                     loadTickerData(symbol, true);
@@ -396,10 +429,23 @@ async function fetchPresets() {
 }
 
 // Main Data Fetcher
-async function loadTickerData(symbol, forceRefresh = false) {
-    const searchBtn = document.getElementById("searchBtn");
+function loadTickerData(symbol, forceRefresh = false) {
     const targetSymbol = (symbol || "AAPL").trim().toUpperCase();
+    if (activeAnalysisRequest?.symbol === targetSymbol) return activeAnalysisRequest.promise;
+    activeAnalysisRequest?.controller.abort();
+    requestedSymbol = targetSymbol;
+    requestedRefresh = forceRefresh;
+    const request = { symbol: targetSymbol, controller: new AbortController(), promise: null };
+    activeAnalysisRequest = request;
+    request.promise = performTickerLoad(request, forceRefresh);
+    return request.promise;
+}
+
+async function performTickerLoad(request, forceRefresh) {
+    const { symbol: targetSymbol, controller } = request;
+    const searchBtn = document.getElementById("searchBtn");
     const progressToken = startAnalysisProgress(targetSymbol);
+    setAnalysisAvailability("loading", targetSymbol);
 
     if (searchBtn) {
         searchBtn.disabled = true;
@@ -407,23 +453,26 @@ async function loadTickerData(symbol, forceRefresh = false) {
     }
 
     try {
-        let url = `/api/analyze?ticker=${encodeURIComponent(targetSymbol)}&refresh=${forceRefresh ? "true" : "false"}`;
-
-        const res = await fetch(url);
-        if (!res.ok) {
-            let detail = `We could not complete the analysis for ${targetSymbol}. Please try again.`;
-            try {
-                const errData = await res.json();
-                if (errData.detail) detail = errData.detail;
-            } catch (error) {
-                console.error("Unable to read analysis error response:", error);
-            }
-            failAnalysisProgress(progressToken, detail);
-            return;
-        }
-
-        currentData = await res.json();
+        const url = `/api/analyze?ticker=${encodeURIComponent(targetSymbol)}&refresh=${forceRefresh ? "true" : "false"}`;
+        const data = await StatementIQRequests.requestJson(url, {
+            signal: controller.signal,
+            validate: payload => payload.symbol === targetSymbol && payload.info && payload.metrics
+                && payload.statements && payload.charts && payload.ai_insights,
+            onRetry: ({ delayMs, status }) => {
+                if (activeAnalysisRequest !== request) return;
+                analysisProgressTimers.forEach(timer => window.clearTimeout(timer));
+                analysisProgressTimers = [];
+                const reason = status === 429 ? "The service asked us to pause briefly." : "The connection was interrupted.";
+                updateAnalysisProgress(40, `${reason} Retrying automatically in ${Math.ceil(delayMs / 1000)} seconds…`);
+            },
+        });
+        if (controller.signal.aborted || activeAnalysisRequest !== request) return;
+        currentData = data;
         currentSymbol = currentData.symbol;
+        setAnalysisAvailability("ready", targetSymbol);
+        document.querySelectorAll(".ticker-pill").forEach(pill => {
+            pill.classList.toggle("active", pill.innerText === currentSymbol);
+        });
         updateAnalysisProgress(94, "Preparing the dashboard…");
 
         // Render UI Sections smoothly with isolation
@@ -440,18 +489,22 @@ async function loadTickerData(symbol, forceRefresh = false) {
         try { renderFilingReview(); } catch(e){ console.error("Filing review render error:", e); }
         try { renderFinancialStatementTable(); } catch(e){ console.error("Statement Table render error:", e); }
         completeAnalysisProgress(progressToken);
+        window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
 
     } catch (err) {
+        if (controller.signal.aborted || activeAnalysisRequest !== request) return;
         console.error("Error loading ticker data:", err);
-        failAnalysisProgress(
-            progressToken,
-            `The connection was interrupted while analyzing ${targetSymbol}. Please try again.`
-        );
+        const detail = err instanceof StatementIQRequests.RequestError && !err.retryable
+            ? err.message
+            : `The analysis service is temporarily unavailable for ${targetSymbol}. Automatic retries did not succeed. Please try again shortly.`;
+        setAnalysisAvailability("error", targetSymbol, detail);
+        failAnalysisProgress(progressToken, detail);
     } finally {
-        if (searchBtn) {
+        if (activeAnalysisRequest === request && searchBtn) {
             searchBtn.disabled = false;
             searchBtn.innerText = "Run analysis";
         }
+        if (activeAnalysisRequest === request) activeAnalysisRequest = null;
         try { lucide.createIcons(); } catch(e){}
     }
 }

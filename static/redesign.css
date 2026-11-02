@@ -3938,6 +3938,80 @@ html.theme-color-transition .theme-icon {
     color: var(--text-muted);
 }
 
+/* Loading and recovery states share the workspace's existing visual system. */
+.analysis-empty-state {
+    min-height: 300px;
+    margin: 26px 0;
+    padding: clamp(24px, 5vw, 56px) 4px;
+}
+
+.analysis-empty-label {
+    margin-bottom: 16px;
+    color: var(--accent-cyan);
+    font-family: "DM Mono", monospace;
+    font-size: .72rem;
+    letter-spacing: .08em;
+}
+
+.analysis-empty-state h1 {
+    max-width: 740px;
+    color: var(--text-main);
+    font-family: "Inter Tight", "Manrope", sans-serif;
+    font-size: clamp(1.8rem, 4vw, 3rem);
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: -.035em;
+    overflow-wrap: anywhere;
+}
+
+.analysis-empty-state p {
+    max-width: 640px;
+    margin: 18px 0;
+    color: var(--text-muted);
+    font-size: .9rem;
+    line-height: 1.65;
+}
+
+.analysis-data-notice {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin: 18px 0;
+    padding: 14px 16px;
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    background: var(--card-bg);
+    color: var(--text-muted);
+    font-size: .8rem;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+}
+
+.analysis-retry-btn {
+    flex: 0 0 auto;
+    min-height: 42px;
+    padding: 0 18px;
+    border: 1px solid var(--input-border);
+    border-radius: 7px;
+    background: var(--primary-fill);
+    color: var(--primary-ink);
+    cursor: pointer;
+    font-size: .78rem;
+    font-weight: 700;
+}
+
+.analysis-progress.is-visible {
+    max-height: 190px;
+}
+
+@media (max-width: 620px) {
+    .analysis-data-notice {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}
+
 /* ==========================================================================
    Responsive workspace — phone and tablet are first-class layouts
    These final rules intentionally resolve older, overlapping breakpoint rules.
