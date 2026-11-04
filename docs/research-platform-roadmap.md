@@ -6,16 +6,23 @@ data contract or account permission may be changed without separate approval.
 
 ## Delivery gates
 
-- [ ] Versioned methodology, source/input fingerprints and reproducible SEC-only snapshots.
-- [ ] Persistent public filing archive with checksums, migration and restore tests.
-- [ ] Background filing checks, processing/retry history and honest freshness status.
-- [ ] Period-aligned financial changes and earnings-quality review with evidence.
-- [ ] User-selected peer comparisons with currency, fiscal-period and applicability controls.
+- [x] Versioned methodology, source/input fingerprints and reproducible SEC-only snapshots.
+- [x] Persistent public filing archive with checksums, migration and restore tests.
+- [x] Bounded background filing-check queue, processing/retry history and explicit freshness scope.
+- [x] Period-aligned financial changes and earnings-quality review with evidence.
+- [x] User-selected peer comparisons with currency, fiscal-period and applicability controls.
 - [ ] Assumption-driven three-statement and cash-flow valuation models, separate from actuals.
 - [ ] Formula-based Excel exports, including sources and reconciliation checks.
 - [ ] Saved research and annotations, with clearly stated storage and privacy boundaries.
 - [ ] Authenticated team/reviewer workflow and access-control tests.
-- [ ] Operational telemetry, backup/restore and release-validation runbooks.
+- [x] Archive status/error telemetry, isolated backup/restore verification and release runbook.
+- [ ] Continuous production monitoring and recurring offsite backup/restore drills.
+
+The archive was deployed and exercised with AAPL and a non-preset ticker, DOCU.
+A production SQL export restored into isolated SQLite with both payload checksums
+and issuer metadata verified. The background queue is configured on Cloudflare;
+its tests cover unchanged filings, new accessions and numerical-indexing delay.
+An installed schedule is not a per-issuer update-time or uptime guarantee.
 
 ## External prerequisites
 

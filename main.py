@@ -4,6 +4,7 @@ import io
 import sys
 import threading
 import re
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 import pandas as pd
 import numpy as np
@@ -24,6 +25,7 @@ from statement_analysis import prepare_statement_analysis
 from sector_analysis import prepare_sector_analysis
 from filing_disclosure_analyzer import scan_annual_filing
 from research_review import build_research_review, input_fingerprint, methodology, canonical_json
+from peer_comparison import compare_peers
 
 
 @asynccontextmanager
@@ -250,6 +252,25 @@ def filing_snapshot(ticker: str = Query(...)):
         result["data_quality"]["analysis_basis"].items() if not key.endswith("age_days")}
     result["input_sha256"] = input_fingerprint(result)
     return Response(content=canonical_json(result), media_type="application/json", headers={"cache-control": "no-store"})
+
+@app.get("/api/research/peers")
+def research_peers(tickers: str = Query(...), universe: str = Query("industry", pattern="^(industry|sector)$")):
+    symbols = list(dict.fromkeys(normalize_ticker(value) for value in tickers.split(",")))
+    if not 2 <= len(symbols) <= 5:
+        raise HTTPException(status_code=400, detail="Select a company and one to four peer tickers.")
+    def analyze(symbol):
+        try:
+            stock = fetch_stock_data(symbol)
+            if stock.get("error"):
+                return {"symbol": symbol, "error": stock["error"]}
+            return build_analysis_payload(stock, symbol, include_filing_review=False)
+        except Exception:
+            return {"symbol": symbol, "error": "Financial evidence could not be retrieved for this company."}
+    # Bound simultaneous provider calls/RAM use on the existing free server.
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        payloads = list(pool.map(analyze, symbols))
+    return compare_peers(payloads, universe=universe)
+
 
 class PDFRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")

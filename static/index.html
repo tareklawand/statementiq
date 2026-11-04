@@ -328,7 +328,7 @@
         .val-positive { color: var(--accent-green); }
         .val-negative { color: var(--accent-red); }
     </style>
-    <link rel="stylesheet" href="/static/redesign.css?v=research_v31">
+    <link rel="stylesheet" href="/static/redesign.css?v=research_v32">
 </head>
 <body>
     <section class="intro-page" id="introPage" aria-labelledby="introTitle">
@@ -585,7 +585,7 @@
                 </button>
                 <button class="tab-btn" data-tab="tab4">
                     <i data-lucide="notebook-tabs"></i>
-                    <span class="tab-copy"><strong>Research workspace</strong><small>Filing changes & saved evidence</small></span>
+                    <span class="tab-copy"><strong>Research workspace</strong><small>Changes, evidence & peers</small></span>
                 </button>
             </div>
 
@@ -605,6 +605,16 @@
                         <p id="researchArchiveStatus" role="status">Run an analysis to load the filing archive.</p>
                         <div id="researchArchive"></div><div id="researchFrozenEvidence"></div>
                         <p class="research-note">This public archive excludes market quotes, private notes and portfolios. It does not reconstruct information from before a snapshot was captured.</p>
+                    </section>
+                    <section class="research-section" aria-labelledby="researchPeersTitle">
+                        <div class="research-section-heading"><div><h3 id="researchPeersTitle">Peer comparisons</h3><p>Choose up to four peers. The current company anchors the comparison. Peer medians require two comparable companies and exclude the current company.</p></div></div>
+                        <form id="researchPeersForm" class="research-peer-controls">
+                            <label>Peer tickers <input id="researchPeerTickers" type="text" placeholder="Enter tickers, separated by commas" autocomplete="off" maxlength="120" required></label>
+                            <label>Comparison group <select id="researchPeerUniverse"><option value="industry">Same industry</option><option value="sector">Broader sector</option></select></label>
+                            <button type="submit" class="research-button" id="comparePeersBtn">Compare peers</button>
+                        </form>
+                        <p id="researchPeersStatus" role="status"></p><div id="researchPeersResult"></div>
+                        <p class="research-note">Periods must fall within 45 days. Valuation measures also require quote dates within 36 hours of one another and no older than seven days. These filters do not establish equivalent accounting policies or businesses. Peer comparisons do not change the company's health score.</p>
                     </section>
                 </div>
                 
@@ -805,7 +815,7 @@
 
     <!-- Script Entry -->
     <script src="/static/request-client.js?v=sec_auto_v30"></script>
-    <script src="/static/app.js?v=research_v31"></script>
-    <script src="/static/research-workspace.js?v=research_v31"></script>
+    <script src="/static/app.js?v=research_v32"></script>
+    <script src="/static/research-workspace.js?v=research_v32"></script>
 </body>
 </html>

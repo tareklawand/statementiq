@@ -1,10 +1,10 @@
 /* Public research tools. Snapshot failures never replace the live analysis. */
 const ResearchWorkspace = (() => {
-    let data = null, sequence = 0, saved = null;
+    let data = null, sequence = 0, saved = null, peerData = null;
     const requests = new Map();
     const el = id => document.getElementById(id);
     const escape = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-    const date = value => value ? new Date(value).toLocaleString() : "Unavailable";
+    const date = value => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString() : "Unavailable";
     const numeric = value => typeof value === "number" && Number.isFinite(value);
     function amount(value, unit) {
         if (!numeric(value)) return "N/A";
@@ -85,6 +85,38 @@ const ResearchWorkspace = (() => {
             if (token === sequence) el("researchFrozenEvidence").textContent = "The saved evidence could not be verified. It has not replaced the live analysis.";
         }
     }
+    async function comparePeers(event) {
+        event.preventDefault();
+        if (!data) return;
+        const token = sequence;
+        const symbols = [...new Set([data.symbol, ...el("researchPeerTickers").value.toUpperCase().split(/[,\s]+/).filter(Boolean)])];
+        if (symbols.length < 2 || symbols.length > 5 || symbols.some(symbol => !/^[A-Z0-9][A-Z0-9.\-]{0,23}$/.test(symbol))) {
+            el("researchPeersStatus").textContent = "Enter one to four valid peer tickers, separated by commas.";
+            return;
+        }
+        el("comparePeersBtn").disabled = true;
+        el("researchPeersStatus").textContent = "Retrieving financial evidence and checking comparability…";
+        peerData = null; el("researchPeersResult").innerHTML = "";
+        try {
+            const result = await StatementIQRequests.requestJson(`/api/research/peers?tickers=${encodeURIComponent(symbols.join(","))}&universe=${el("researchPeerUniverse").value}`, {maxAttempts: 1, maxElapsedMs: 120000, attemptTimeoutMs: 120000});
+            if (token !== sequence) return;
+            peerData = result;
+            const value = (number, unit) => !numeric(number) ? "N/A" : unit === "percent" ? `${(number * 100).toFixed(2)}%` : `${number.toFixed(2)}x`;
+            el("researchPeersStatus").textContent = `${result.companies.filter(company => company.included && !company.anchor).length} of ${result.companies.length - 1} peers meet the company-level filters. Individual measures may have additional exclusions.`;
+            el("researchPeersResult").innerHTML = `<p class="research-note">Swipe horizontally on smaller screens to compare companies.</p><div class="analysis-table-scroll"><table class="financial-table"><thead><tr><th>Measure</th>${result.companies.map(company => `<th>${escape(company.symbol)}${company.anchor ? " · selected" : ""}</th>`).join("")}<th>Peer median</th></tr></thead><tbody>${result.measures.map(measure => `<tr><td>${escape(measure.label)}</td>${result.companies.map(company => `<td>${value(company.values[measure.key], measure.unit)}</td>`).join("")}<td>${value(measure.peer_median, measure.unit)}<small>${measure.peer_count} peers</small></td></tr>`).join("")}</tbody></table></div>
+            <details class="research-peer-sources"><summary>Exclusions and source dates</summary>${result.companies.map(company => `<article><h4>${escape(company.symbol)} · ${escape(company.company_name || "Company evidence unavailable")}</h4><p>${escape(company.industry || "Industry unavailable")} · ${escape(company.currency || "Currency unavailable")} · income through ${escape(company.reporting_basis.income_period_end || "unavailable")} · balance sheet ${escape(company.reporting_basis.balance_sheet_period_end || "unavailable")}</p><p>Statements: ${escape(company.statement_source || "Unavailable")}. Quotes: ${escape(company.market_source || "Unavailable")} · ${escape(date(company.quote_as_of))}.</p>${company.exclusions.length ? `<p>${escape(company.exclusions.join("; "))}</p>` : `<p>Company-level filters passed.</p><ul>${result.measures.filter(measure => company.unavailable[measure.key]).map(measure => `<li>${escape(measure.label)}: ${escape(company.unavailable[measure.key])}</li>`).join("")}</ul>`}</article>`).join("")}</details><button class="research-button" id="downloadPeersBtn">Download comparison JSON</button>`;
+        } catch (error) {
+            if (token === sequence) el("researchPeersStatus").textContent = "Peer evidence could not be retrieved. No comparison has been estimated. Try again shortly.";
+        } finally {
+            if (token === sequence) el("comparePeersBtn").disabled = false;
+        }
+    }
+    function downloadJSON(payload, filename) {
+        const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], {type: "application/json"}));
+        const link = document.createElement("a"); link.href = url; link.download = filename; link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+    document.addEventListener("submit", event => { if (event.target.id === "researchPeersForm") void comparePeers(event); });
     document.addEventListener("change", event => { if (event.target.id === "researchFrequency") renderReview(); });
     document.addEventListener("click", event => {
         const target = event.target.closest("button");
@@ -92,18 +124,18 @@ const ResearchWorkspace = (() => {
         if (target.id === "captureEvidenceBtn") void capture(true);
         if (target.dataset.snapshotId) void openSnapshot(target.dataset.snapshotId);
         if (target.id === "downloadEvidenceBtn" && saved) {
-            const blob = new Blob([JSON.stringify(saved, null, 2)], {type: "application/json"});
-            const url = URL.createObjectURL(blob), link = document.createElement("a");
-            link.href = url; link.download = `${data.symbol}_SEC_evidence_${saved.id.slice(0, 12)}.json`; link.click();
-            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            downloadJSON(saved, `${data.symbol}_SEC_evidence_${saved.id.slice(0, 12)}.json`);
         }
+        if (target.id === "downloadPeersBtn" && peerData) downloadJSON(peerData, `${data.symbol}_peer_comparison.json`);
     });
     return {setData(payload) {
-        data = payload; sequence += 1; saved = null;
+        data = payload; sequence += 1; saved = null; peerData = null;
         if (!el("researchChanges")) return;
         el("researchFrozenEvidence").innerHTML = "";
         el("researchArchive").innerHTML = "";
         el("captureEvidenceBtn").disabled = false;
+        el("comparePeersBtn").disabled = false;
+        el("researchPeersStatus").textContent = ""; el("researchPeersResult").innerHTML = "";
         el("researchArchiveStatus").textContent = "Loading SEC evidence history…";
         renderReview();
         if (data.data_quality?.sec_filing?.status === "verified") void capture();

@@ -124,7 +124,7 @@ export async function handleResearchArchive(request, env) {
     }
     if (path.startsWith("/api/research/snapshots/")) {
       const id = path.split("/").pop();
-      return SNAPSHOT.test(id) ? readSnapshot(env.RESEARCH_DB, id) : json({detail: "Invalid snapshot identifier"}, 400);
+      return SNAPSHOT.test(id) ? await readSnapshot(env.RESEARCH_DB, id) : json({detail: "Invalid snapshot identifier"}, 400);
     }
     let symbol;
     try { symbol = ticker(url); } catch (error) { return json({detail: error.message}, 400); }

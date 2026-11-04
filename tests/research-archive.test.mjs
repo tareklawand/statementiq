@@ -91,6 +91,13 @@ test("public archive does not accept financial writes or malformed identifiers",
     assert.equal((await handleResearchArchive(new Request("https://example.com/api/research/status"), {})).status, 503);
 });
 
+test("snapshot storage failures stay isolated as a retryable JSON response", async () => {
+    const db = {prepare() { return {bind() { return {async first() { throw new Error("Simulated database unavailability"); }}; }}; }};
+    const result = await handleResearchArchive(new Request(`https://example.com/api/research/snapshots/${"a".repeat(64)}`), {RESEARCH_DB: db});
+    assert.equal(result.status, 503);
+    assert.equal((await result.json()).status, "unavailable");
+});
+
 test("scheduled checks do not wake the analysis server for unchanged filings", async () => {
     const db = database();
     await storeSnapshot(db, evidence(), "EXAMPLE", "2020-01-01T00:00:00Z");
