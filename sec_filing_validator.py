@@ -22,7 +22,7 @@ _FILING_CACHE: Dict[str, Dict[str, Any]] = {}
 _LOCK = threading.Lock()
 
 TICKER_MAP_TTL = 24 * 60 * 60
-FILING_CACHE_TTL = 15 * 60
+FILING_CACHE_TTL = 5 * 60
 SEC_TICKER_URL = "https://www.sec.gov/files/company_tickers.json"
 SEC_SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik}.json"
 
@@ -65,7 +65,7 @@ def _load_ticker_map() -> Dict[str, Dict[str, Any]]:
             ticker = str(entry.get("ticker") or "").upper()
             cik = entry.get("cik_str")
             if ticker and cik is not None:
-                mapped[ticker] = {
+                mapped[ticker.replace("-", ".")] = {
                     "ticker": ticker,
                     "cik": str(cik).zfill(10),
                     "title": entry.get("title"),
@@ -148,7 +148,7 @@ def _filing_signals(recent: Dict[str, Any], cik: str) -> list:
     return sorted(signals, key=lambda item: str(item.get("filed_date") or ""), reverse=True)[:12]
 
 
-def get_latest_sec_filing(symbol: str, cik_hint: Optional[str] = None) -> Dict[str, Any]:
+def get_latest_sec_filing(symbol: str, cik_hint: Optional[str] = None, force_refresh: bool = False) -> Dict[str, Any]:
     """Return latest official 10-K/10-Q metadata, or a non-fatal status.
 
     A missing SEC match is normal for many non-U.S. issuers. Network failures
@@ -160,6 +160,7 @@ def get_latest_sec_filing(symbol: str, cik_hint: Optional[str] = None) -> Dict[s
     cached = _FILING_CACHE.get(normalized)
     if (
         cached
+        and not force_refresh
         and now - cached["timestamp"] < FILING_CACHE_TTL
         and not (cik_hint and cached["data"].get("status") != "verified")
     ):
@@ -218,6 +219,8 @@ def get_latest_sec_filing(symbol: str, cik_hint: Optional[str] = None) -> Dict[s
                     "status": "verified",
                     "registrant": payload.get("name") or entry.get("title"),
                     "cik": entry["cik"],
+                    "sic": payload.get("sic"),
+                    "sic_description": payload.get("sicDescription"),
                     "form": _value_at(forms, chosen_index),
                     "filed_date": _value_at(recent.get("filingDate"), chosen_index),
                     "report_period": _value_at(recent.get("reportDate"), chosen_index),

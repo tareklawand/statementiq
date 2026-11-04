@@ -8,6 +8,7 @@ from typing import Dict, Any, Optional
 
 from sec_filing_validator import get_latest_sec_filing
 from sec_facts_validator import validate_core_sec_facts
+from sec_statement_importer import import_latest_sec_statements
 
 PRESET_TICKERS = {
     "Apple Inc. (AAPL)": "AAPL",
@@ -123,7 +124,7 @@ KNOWN_SECTORS = {
 # Production financial values are fetched live; no static financial snapshots are retained.
 # Cache Store
 _CACHE: Dict[str, Dict[str, Any]] = {}
-CACHE_TTL = 900
+CACHE_TTL = 300
 ERROR_CACHE_TTL = 60
 MAX_CACHE_ENTRIES = 8
 
@@ -180,7 +181,9 @@ def _select_latest_balance_sheet(annual: pd.DataFrame, quarterly: pd.DataFrame) 
 
 
 def _select_flow_statement(ttm: pd.DataFrame, annual: pd.DataFrame) -> tuple[pd.DataFrame, str]:
-    if ttm is not None and not ttm.empty:
+    if ttm is not None and not ttm.empty and (
+        _latest_period(annual) is None or _latest_period(ttm) >= _latest_period(annual)
+    ):
         return ttm, "trailing_twelve_months"
     if annual is not None and not annual.empty:
         return annual, "latest_annual_fallback"
@@ -200,7 +203,34 @@ def _is_financial_institution(info: Dict[str, Any]) -> bool:
         "financial - conglomerate", "mortgage finance", "asset management",
         "credit services - banks", "savings & loan", "credit union",
     )
-    return any(term in industry for term in institution_terms)
+    try:
+        sic = int(info.get("sic"))
+    except (TypeError, ValueError):
+        sic = None
+    return bool(any(term in industry for term in institution_terms) or (sic is not None and 6000 <= sic <= 6499))
+
+
+def _sec_sic_profile(sec_filing: Dict[str, Any]) -> Dict[str, Any]:
+    """Use official classification, not a ticker whitelist, for model scope."""
+    try:
+        sic = int(sec_filing.get("sic"))
+    except (TypeError, ValueError):
+        return {}
+    description = str(sec_filing.get("sic_description") or f"SEC SIC {sic}").strip()
+    if sic == 6798:
+        sector, industry = "Real Estate", f"REIT - {description}"
+    elif 6000 <= sic <= 6499:
+        sector, industry = "Financial Services", description
+    elif 6500 <= sic <= 6599 or 6700 <= sic <= 6799:
+        sector, industry = "Real Estate", description
+    elif 4900 <= sic <= 4999:
+        sector, industry = "Utilities", description
+    else:
+        # SEC SIC is not a GICS sector. Preserve the actual industry and use a
+        # neutral operating-company family rather than inventing a sector.
+        sector, industry = "Operating Company", description
+    return {"sector": sector, "industry": industry, "sic": sic,
+            "sic_description": description, "classification_source": "SEC SIC"}
 
 
 def _iso_period(df: pd.DataFrame) -> Optional[str]:
@@ -437,11 +467,16 @@ def fetch_stock_data(ticker_symbol: str, force_refresh: bool = False) -> Dict[st
 
         # Only fill descriptive labels from the maintained symbol directory. No
         # numerical financial or market value is supplied by this mapping.
+        provider_classification_available = bool(info.get("sector") or info.get("industry"))
         if symbol in KNOWN_SECTORS:
             sec, ind, long_n = KNOWN_SECTORS[symbol]
             info.setdefault("sector", sec)
             info.setdefault("industry", ind)
             info.setdefault("longName", long_n)
+            if not provider_classification_available:
+                info["classification_source"] = "Maintained descriptive directory"
+        if provider_classification_available:
+            info.setdefault("classification_source", "Yahoo Finance")
 
         market_time = info.get("regularMarketTime")
         if market_time is not None:
@@ -455,11 +490,55 @@ def fetch_stock_data(ticker_symbol: str, force_refresh: bool = False) -> Dict[st
         info["statement_data_provider"] = "Yahoo Finance"
         info["data_source"] = "live"
 
+        sec_filing = get_latest_sec_filing(
+            symbol,
+            cik_hint=_provider_cik(ticker) or KNOWN_SEC_CIKS.get(symbol),
+            force_refresh=force_refresh,
+        )
+        sec_profile = _sec_sic_profile(sec_filing)
+        if sec_profile:
+            had_classification = bool(info.get("sector") and info.get("industry"))
+            for key in ("sector", "industry", "sic"):
+                if not info.get(key):
+                    info[key] = sec_profile[key]
+            info["sicDescription"] = sec_profile["sic_description"]
+            if not had_classification:
+                info["classification_source"] = "SEC SIC"
         is_fin = _is_financial_institution(info)
+        provider_income, _ = _select_flow_statement(ttm_income_stmt, income_stmt)
+        provider_cash, _ = _select_flow_statement(ttm_cash_flow, cash_flow)
+        provider_balance, _ = _select_latest_balance_sheet(balance_sheet, quarterly_balance_sheet)
+        # A current provider dataset can contain correctly standardized custom
+        # rows absent from Company Facts. Keep it, with the existing SEC value
+        # checks. Import official SEC data when the provider is missing/behind;
+        # never degrade other companies merely to change their source label.
+        provider_current = sec_filing.get("status") == "verified" and all(
+            _iso_period(frame) and not _period_is_materially_newer(sec_filing.get("report_period"), _iso_period(frame))
+            for frame in (provider_income, provider_balance, provider_cash)
+        )
+        sec_import = (
+            {"status": "not_needed", "reason": "Provider statements already cover the newest SEC reporting period."}
+            if provider_current else import_latest_sec_statements(sec_filing, info.get("financialCurrency"))
+        )
+        if sec_import.get("status") == "imported":
+            frames = sec_import["frames"]
+            income_stmt, balance_sheet, cash_flow = (frames[key] for key in ("income_stmt", "balance_sheet", "cash_flow"))
+            quarterly_income_stmt, quarterly_balance_sheet, quarterly_cash_flow = (
+                frames[key] for key in ("quarterly_income_stmt", "quarterly_balance_sheet", "quarterly_cash_flow")
+            )
+            info["statement_data_provider"] = "SEC Company Facts"
+            info["financialCurrency"] = sec_import["currency"]
+            info.setdefault("longName", sec_filing.get("registrant"))
 
         analysis_income_stmt, income_basis = _select_flow_statement(ttm_income_stmt, income_stmt)
         analysis_cash_flow, cash_flow_basis = _select_flow_statement(ttm_cash_flow, cash_flow)
         analysis_balance_sheet, balance_basis = _select_latest_balance_sheet(balance_sheet, quarterly_balance_sheet)
+        if sec_import.get("status") == "imported":
+            analysis_income_stmt = frames["analysis_income_stmt"]
+            analysis_cash_flow = frames["analysis_cash_flow"]
+            analysis_balance_sheet = frames["analysis_balance_sheet"]
+            income_basis = cash_flow_basis = sec_import["basis"]
+            balance_basis = "latest_annual" if sec_import["basis"] == "latest_annual" else "latest_quarter"
 
         analysis_periods = {
             "income": _iso_period(analysis_income_stmt),
@@ -480,23 +559,33 @@ def fetch_stock_data(ticker_symbol: str, force_refresh: bool = False) -> Dict[st
         )
         latest_statement_period_text = latest_statement_period.date().isoformat() if latest_statement_period is not None else None
         statement_age_days = _period_age_days(latest_statement_period_text)
-        sec_filing = get_latest_sec_filing(
-            symbol,
-            cik_hint=_provider_cik(ticker) or KNOWN_SEC_CIKS.get(symbol),
-        )
-        sec_fact_validation = validate_core_sec_facts(
-            sec_filing.get("cik") if sec_filing.get("status") == "verified" else None,
-            quarterly_income_stmt,
-            quarterly_balance_sheet,
-            info.get("financialCurrency") or info.get("currency"),
-        )
+        if sec_import.get("status") == "imported":
+            sec_fact_validation = {
+                "status": "direct_import", "source": "SEC Company Facts",
+                "checked": len(sec_import["integrity_checks"]),
+                "matched": sum(c["matched"] for c in sec_import["integrity_checks"]),
+                "checks": sec_import["integrity_checks"], "mismatches": [],
+                "scope": "Direct SEC import with period, currency, source and balance-sheet reconciliation checks; not an independent audit.",
+            }
+        else:
+            sec_fact_validation = validate_core_sec_facts(
+                sec_filing.get("cik") if sec_filing.get("status") == "verified" else None,
+                quarterly_income_stmt,
+                quarterly_balance_sheet,
+                info.get("financialCurrency") or info.get("currency"),
+            )
 
         quality_warnings = []
-        if income_basis != "trailing_twelve_months":
+        sec_imported = sec_import.get("status") == "imported"
+        if sec_imported:
+            quality_warnings.extend(sec_import.get("warnings") or [])
+        elif sec_import.get("status") == "unavailable":
+            quality_warnings.append("Direct SEC import unavailable: " + sec_import["reason"] + " Provider statements remain in use with freshness checks.")
+        if not sec_imported and income_basis != "trailing_twelve_months":
             quality_warnings.append("Trailing-twelve-month income data was unavailable; the latest annual income statement is used.")
-        if balance_basis != "latest_quarter":
+        if not sec_imported and balance_basis != "latest_quarter":
             quality_warnings.append("A newer quarterly balance sheet was unavailable; the latest annual balance sheet is used.")
-        if cash_flow_basis != "trailing_twelve_months":
+        if not sec_imported and cash_flow_basis != "trailing_twelve_months":
             quality_warnings.append("Trailing-twelve-month cash-flow data was unavailable; the latest annual cash-flow statement is used.")
         stale_periods = [
             f"{name.replace('_', ' ')} ({age} days)"
@@ -546,12 +635,12 @@ def fetch_stock_data(ticker_symbol: str, force_refresh: bool = False) -> Dict[st
         if sec_fact_validation.get("status") == "mismatch":
             integrity_hold_reason = "Headline score withheld because comparable provider and SEC statement facts did not agree."
         elif provider_lags_latest_filing:
-            integrity_hold_reason = "Headline score withheld until the provider includes the newest filed report period."
+            integrity_hold_reason = "Headline score withheld: the newest SEC filing could not yet be imported completely and provider statements cover an older period."
         # Sector-model applicability is handled by the connected scoring model,
         # not by the data-integrity gate. Keep this field exclusively for source
         # mismatches or provider lag so the UI can distinguish the two cases.
 
-        if income_stmt is not None and not income_stmt.empty and balance_sheet is not None and not balance_sheet.empty:
+        if not analysis_income_stmt.empty and not analysis_balance_sheet.empty:
             result = {
                 "symbol": symbol,
                 "is_financial_sector": is_fin,
@@ -580,7 +669,11 @@ def fetch_stock_data(ticker_symbol: str, force_refresh: bool = False) -> Dict[st
                 },
                 "sec_filing": sec_filing,
                 "sec_fact_validation": sec_fact_validation,
-                "verification_scope": "SEC validation checks filing recency and comparable latest-quarter core facts; TTM and other rows remain provider-standardized figures.",
+                "sec_statement_import": {key: value for key, value in sec_import.items() if key != "frames"},
+                "verification_scope": (
+                    "Statement figures are imported from consolidated standard US-GAAP SEC facts. Derived figures retain source tags and formulas; custom-tag-only rows remain unavailable. These checks are not an independent audit."
+                    if sec_imported else "SEC validation checks filing recency and comparable latest-quarter core facts; TTM and other rows remain provider-standardized figures."
+                ),
                 "integrity_hold_reason": integrity_hold_reason,
                 "provider_lags_latest_filing": provider_lags_latest_filing,
                 "quality_warnings": quality_warnings,

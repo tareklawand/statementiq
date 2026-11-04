@@ -168,7 +168,14 @@ def generate_pdf_report(
         ))
         elements.append(Spacer(1, 4))
 
-    if sec_fact_validation.get("status") == "matched":
+    if sec_fact_validation.get("status") == "direct_import":
+        sec_import = data_quality.get("sec_statement_import") or {}
+        elements.append(Paragraph(
+            f"<b>Direct SEC import:</b> Statement figures cover {sec_import.get('report_period', 'period unavailable')} and come from consolidated standard US-GAAP SEC Company Facts, with source tags and formulas retained by the analysis. Period, currency and balance reconciliation checks passed; this is not an independent audit. Borrowings exclude lease liabilities. Custom-tag-only or incomplete rows remain unavailable.",
+            body_style,
+        ))
+        elements.append(Spacer(1, 4))
+    elif sec_fact_validation.get("status") == "matched":
         elements.append(Paragraph(
             f"<b>SEC numeric cross-check:</b> {sec_fact_validation.get('matched', 0)} of {sec_fact_validation.get('checked', 0)} comparable latest-quarter core facts matched SEC Company Facts within the stated tolerance.",
             body_style,

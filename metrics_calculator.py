@@ -20,6 +20,23 @@ def get_row_value(df: pd.DataFrame, posibles_names: list, col_idx: int = 0) -> O
                 continue
     return None
 
+
+def _year_ago_column(df: pd.DataFrame) -> Optional[int]:
+    if df is None or df.empty:
+        return None
+    try:
+        current = pd.Timestamp(df.columns[0])
+        candidates = [i for i, column in enumerate(df.columns)
+                      if 350 <= (current - pd.Timestamp(column)).days <= 380]
+        return candidates[0] if len(candidates) == 1 else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _year_ago_value(df: pd.DataFrame, aliases: list) -> Optional[float]:
+    column = _year_ago_column(df)
+    return get_row_value(df, aliases, column) if column is not None else None
+
 def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
     info = data.get("info", {})
     symbol = (data.get("symbol") or info.get("symbol") or "").strip().upper()
@@ -67,10 +84,7 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
     
     # For TTM returns, compare the latest quarter-end balance with the same
     # quarter one year earlier. Annual fallback compares consecutive year ends.
-    if analysis_basis.get("balance_sheet") == "latest_quarter":
-        previous_balance_col = 4 if balance_sheet.shape[1] >= 5 else None
-    else:
-        previous_balance_col = 1 if balance_sheet.shape[1] >= 2 else None
+    previous_balance_col = _year_ago_column(balance_sheet)
     total_assets = get_row_value(balance_sheet, ["Total Assets"], col)
     total_assets_prev = (
         get_row_value(balance_sheet, ["Total Assets"], previous_balance_col)
@@ -144,9 +158,15 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
     else:
         market_cap = None
         market_cap_method = None
-    eps_ttm = info.get("epsTrailingTwelveMonths")
-    if eps_ttm is None:
+    if info.get("statement_data_provider") == "SEC Company Facts":
+        # Quote-summary EPS can still describe the preceding reporting period.
+        # SEC TTM EPS is deliberately unavailable if it cannot be reported for
+        # that exact interval; EPS and average shares are not additive flows.
         eps_ttm = get_row_value(income_stmt, ["Diluted EPS", "Diluted EPS Continuing Operations"], col)
+    else:
+        eps_ttm = info.get("epsTrailingTwelveMonths")
+        if eps_ttm is None:
+            eps_ttm = get_row_value(income_stmt, ["Diluted EPS", "Diluted EPS Continuing Operations"], col)
     market_currency = info.get("currency")
     statement_currency = info.get("financialCurrency") or market_currency
     currencies_compatible = (
@@ -157,7 +177,7 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
     
     # Valuation Multiples
     pe_ratio = None
-    if share_price is not None and eps_ttm is not None:
+    if currencies_compatible and share_price is not None and eps_ttm is not None:
         if eps_ttm > 0:
             pe_ratio = share_price / eps_ttm
         else:
@@ -211,7 +231,10 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
     reported_free_cash_flow = get_row_value(cash_flow, ["Free Cash Flow"], col)
     if reported_free_cash_flow is not None:
         free_cash_flow = reported_free_cash_flow
-        free_cash_flow_method = "reported"
+        free_cash_flow_method = (
+            "operating_cash_flow_less_capital_spending"
+            if info.get("statement_data_provider") == "SEC Company Facts" else "reported"
+        )
     elif operating_cash_flow is not None and capital_expenditure is not None:
         # Normalize provider sign conventions: capex may be a negative outflow
         # or a positive amount spent.
@@ -296,9 +319,9 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
 
     annual_income = data.get("income_stmt", pd.DataFrame())
     annual_revenue = get_row_value(annual_income, ["Total Revenue", "Operating Revenue", "Revenue"], 0)
-    prior_annual_revenue = get_row_value(annual_income, ["Total Revenue", "Operating Revenue", "Revenue"], 1)
+    prior_annual_revenue = _year_ago_value(annual_income, ["Total Revenue", "Operating Revenue", "Revenue"])
     annual_net_income = get_row_value(annual_income, ["Net Income", "Net Income Common Stockholders", "Net Income Continuous Operations"], 0)
-    prior_annual_net_income = get_row_value(annual_income, ["Net Income", "Net Income Common Stockholders", "Net Income Continuous Operations"], 1)
+    prior_annual_net_income = _year_ago_value(annual_income, ["Net Income", "Net Income Common Stockholders", "Net Income Continuous Operations"])
     revenue_growth = (
         annual_revenue / prior_annual_revenue - 1.0
         if annual_revenue is not None and prior_annual_revenue is not None and prior_annual_revenue > 0
@@ -327,7 +350,7 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
             revenue_cagr = (annual_revenue / oldest_revenue) ** (1.0 / year_span) - 1.0
 
     diluted_shares = get_row_value(annual_income, ["Diluted Average Shares", "Diluted Weighted Average Shares"], 0)
-    prior_diluted_shares = get_row_value(annual_income, ["Diluted Average Shares", "Diluted Weighted Average Shares"], 1)
+    prior_diluted_shares = _year_ago_value(annual_income, ["Diluted Average Shares", "Diluted Weighted Average Shares"])
     diluted_share_change = (
         diluted_shares / prior_diluted_shares - 1.0
         if diluted_shares is not None and prior_diluted_shares is not None and prior_diluted_shares > 0
@@ -595,15 +618,15 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
 
     annual_cash_flow = data.get("cash_flow", pd.DataFrame())
     annual_fcf = get_row_value(annual_cash_flow, ["Free Cash Flow"], 0)
-    prior_annual_fcf = get_row_value(annual_cash_flow, ["Free Cash Flow"], 1)
+    prior_annual_fcf = _year_ago_value(annual_cash_flow, ["Free Cash Flow"])
     if annual_fcf is None:
         annual_ocf = get_row_value(annual_cash_flow, ["Operating Cash Flow", "Total Cash From Operating Activities"], 0)
         annual_capex = get_row_value(annual_cash_flow, ["Capital Expenditure", "Capital Expenditures"], 0)
         if annual_ocf is not None and annual_capex is not None:
             annual_fcf = annual_ocf + annual_capex if annual_capex < 0 else annual_ocf - annual_capex
     if prior_annual_fcf is None:
-        prior_annual_ocf = get_row_value(annual_cash_flow, ["Operating Cash Flow", "Total Cash From Operating Activities"], 1)
-        prior_annual_capex = get_row_value(annual_cash_flow, ["Capital Expenditure", "Capital Expenditures"], 1)
+        prior_annual_ocf = _year_ago_value(annual_cash_flow, ["Operating Cash Flow", "Total Cash From Operating Activities"])
+        prior_annual_capex = _year_ago_value(annual_cash_flow, ["Capital Expenditure", "Capital Expenditures"])
         if prior_annual_ocf is not None and prior_annual_capex is not None:
             prior_annual_fcf = prior_annual_ocf + prior_annual_capex if prior_annual_capex < 0 else prior_annual_ocf - prior_annual_capex
     annual_fcf_growth = (
@@ -612,7 +635,7 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
         else None
     )
     annual_diluted_eps = get_row_value(annual_income, ["Diluted EPS", "Diluted EPS Continuing Operations"], 0)
-    prior_annual_diluted_eps = get_row_value(annual_income, ["Diluted EPS", "Diluted EPS Continuing Operations"], 1)
+    prior_annual_diluted_eps = _year_ago_value(annual_income, ["Diluted EPS", "Diluted EPS Continuing Operations"])
     annual_eps_growth = (
         annual_diluted_eps / prior_annual_diluted_eps - 1.0
         if annual_diluted_eps is not None and prior_annual_diluted_eps is not None and prior_annual_diluted_eps > 0
@@ -712,6 +735,7 @@ def compute_metrics(data: Dict[str, Any]) -> Dict[str, Any]:
         equity=stockholder_equity,
         sector=info.get("sector"),
         industry=info.get("industry"),
+        classification_source=info.get("classification_source"),
     )
     integrity_hold_reason = data.get("integrity_hold_reason")
     if integrity_hold_reason:
@@ -1059,6 +1083,7 @@ def evaluate_connected_financial_model(
     equity: Optional[float] = None,
     sector: Optional[str] = None,
     industry: Optional[str] = None,
+    classification_source: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Build separate financial-health and valuation screens from connected evidence.
 
@@ -1070,7 +1095,7 @@ def evaluate_connected_financial_model(
     """
     sector_text = str(sector or "").lower()
     industry_text = str(industry or "").lower()
-    is_reit = "reit" in industry_text
+    is_reit = "reit" in industry_text or "real estate investment trust" in industry_text
     is_regulated_utility = "utilities" in sector_text or "regulated utility" in industry_text
     classification_available = bool(sector_text or industry_text)
     if not classification_available:
@@ -1388,6 +1413,7 @@ def evaluate_connected_financial_model(
             "rationale": profile_rationale,
             "sector": sector,
             "industry": industry,
+            "classification_source": classification_source or "Provider metadata",
             "health_model_available": applicability_hold is None,
         },
         "evaluations": evaluations,

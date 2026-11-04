@@ -526,13 +526,14 @@ function renderHeroBanner() {
     if (el("heroCurrency")) el("heroCurrency").innerText = currentData.info.currency || "N/A";
     if (el("heroDataSource")) {
         const quality = currentData.data_quality || {};
-        const provider = quality.statement_provider || quality.market_provider || "Source unavailable";
+        const provider = quality.statement_provider || "Statement source unavailable";
+        const marketProvider = quality.market_provider || "Market source unavailable";
         let asOf = "timestamp unavailable";
         if (quality.market_data_as_of) {
             const parsed = new Date(quality.market_data_as_of);
             asOf = Number.isNaN(parsed.getTime()) ? quality.market_data_as_of : parsed.toLocaleString();
         }
-        el("heroDataSource").innerText = `LIVE SOURCE · ${provider} · MARKET DATA ${asOf}`;
+        el("heroDataSource").innerText = `STATEMENTS · ${provider} · MARKET · ${marketProvider} · ${asOf}`;
     }
     if (el("heroQualityDetails")) {
         const quality = currentData.data_quality || {};
@@ -552,7 +553,10 @@ function renderHeroBanner() {
         } else {
             basisText.push("SEC filing check: unavailable or not applicable");
         }
-        if (secFacts.status === "matched") {
+        const secImport = quality.sec_statement_import || {};
+        if (secFacts.status === "direct_import") {
+            basisText.push(`SEC direct import: ${secImport.report_period || "N/A"} · source tags and calculation formulas retained`);
+        } else if (secFacts.status === "matched") {
             basisText.push(`SEC value check: ${secFacts.matched}/${secFacts.checked} latest-quarter core facts matched`);
         } else if (secFacts.status === "mismatch") {
             basisText.push(`SEC value check: ${secFacts.matched}/${secFacts.checked} core facts matched; review warning`);
@@ -560,6 +564,7 @@ function renderHeroBanner() {
             basisText.push("SEC value check: unavailable or not applicable");
         }
         if (quality.verification_scope) basisText.push(quality.verification_scope);
+        if (secImport.status === "imported") basisText.push("Automatic filing checks on analysis · cache up to 5 minutes");
         if (calculationCoverage.core_input_count) {
             basisText.push(
                 `Calculation inputs: ${calculationCoverage.available_core_input_count || 0}/${calculationCoverage.core_input_count} core inputs available`
@@ -633,7 +638,7 @@ function renderAIBriefing() {
     if (profileText) {
         const profile = metrics.applicability_profile || {};
         profileText.innerText = profile.label
-            ? `${profile.label}: ${profile.rationale || "Model selected from current company data."}`
+            ? `${profile.label}${profile.classification_source ? ` · ${profile.classification_source}` : ""}: ${profile.rationale || "Model selected from current company data."}`
             : "Company-specific applicability unavailable.";
     }
     const valuationScoreText = el("valuationScoreText");
@@ -1538,6 +1543,22 @@ function renderFinancialStatementTable() {
     const stmtData = currentData.statements[statementKey];
     const container = document.getElementById("statementTableContainer");
     if (!container) return;
+    const sourceContainer = document.getElementById("statementSourceDetails");
+    if (sourceContainer) {
+        const imported = (currentData.data_quality || {}).sec_statement_import || {};
+        const sourceType = { income_statement: "income", balance_sheet: "balance", cash_flow: "cash_flow" }[activeStatementType];
+        const latestPeriod = (stmtData?.columns || [])[0];
+        const cells = (imported.provenance || {})[`${activeStatementFrequency}_${sourceType}:${latestPeriod}`] || {};
+        sourceContainer.innerHTML = imported.status === "imported" ? `
+            <details class="sec-source-panel">
+                <summary>SEC source details & calculations</summary>
+                <p>Selected consolidated US-GAAP rows, not a reproduction of every filing disclosure. Missing custom-tag-only rows remain unavailable. ${escapeHtml(imported.debt_basis || "")}</p>
+                <dl>${Object.entries(cells).map(([row, cell]) => `
+                    <dt>${escapeHtml(row)} · ${escapeHtml(cell.method || "reported")}</dt>
+                    <dd>${(cell.sources || []).map(source => `${escapeHtml(source.tag)} × ${escapeHtml(source.coefficient ?? 1)} · ${escapeHtml(source.unit)} · ${escapeHtml(source.start ? `${source.start} to ${source.end}` : source.end)} · filing ${escapeHtml(source.accession_number)}`).join("<br>")}</dd>
+                `).join("")}</dl>
+            </details>` : "";
+    }
     
     if (!stmtData || !stmtData.rows || stmtData.rows.length === 0) {
         container.innerHTML = `<div style="text-align:center; padding:40px; color:var(--text-muted);">No statement data available for ${currentSymbol}.</div>`;
@@ -1591,7 +1612,7 @@ function renderFinancialStatementTable() {
             return;
         }
 
-        tableHtml += `<tr><td>${row.metric}</td>`;
+        tableHtml += `<tr><td>${escapeHtml(row.metric)}</td>`;
         row.values.forEach(val => {
             if (val === null || val === undefined) {
                 tableHtml += `<td style="color: var(--text-dark);">-</td>`;
@@ -1601,7 +1622,7 @@ function renderFinancialStatementTable() {
                 const valClass = isNeg ? "val-negative" : "val-positive";
                 tableHtml += `<td class="${valClass}">${formatted}</td>`;
             } else {
-                tableHtml += `<td>${val}</td>`;
+                tableHtml += `<td>${escapeHtml(val)}</td>`;
             }
         });
         tableHtml += `</tr>`;

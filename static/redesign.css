@@ -3323,6 +3323,18 @@ html.theme-color-transition .theme-icon {
     color: var(--text-dark);
 }
 
+.sec-source-panel {
+    margin: 0 0 20px;
+    padding-top: 12px;
+    border-top: 1px solid var(--card-border);
+    color: var(--text-muted);
+    font-size: .8125rem;
+    line-height: 1.65;
+}
+.sec-source-panel summary { cursor: pointer; color: var(--text-main); font-weight: 600; }
+.sec-source-panel dt { margin-top: 14px; color: var(--text-main); font-weight: 500; }
+.sec-source-panel dd { margin: 4px 0 0; overflow-wrap: anywhere; }
+
 .supplemental-metrics-section {
     margin-top: 36px;
     padding-top: 24px;
