@@ -328,7 +328,7 @@
         .val-positive { color: var(--accent-green); }
         .val-negative { color: var(--accent-red); }
     </style>
-    <link rel="stylesheet" href="/static/redesign.css?v=sec_auto_v30">
+    <link rel="stylesheet" href="/static/redesign.css?v=research_v31">
 </head>
 <body>
     <section class="intro-page" id="introPage" aria-labelledby="introTitle">
@@ -583,10 +583,30 @@
                     <i data-lucide="table-2"></i>
                     <span class="tab-copy"><strong>Financial statements</strong><small>Reported source data</small></span>
                 </button>
+                <button class="tab-btn" data-tab="tab4">
+                    <i data-lucide="notebook-tabs"></i>
+                    <span class="tab-copy"><strong>Research workspace</strong><small>Filing changes & saved evidence</small></span>
+                </button>
             </div>
 
             <!-- Tab Contents -->
             <div class="tab-content-container">
+                <div class="tab-pane" id="tab4">
+                    <div class="research-heading"><div><span class="research-eyebrow">COMPANY RESEARCH</span><h2>Filing changes and evidence</h2></div><div id="researchVersion"></div></div>
+                    <section class="research-section" aria-labelledby="researchChangesTitle">
+                        <div class="research-section-heading"><div><h3 id="researchChangesTitle">What changed</h3><p>Compare matching reporting periods. These review signals do not change the health score.</p></div>
+                            <label>Reporting basis <select id="researchFrequency"><option value="annual">Annual year over year</option><option value="quarterly">Quarterly year over year</option></select></label>
+                        </div>
+                        <div id="researchChanges"></div><div id="researchSignals" class="research-signals"></div>
+                        <p class="research-note">N/M means a percentage change is not meaningful because the earlier value is zero or negative. Missing source rows are omitted. These comparisons describe reported figures; they do not establish the cause of a change.</p>
+                    </section>
+                    <section class="research-section" aria-labelledby="researchArchiveTitle">
+                        <div class="research-section-heading"><div><h3 id="researchArchiveTitle">Saved SEC evidence</h3><p>Frozen statement inputs and calculation versions. Capture dates show when this archive observed the evidence.</p></div><button class="research-button" id="captureEvidenceBtn" type="button">Capture latest filing</button></div>
+                        <p id="researchArchiveStatus" role="status">Run an analysis to load the filing archive.</p>
+                        <div id="researchArchive"></div><div id="researchFrozenEvidence"></div>
+                        <p class="research-note">This public archive excludes market quotes, private notes and portfolios. It does not reconstruct information from before a snapshot was captured.</p>
+                    </section>
+                </div>
                 
                 <!-- TAB 1: AI INSIGHTS & CHARTS -->
                 <div class="tab-pane active" id="tab1">
@@ -785,6 +805,7 @@
 
     <!-- Script Entry -->
     <script src="/static/request-client.js?v=sec_auto_v30"></script>
-    <script src="/static/app.js?v=sec_auto_v30"></script>
+    <script src="/static/app.js?v=research_v31"></script>
+    <script src="/static/research-workspace.js?v=research_v31"></script>
 </body>
 </html>

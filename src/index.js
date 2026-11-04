@@ -113,7 +113,12 @@ function applyPublicHeaders(response, { preventIndexing = false } = {}) {
   });
 }
 
+import { handleResearchArchive, scheduledFilingChecks } from "./research-archive.js";
+
 export default {
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(scheduledFilingChecks(env));
+  },
   async fetch(request, env) {
     const requestUrl = new URL(request.url);
     const isPublicHostname =
@@ -134,6 +139,8 @@ export default {
     const isApiRequest =
       requestUrl.pathname.startsWith("/api/") ||
       requestUrl.pathname === "/health";
+    const archiveResponse = await handleResearchArchive(request, env);
+    if (archiveResponse) return applyPublicHeaders(archiveResponse, {preventIndexing: true});
 
     // Served at the edge even if the origin is asleep. This exposes only its
     // already-public health URL, never credentials or a financial response.

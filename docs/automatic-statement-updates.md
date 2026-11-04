@@ -3,8 +3,9 @@
 Each analysis request fetches filing metadata and selects statement inputs.
 Ordinary cached responses are at most five minutes old; an explicit refresh
 bypasses the analysis and filing-metadata caches. A changed SEC accession
-invalidates the structured-facts cache immediately. This is request-driven,
-not a background scheduler or a promise that an already-open page refreshes.
+invalidates the structured-facts cache immediately. Live analyses remain request-driven;
+an already-open page does not silently replace its results. The public research
+archive now has a separate bounded background filing checker, described below.
 
 ## Selection and safety
 
@@ -51,6 +52,29 @@ external network/provider outages can delay availability. These are transparent
 data-integrity checks, not an independent financial audit.
 
 Primary specification: https://www.sec.gov/search-filings/edgar-application-programming-interfaces
+
+## Persistent research archive
+
+The free Cloudflare D1 archive captures supported SEC-only statement inputs,
+derived analysis, source provenance, methodology code fingerprints and input
+fingerprints. It excludes market quotes and private research. A content hash
+identifies each frozen payload; duplicate retrievals preserve the first capture
+time. SQL triggers reject record updates/deletions through normal application
+access. Administrators retain control of the database, so this is not an
+administrator-proof audit log or an independently validated financial audit.
+
+Successful captures enroll the issuer in a background queue. Every 30 minutes
+the Worker checks up to three due issuers against official SEC submissions and
+attempts at most one complete import. This is a bounded free-tier job, not a
+30-minute freshness guarantee for every company. The interface shows actual
+check/capture times. Unchanged filings do not wake the Python service. Metadata
+that appears before numeric facts remains pending and is retried on later jobs;
+it is not marked successfully updated. Cold starts, indexing delays, outages,
+quota limits and queue size can delay capture. Unsupported issuers are not
+silently enrolled as successfully imported.
+
+Snapshot capture dates describe observations made after activation. These
+records do not reconstruct information known before they were collected.
 
 ## Verification
 

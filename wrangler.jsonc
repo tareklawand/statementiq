@@ -26,5 +26,12 @@
     "enabled": true,
     "head_sampling_rate": 1
   },
-  "upload_source_maps": true
+  "upload_source_maps": true,
+  "d1_databases": [{
+    "binding": "RESEARCH_DB",
+    "database_name": "statementiq-research",
+    "database_id": "e522acef-346c-4879-bd23-230d6f3762ca",
+    "migrations_dir": "migrations"
+  }],
+  "triggers": {"crons": ["*/30 * * * *"]}
 }

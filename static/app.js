@@ -492,6 +492,7 @@ async function performTickerLoad(request, forceRefresh) {
         try { renderSectorAnalysis(); } catch(e){ console.error("Sector analysis render error:", e); }
         try { renderFilingReview(); } catch(e){ console.error("Filing review render error:", e); }
         try { renderFinancialStatementTable(); } catch(e){ console.error("Statement Table render error:", e); }
+        try { if (typeof ResearchWorkspace !== "undefined") ResearchWorkspace.setData(currentData); } catch(e){ console.error("Research workspace render error:", e); }
         completeAnalysisProgress(progressToken);
         window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
 

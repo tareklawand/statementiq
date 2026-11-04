@@ -11,7 +11,7 @@ import numpy as np
 sys.path.append('/Users/tareklawand/Library/Python/3.9/lib/python/site-packages')
 
 from fastapi import FastAPI, Query, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict
 from typing import Optional, Dict, Any
@@ -23,6 +23,7 @@ from pdf_generator import generate_pdf_report
 from statement_analysis import prepare_statement_analysis
 from sector_analysis import prepare_sector_analysis
 from filing_disclosure_analyzer import scan_annual_filing
+from research_review import build_research_review, input_fingerprint, methodology, canonical_json
 
 
 @asynccontextmanager
@@ -130,6 +131,10 @@ def analyze_ticker(
     stock_data = fetch_stock_data(symbol, force_refresh=refresh)
     if stock_data.get("error"):
         raise HTTPException(status_code=400, detail=stock_data["error"])
+    return build_analysis_payload(stock_data, symbol, api_key=api_key)
+
+
+def build_analysis_payload(stock_data, symbol, api_key=None, include_filing_review=True):
 
     info = stock_data.get("info", {})
     metrics = compute_metrics(stock_data)
@@ -167,9 +172,12 @@ def analyze_ticker(
     sector_analysis = prepare_sector_analysis(stock_data, metrics)
     sec_filing = stock_data.get("sec_filing") or {}
     annual_filing = (sec_filing.get("key_filings") or {}).get("annual") or {}
-    filing_disclosure_review = scan_annual_filing(annual_filing.get("filing_url"))
+    filing_disclosure_review = (
+        scan_annual_filing(annual_filing.get("filing_url")) if include_filing_review
+        else {"status": "not_requested", "reason": "Text review is separate from the structured filing snapshot."}
+    )
 
-    return {
+    payload = {
         "symbol": symbol,
         "company_name": company_name,
         "info": {
@@ -218,6 +226,30 @@ def analyze_ticker(
         "sector_analysis": sector_analysis,
         "filing_disclosure_review": filing_disclosure_review,
     }
+    payload["methodology"] = methodology()
+    payload["input_sha256"] = input_fingerprint(payload)
+    payload["research_review"] = build_research_review(payload)
+    return payload
+
+
+@app.get("/api/research/filing-snapshot")
+def filing_snapshot(ticker: str = Query(...)):
+    """Public SEC evidence only. No quotes, private notes or client-supplied numbers."""
+    from evidence_snapshot import capture_sec_evidence
+    symbol = normalize_ticker(ticker)
+    stock_data = capture_sec_evidence(symbol)
+    if stock_data.get("error"):
+        raise HTTPException(status_code=503, detail=stock_data["error"])
+    result = build_analysis_payload(stock_data, symbol, include_filing_review=False)
+    result["purpose"] = "public_sec_filing_evidence"
+    result["archive_scope"] = "SEC statement evidence and financial-health model only. Market quotes and valuation are excluded. Capture time is observation time, not historical knowledge at the filing date."
+    # Prepare canonical evidence on the Python server, keeping the free edge
+    # Worker within its CPU budget. Capture time is owned by the archive.
+    result["data_quality"].pop("fetched_at", None)
+    result["data_quality"]["analysis_basis"] = {key: value for key, value in
+        result["data_quality"]["analysis_basis"].items() if not key.endswith("age_days")}
+    result["input_sha256"] = input_fingerprint(result)
+    return Response(content=canonical_json(result), media_type="application/json", headers={"cache-control": "no-store"})
 
 class PDFRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
