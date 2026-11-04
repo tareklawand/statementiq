@@ -77,6 +77,12 @@ def test_banks_and_insurers_do_not_share_a_broader_sector_median():
     assert not result["companies"][1]["included"]
 
 
+def test_a_reported_full_year_remains_comparable_when_provider_ttm_is_missing():
+    anchor, peer = company("A"), company("B")
+    peer["data_quality"]["analysis_basis"].update(income="latest_annual_fallback", cash_flow="latest_annual_fallback")
+    assert compare_peers([anchor, peer], now=NOW)["companies"][1]["included"]
+
+
 def test_peer_endpoint_rejects_invalid_or_oversized_cohorts_before_provider_calls(monkeypatch):
     import main
     from fastapi.testclient import TestClient

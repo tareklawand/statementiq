@@ -75,7 +75,7 @@ def compare_peers(payloads, universe="industry", now=None):
                 reasons.append(f"{key.replace('_', ' ').title()} periods are missing or more than 45 days apart")
         # TTM and a complete fiscal year both represent annual flows, but a
         # standalone quarter is never compared as if it represented a year.
-        valid_flow_bases = {"latest_annual", "trailing_twelve_months"}
+        valid_flow_bases = {"latest_annual", "latest_annual_fallback", "trailing_twelve_months"}
         if basis.get("income") not in valid_flow_bases or anchor_basis.get("income") not in valid_flow_bases:
             reasons.append("Annual/TTM reporting bases are unavailable")
         quote = _quote_time(quality.get("market_data_as_of"))
