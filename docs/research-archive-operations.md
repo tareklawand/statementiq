@@ -39,8 +39,18 @@ The verifier restores the SQL into a fresh in-memory SQLite database, runs its
 integrity check and compares every saved payload's checksum and issuer metadata.
 It never restores over production. Keep exports in operator-controlled storage.
 Production Time Travel restoration is a separate operator action: it can roll
-back newer records and must not be used as a routine test. This release does not
-promise an offsite backup schedule or a recovery-time SLA.
+back newer records and must not be used as a routine test.
+
+The public research-operations GitHub Actions workflow checks service/data every
+three hours and backs up the public evidence archive daily at 01:00 UTC. It uses
+the catalog's fixed observation cutoff and exact canonical snapshot bytes,
+verifies every checksum, and restores immutable records in isolated SQLite before
+uploading the artifact. Backups retain seven days and have a 15 MiB compressed
+size cap. Download artifacts from the repository's Actions page. This public
+backup excludes mutable processing logs, private forecasts and notes; use an
+operator SQL export for operational tables. Failures are visible in Actions and
+the owner's existing GitHub notification settings. Scheduled jobs can be delayed
+or disabled after repository inactivity. No recovery-time or uptime SLA is promised.
 
 ## Failure handling and capacity
 

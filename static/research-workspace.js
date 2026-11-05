@@ -2,6 +2,8 @@
 const ResearchWorkspace = (() => {
     let data = null, sequence = 0, saved = null, peerData = null;
     const requests = new Map();
+    const notesByCompany = new Map();
+    let noteContext = null;
     const el = id => document.getElementById(id);
     const escape = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
     const date = value => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString() : "Unavailable";
@@ -118,6 +120,7 @@ const ResearchWorkspace = (() => {
     }
     document.addEventListener("submit", event => { if (event.target.id === "researchPeersForm") void comparePeers(event); });
     document.addEventListener("change", event => { if (event.target.id === "researchFrequency") renderReview(); });
+    document.addEventListener("input", event => {if(event.target.id==='researchNotes' && !event.target.value && data){noteContext={input_sha256:data.input_sha256,reporting_period:data.data_quality?.analysis_basis?.income_period_end};el('researchNotesContext').textContent='';}});
     document.addEventListener("click", event => {
         const target = event.target.closest("button");
         if (!target) return;
@@ -127,8 +130,10 @@ const ResearchWorkspace = (() => {
             downloadJSON(saved, `${data.symbol}_SEC_evidence_${saved.id.slice(0, 12)}.json`);
         }
         if (target.id === "downloadPeersBtn" && peerData) downloadJSON(peerData, `${data.symbol}_peer_comparison.json`);
+        if (target.id === "downloadResearchPackageBtn" && data) downloadJSON({analysis: data, notes: el("researchNotes").value, notes_context: noteContext, downloaded_at: new Date().toISOString(), scope: "Downloaded research, not an automatically refreshed or independently audited record."}, `${data.symbol}_research.json`);
     });
     return {setData(payload) {
+        if(data && el("researchNotes")) notesByCompany.set(data.symbol,{text:el("researchNotes").value,context:noteContext});
         data = payload; sequence += 1; saved = null; peerData = null;
         if (!el("researchChanges")) return;
         el("researchFrozenEvidence").innerHTML = "";
@@ -136,6 +141,10 @@ const ResearchWorkspace = (() => {
         el("captureEvidenceBtn").disabled = false;
         el("comparePeersBtn").disabled = false;
         el("researchPeersStatus").textContent = ""; el("researchPeersResult").innerHTML = "";
+        const priorNote=notesByCompany.get(data.symbol);
+        el("researchNotes").value = priorNote?.text || "";
+        noteContext = priorNote?.context || {input_sha256:data.input_sha256, reporting_period:data.data_quality?.analysis_basis?.income_period_end};
+        el('researchNotesContext').textContent=priorNote?.text && noteContext.input_sha256!==data.input_sha256 ? 'These notes began with an earlier analysis. Review them against the updated figures.' : '';
         el("researchArchiveStatus").textContent = "Loading SEC evidence history…";
         renderReview();
         if (data.data_quality?.sec_filing?.status === "verified") void capture();

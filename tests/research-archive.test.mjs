@@ -151,6 +151,24 @@ test("canonical server evidence is stored byte-for-byte and verifies on retrieva
     assert.equal(db.sqlite.prepare("SELECT payload FROM filing_snapshots").get().payload, body);
     const result = await handleResearchArchive(new Request(`https://example.com/api/research/snapshots/${captured.id}`), {RESEARCH_DB: db});
     assert.equal((await result.json()).checksum_verified, true);
+    const raw = await handleResearchArchive(new Request(`https://example.com/api/research/snapshots/${captured.id}?format=canonical`), {RESEARCH_DB: db});
+    assert.equal(raw.headers.get('x-statementiq-snapshot-sha256'), captured.id);
+    assert.equal(await raw.text(), body);
+});
+
+test("public catalog pagination preserves a fixed observation cutoff without duplicates", async () => {
+    const db = database();
+    for (let i = 0; i < 101; i++) await storeSnapshot(db, evidence(`accession-${i}`), 'EXAMPLE', '2026-01-01T00:00:00.000Z');
+    await storeSnapshot(db, evidence('later'), 'EXAMPLE', '2026-01-03T00:00:00.000Z');
+    const cutoff='2026-01-02T00:00:00.000Z';
+    const first=await (await handleResearchArchive(new Request(`https://example.com/api/research/catalog?as_of=${cutoff}`),{RESEARCH_DB:db})).json();
+    assert.equal(first.snapshots.length,100);
+    assert.equal(first.as_of,cutoff);
+    const second=await (await handleResearchArchive(new Request(`https://example.com/api/research/catalog?as_of=${cutoff}&cursor=${first.next_cursor}`),{RESEARCH_DB:db})).json();
+    assert.equal(second.snapshots.length,1);
+    assert.equal(second.next_cursor,null);
+    assert.equal(new Set([...first.snapshots,...second.snapshots].map(row=>row.id)).size,101);
+    assert.equal((await handleResearchArchive(new Request('https://example.com/api/research/catalog?cursor=invalid'),{RESEARCH_DB:db})).status,400);
 });
 
 test("scheduled checks ignore future filings and retry numeric indexing lag", async () => {

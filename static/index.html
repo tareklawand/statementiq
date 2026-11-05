@@ -328,7 +328,7 @@
         .val-positive { color: var(--accent-green); }
         .val-negative { color: var(--accent-red); }
     </style>
-    <link rel="stylesheet" href="/static/redesign.css?v=research_v32">
+    <link rel="stylesheet" href="/static/redesign.css?v=model_v34">
 </head>
 <body>
     <section class="intro-page" id="introPage" aria-labelledby="introTitle">
@@ -587,10 +587,30 @@
                     <i data-lucide="notebook-tabs"></i>
                     <span class="tab-copy"><strong>Research workspace</strong><small>Changes, evidence & peers</small></span>
                 </button>
+                <button class="tab-btn" data-tab="tab5"><i data-lucide="calculator"></i><span class="tab-copy"><strong>Forecast & DCF</strong><small>Assumptions & valuation</small></span></button>
             </div>
 
             <!-- Tab Contents -->
             <div class="tab-content-container">
+                <div class="tab-pane" id="tab5">
+                    <div class="research-heading"><div><span class="research-eyebrow">FINANCIAL MODEL</span><h2>Forecast and DCF valuation</h2></div><button class="research-button" id="loadModelBaselineBtn">Load reported baseline</button></div>
+                    <p class="research-note">Build a five-year operating-company forecast from aligned annual or trailing-twelve-month figures. You choose the assumptions. Forecasts are separate from reported results and the financial-health score.</p>
+                    <p id="modelStatus" role="status">Load the reported baseline to start.</p><div id="modelBaseline"></div>
+                    <form id="forecastForm" hidden>
+                        <section class="research-section"><div class="research-section-heading"><div><h3>Forecast assumptions</h3><p>Rates are percentages, working-capital days use a 365-day convention, and cash amounts are in millions of the reporting currency.</p></div><label>Forecast year <select id="modelYear"><option value="0">Year 1</option><option value="1">Year 2</option><option value="2">Year 3</option><option value="3">Year 4</option><option value="4">Year 5</option></select></label></div>
+                            <div class="model-actions"><button class="research-button" type="button" id="copyHistoricalBtn">Copy available historical ratios</button><button class="research-button" type="button" id="zeroFinancingBtn">Assume no financing or distributions</button><button class="research-button" type="button" id="copyModelYearBtn">Apply this year's values to all five years</button></div>
+                            <p class="research-note">Copying history is a continuation assumption, not a prediction. Missing historical inputs stay blank. Financing is zero only when you choose that assumption.</p>
+                            <div id="modelDriverFields" class="model-fields"></div>
+                        </section>
+                        <section class="research-section"><h3>DCF assumptions</h3><p>WACC is the discount rate for all capital providers. Terminal ROIC determines the reinvestment needed to sustain terminal growth.</p><div id="modelValuationFields" class="model-fields"></div><button class="research-button" type="button" id="useReportedCashBtn">Use all reported cash in the equity bridge</button>
+                        <p class="research-note">Cash retained for operations can be excluded. Enter other nonoperating assets and claims explicitly, including zero where appropriate. Reported borrowing balances are used in the equity bridge.</p>
+                        </section>
+                        <section class="research-section"><label for="modelRationale">Assumptions rationale</label><textarea id="modelRationale" maxlength="4000" rows="3" required placeholder="Explain your forecast, discount rate and equity-bridge choices."></textarea>
+                        <div class="model-actions"><button class="research-button" type="submit" id="runForecastBtn">Calculate forecast & DCF</button><button class="research-button" type="button" id="downloadModelExcelBtn" disabled>Download Excel model</button><button class="research-button" type="button" id="downloadModelJsonBtn" disabled>Download model JSON</button></div>
+                        <p class="research-note">No account is needed. Model inputs are processed by the analysis service for calculation and export, and are not saved in the public filing archive. Download your work before closing the page.</p>
+                        </section>
+                    </form><div id="modelResults"></div>
+                </div>
                 <div class="tab-pane" id="tab4">
                     <div class="research-heading"><div><span class="research-eyebrow">COMPANY RESEARCH</span><h2>Filing changes and evidence</h2></div><div id="researchVersion"></div></div>
                     <section class="research-section" aria-labelledby="researchChangesTitle">
@@ -616,6 +636,7 @@
                         <p id="researchPeersStatus" role="status"></p><div id="researchPeersResult"></div>
                         <p class="research-note">Periods must fall within 45 days. Valuation measures also require quote dates within 36 hours of one another and no older than seven days. These filters do not establish equivalent accounting policies or businesses. Peer comparisons do not change the company's health score.</p>
                     </section>
+                    <section class="research-section"><h3>Research notes and downloads</h3><p>Your notes stay in this open page. Download a research package to save the notes with the analysis and its source dates.</p><p class="research-note" id="researchNotesContext"></p><label for="researchNotes">Your notes</label><textarea id="researchNotes" rows="4" maxlength="20000"></textarea><div class="model-actions"><button class="research-button" id="downloadResearchPackageBtn">Download research package (.json)</button></div></section>
                 </div>
                 
                 <!-- TAB 1: AI INSIGHTS & CHARTS -->
@@ -815,7 +836,8 @@
 
     <!-- Script Entry -->
     <script src="/static/request-client.js?v=sec_auto_v30"></script>
-    <script src="/static/app.js?v=research_v32"></script>
-    <script src="/static/research-workspace.js?v=research_v32"></script>
+    <script src="/static/app.js?v=model_v34"></script>
+    <script src="/static/research-workspace.js?v=model_v34"></script>
+    <script src="/static/forecast-workspace.js?v=model_v34"></script>
 </body>
 </html>

@@ -353,10 +353,15 @@ function setupEventListeners() {
             e.currentTarget.classList.add("active");
             const pane = document.getElementById(targetTab);
             if (pane) pane.classList.add("active");
+            if (targetTab === 'tab5' && typeof ForecastWorkspace !== 'undefined') ForecastWorkspace.open();
 
             window.dispatchEvent(new Event('resize'));
         });
     });
+
+    if (new URLSearchParams(window.location.search || '').get('tool') === 'dcf') {
+        document.querySelector('[data-tab="tab5"]')?.click();
+    }
 
     // Financial Statement Switch Buttons
     document.querySelectorAll(".stmt-btn").forEach(btn => {
@@ -493,6 +498,7 @@ async function performTickerLoad(request, forceRefresh) {
         try { renderFilingReview(); } catch(e){ console.error("Filing review render error:", e); }
         try { renderFinancialStatementTable(); } catch(e){ console.error("Statement Table render error:", e); }
         try { if (typeof ResearchWorkspace !== "undefined") ResearchWorkspace.setData(currentData); } catch(e){ console.error("Research workspace render error:", e); }
+        try { if (typeof ForecastWorkspace !== "undefined") ForecastWorkspace.setCompany(currentData, document.getElementById('tab5')?.classList.contains('active')); } catch(e){ console.error("Forecast workspace render error:", e); }
         completeAnalysisProgress(progressToken);
         window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
 

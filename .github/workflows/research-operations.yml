@@ -1,0 +1,48 @@
+name: Public service checks and SEC backups
+on:
+  schedule:
+    - cron: '0 */3 * * *'
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/research-operations.yml'
+      - 'scripts/backup_public_archive.py'
+      - 'scripts/monitor_public_service.py'
+      - 'src/research-archive.js'
+permissions:
+  contents: read
+concurrency:
+  group: research-operations
+  cancel-in-progress: false
+jobs:
+  public-service:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Verify published page, archive and real statement inputs
+        run: python3 scripts/monitor_public_service.py --wait-seconds 600
+  public-sec-backup:
+    if: github.event_name != 'schedule' || github.event.schedule == '0 1 * * *'
+    needs: public-service
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Download and verify every public SEC snapshot
+        run: python3 scripts/backup_public_archive.py
+      - name: Verify isolated archive restoration
+        run: python3 scripts/verify_archive_backup.py archive/public-sec-evidence.tar.gz
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: public-sec-evidence-${{ github.run_id }}
+          path: archive/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0

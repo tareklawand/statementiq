@@ -14,7 +14,7 @@ sys.path.append('/Users/tareklawand/Library/Python/3.9/lib/python/site-packages'
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, Dict, Any
 
 from data_fetcher import fetch_stock_data, PRESET_TICKERS
@@ -26,6 +26,8 @@ from sector_analysis import prepare_sector_analysis
 from filing_disclosure_analyzer import scan_annual_filing
 from research_review import build_research_review, input_fingerprint, methodology, canonical_json
 from peer_comparison import compare_peers
+from forecast_model import build_baseline, run_model, ModelUnavailable
+from model_requests import ModelRequestLimit
 
 
 @asynccontextmanager
@@ -35,6 +37,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="StatementIQ Financial API", lifespan=lifespan)
+app.add_middleware(ModelRequestLimit)
 
 # Mount static files directory
 os.makedirs("static", exist_ok=True)
@@ -270,6 +273,58 @@ def research_peers(tickers: str = Query(...), universe: str = Query("industry", 
     with ThreadPoolExecutor(max_workers=2) as pool:
         payloads = list(pool.map(analyze, symbols))
     return compare_peers(payloads, universe=universe)
+
+
+def load_model_baseline(symbol):
+    stock = fetch_stock_data(symbol)
+    if stock.get("error"):
+        raise HTTPException(status_code=503, detail=stock["error"])
+    # Prefer the SEC-only source for explicit borrowing definitions and cell
+    # provenance. Unsupported issuers retain the provider's explicit debt rows.
+    if (stock.get("sec_filing") or {}).get("status") == "verified":
+        from evidence_snapshot import capture_sec_evidence
+        official = capture_sec_evidence(symbol)
+        if not official.get("error"):
+            stock = official
+    return build_baseline(stock, compute_metrics(stock))
+
+
+@app.get("/api/research/model-baseline")
+def model_baseline(ticker: str = Query(...)):
+    return load_model_baseline(normalize_ticker(ticker))
+
+
+class ForecastRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    symbol: str
+    baseline_sha256: str = Field(pattern=r'^[a-f0-9]{64}$')
+    years: list[Dict[str, Any]] = Field(min_length=5,max_length=5)
+    valuation: Dict[str, Any]
+    note: str = Field(min_length=1,max_length=4000)
+
+
+def calculate_forecast(payload):
+    symbol = normalize_ticker(payload.symbol)
+    baseline = load_model_baseline(symbol)
+    if payload.baseline_sha256 != baseline["input_sha256"]:
+        raise HTTPException(status_code=409, detail="Reported inputs changed. Reload the model baseline and review your assumptions before recalculating.")
+    try:
+        return run_model(baseline, payload.years, payload.valuation, payload.note)
+    except ModelUnavailable as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@app.post("/api/research/forecast")
+def forecast(payload: ForecastRequest):
+    return calculate_forecast(payload)
+
+
+@app.post("/api/research/export-model")
+def export_forecast(payload: ForecastRequest):
+    from model_export import export_workbook
+    result = calculate_forecast(payload)
+    return StreamingResponse(export_workbook(result), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{result["symbol"]}_forecast_DCF.xlsx"', "Cache-Control": "no-store"})
 
 
 class PDFRequest(BaseModel):

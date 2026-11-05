@@ -11,12 +11,12 @@ data contract or account permission may be changed without separate approval.
 - [x] Bounded background filing-check queue, processing/retry history and explicit freshness scope.
 - [x] Period-aligned financial changes and earnings-quality review with evidence.
 - [x] User-selected peer comparisons with currency, fiscal-period and applicability controls.
-- [ ] Assumption-driven three-statement and cash-flow valuation models, separate from actuals.
-- [ ] Formula-based Excel exports, including sources and reconciliation checks.
-- [ ] Saved research and annotations, with clearly stated storage and privacy boundaries.
-- [ ] Authenticated team/reviewer workflow and access-control tests.
+- [x] Assumption-driven operating-company three-statement forecast and FCFF DCF, separate from actuals.
+- [x] Formula-based Excel model exports with sources and reconciliation checks.
+- [x] Public, account-free research notes and JSON downloads with source context.
+- Accounts and team/reviewer access are excluded at the owner's explicit request (downloads only).
 - [x] Archive status/error telemetry, isolated backup/restore verification and release runbook.
-- [ ] Continuous production monitoring and recurring offsite backup/restore drills.
+- [x] Bounded periodic service/data checks and daily offsite public-archive backup with isolated restore verification.
 
 The archive was deployed and exercised with AAPL and a non-preset ticker, DOCU.
 A production SQL export restored into isolated SQLite with both payload checksums
@@ -32,6 +32,7 @@ An installed schedule is not a per-issuer update-time or uptime guarantee.
   be described as an enterprise availability commitment.
 - Team identity/SSO, administrator ownership and membership policies need an
   operator-approved identity configuration before private server workspaces run.
+  The owner currently requests no accounts, so this is outside the current scope.
 - Independent accounting, model and security reviews cannot be self-certified by
   software tests. Customer pilots and procurement review require real participants.
 
@@ -46,3 +47,25 @@ it is not proof against an administrator rewriting an entire database.
 
 Forecast assumptions and analyst adjustments must never overwrite actuals or
 silently affect the public financial-health screen. Missing inputs are not zero.
+
+## Forecast scope and operations
+
+The DCF is a five-year operating-company model valued at the latest coherent
+reported period, using TTM flows and a quarterly balance sheet when available. It is not a current-date quarterly stub model, bank
+dividend model, REIT model, empirical credit rating or independent valuation.
+Missing source inputs, minority-interest reconciliation differences, unsupported
+company types and cash funding gaps are disclosed or withheld. Forecast drivers,
+WACC, terminal growth/ROIC and equity-bridge choices are explicit user assumptions.
+There are no default invented rates and no automatic borrowing plug.
+
+Research notes stay in the open page and downloads. Model requests are processed
+transiently for calculation/export and are not written into the public archive.
+No accounts or private/team database were created.
+
+GitHub Actions checks the public service every three hours and creates a daily
+checksum-verified archive backup, with a fresh isolated restore verification.
+Only public SEC evidence is backed up. Artifacts retain seven days and each backup
+is capped at 15 MiB before upload to bound free storage usage. A cap or failed
+verification fails the job rather than publishing an incomplete backup. GitHub
+schedules can be delayed/disabled after repository inactivity; these are periodic
+checks and backups, not an availability or recovery-time SLA.

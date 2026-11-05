@@ -77,14 +77,16 @@ async function writeSnapshot(db, evidence, body, symbol, observedAt) {
     accession: filing.accession_number, checksum_sha256: id, status: "archived"};
 }
 
-async function readSnapshot(db, id) {
+async function readSnapshot(db, id, canonical = false) {
   const record = await db.prepare("SELECT * FROM filing_snapshots WHERE id=?1").bind(id).first();
   if (!record) return json({detail: "Snapshot not found"}, 404);
   if (await sha256(record.payload) !== record.id) {
     console.error(JSON.stringify({event: "snapshot_checksum_failure", snapshot: id}));
     return json({detail: "Snapshot checksum failed. The stored evidence is unavailable for use."}, 503);
   }
+  if (canonical) return new Response(record.payload,{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-statementiq-snapshot-sha256':id}});
   return json({id, observed_at: record.observed_at, checksum_verified: true,
+    canonical_payload_url: `/api/research/snapshots/${id}?format=canonical`,
     snapshot: JSON.parse(record.payload), historical_scope: "Captured observation only; not a reconstruction of knowledge before capture."});
 }
 
@@ -110,7 +112,7 @@ export async function captureLatest(env, symbol, fetcher = fetch) {
 export async function handleResearchArchive(request, env) {
   const url = new URL(request.url);
   const path = url.pathname;
-  if (!["/api/research/archive", "/api/research/history", "/api/research/status"].includes(path) &&
+  if (!["/api/research/archive", "/api/research/history", "/api/research/status", "/api/research/catalog"].includes(path) &&
       !path.startsWith("/api/research/snapshots/")) return null;
   if (request.method !== "GET") return json({detail: "Only read requests are supported"}, 405);
   if (!env.RESEARCH_DB) return json({status: "not_configured", detail: "Persistent filing history is not configured."}, 503);
@@ -122,9 +124,18 @@ export async function handleResearchArchive(request, env) {
         freshness_scope: "Bounded queue for successfully archived issuers; not a per-company freshness guarantee. On-demand analysis also checks filing freshness.",
         point_in_time_scope: "Observations collected since archive activation; no pre-capture historical claim."});
     }
+    if(path==='/api/research/catalog'){
+      const cursor=url.searchParams.get('cursor')||'';
+      const asOf=url.searchParams.get('as_of')||new Date().toISOString();
+      if((cursor&&!SNAPSHOT.test(cursor))||!/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(asOf)||!Number.isFinite(Date.parse(asOf)))return json({detail:'Invalid archive cursor or observation date'},400);
+      const rows=await env.RESEARCH_DB.prepare(`SELECT id,symbol,cik,accession,report_period,observed_at,methodology_version,methodology_sha256
+        FROM filing_snapshots WHERE id>?1 AND observed_at<=?2 ORDER BY id LIMIT 100`).bind(cursor,asOf).all();
+      const snapshots=rows.results||[];
+      return json({as_of:asOf,snapshots,next_cursor:snapshots.length===100?snapshots[snapshots.length-1].id:null,scope:'Public SEC evidence only. No private models, notes or individual user records.'});
+    }
     if (path.startsWith("/api/research/snapshots/")) {
       const id = path.split("/").pop();
-      return SNAPSHOT.test(id) ? await readSnapshot(env.RESEARCH_DB, id) : json({detail: "Invalid snapshot identifier"}, 400);
+      return SNAPSHOT.test(id) ? await readSnapshot(env.RESEARCH_DB, id, url.searchParams.get('format')==='canonical') : json({detail: "Invalid snapshot identifier"}, 400);
     }
     let symbol;
     try { symbol = ticker(url); } catch (error) { return json({detail: error.message}, 400); }
