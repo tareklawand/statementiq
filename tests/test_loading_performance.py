@@ -2,6 +2,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime, timezone
 import threading
 import pytest
+import pandas as pd
 from fastapi.testclient import TestClient
 import data_fetcher
 import main
@@ -67,3 +68,16 @@ def test_complete_primary_quotes_do_not_download_unused_fallbacks():
         'dividendRate':0,'targetMeanPrice':110,'regularMarketTime':1790000000}
     info=data_fetcher._enrich_info_with_live_market_fallbacks(Primary(),values)
     assert all(info[key]==value for key,value in values.items())
+
+
+def test_complete_same_period_annual_preserves_reported_eps_without_using_old_values():
+    period=pd.Timestamp('2025-12-31')
+    annual=pd.DataFrame({period:[100,20,2]},index=['Total Revenue','Net Income','Diluted EPS'])
+    ttm=pd.DataFrame({period:[100,20]},index=['Total Revenue','Net Income'])
+    selected,basis=data_fetcher._select_flow_statement(ttm,annual)
+    assert basis=='latest_annual' and selected.at['Diluted EPS',period]==2
+    newer=ttm.rename(columns={period:pd.Timestamp('2026-03-31')})
+    selected,basis=data_fetcher._select_flow_statement(newer,annual)
+    assert basis=='trailing_twelve_months' and 'Diluted EPS' not in selected.index
+    ttm.at['Net Income',period]=21
+    assert data_fetcher._select_flow_statement(ttm,annual)[1]=='trailing_twelve_months'

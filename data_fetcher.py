@@ -186,6 +186,19 @@ def _select_latest_balance_sheet(annual: pd.DataFrame, quarterly: pd.DataFrame) 
 
 
 def _select_flow_statement(ttm: pd.DataFrame, annual: pd.DataFrame) -> tuple[pd.DataFrame, str]:
+    # Prefer a complete reported year over an equivalent provider TTM frame.
+    # Matching dates and flows prevent carrying old annual EPS into a new TTM.
+    annual_period, ttm_period = _latest_period(annual), _latest_period(ttm)
+    if annual_period is not None and annual_period == ttm_period:
+        for row in ("Total Revenue", "Net Income"):
+            try:
+                reported, trailing = float(annual.at[row, annual_period]), float(ttm.at[row, ttm_period])
+                if not np.isfinite(reported) or not np.isfinite(trailing) or abs(reported-trailing) > max(1e-9,abs(reported)*1e-12):
+                    break
+            except (KeyError, TypeError, ValueError):
+                break
+        else:
+            return annual, "latest_annual"
     if ttm is not None and not ttm.empty and (
         _latest_period(annual) is None or _latest_period(ttm) >= _latest_period(annual)
     ):
@@ -623,7 +636,7 @@ def _fetch_stock_data(ticker_symbol: str, force_refresh: bool = False) -> Dict[s
         elif sec_import.get("status") == "unavailable":
             quality_warnings.append("Direct SEC import unavailable: " + sec_import["reason"] + " Provider statements remain in use with freshness checks.")
         if not sec_imported and income_basis != "trailing_twelve_months":
-            quality_warnings.append("Trailing-twelve-month income data was unavailable; the latest annual income statement is used.")
+            quality_warnings.append("The latest reported annual income statement is used; no later complete TTM income period is in use.")
         if not sec_imported and balance_basis != "latest_quarter":
             quality_warnings.append("A newer quarterly balance sheet was unavailable; the latest annual balance sheet is used.")
         if not sec_imported and cash_flow_basis != "trailing_twelve_months":

@@ -7,6 +7,11 @@ complete source reload when the existing five-minute analysis window is valid.
 The explicit Refresh data button still bypasses that window. Source retrieval
 times remain visible. Quote timestamps are never replaced with retrieval times.
 
+At an identical annual/TTM income date, matching reported revenue and net income
+select the complete annual frame. This preserves reported annual EPS when the
+provider's equivalent TTM frame omits it. Newer TTM dates or conflicting amounts
+never reuse the older annual EPS.
+
 Concurrent loads for the same company share one source request, including startup
 warming and the first visitor. Independent provider statement reads use separate
 ticker instances in a process-wide pool of at most four workers. Complete primary
@@ -56,6 +61,13 @@ Before changes, live warm Apple analysis took 5.03 seconds and the next request
 benchmark or a latency guarantee. Local cache reads subsequently took 0.004–0.020
 seconds, DCF calculation 0.062 seconds and export 0.555 seconds in a warm preview.
 Production measurements must be recorded separately after release.
+
+After the first production release (f145266, Worker
+e85492f1-5421-4e07-81b6-224055e20b81), an explicit fresh Apple analysis took
+4.776 seconds, including 2.953 seconds of sources and 0.566 seconds of calculations.
+Two normal repeats took 0.370 and 0.405 seconds and were confirmed edge-cache hits.
+The repeats retained the same original retrieval timestamp. The server was awake;
+these observations do not claim a cold-start latency or service-level guarantee.
 
 The full financial suite and browser/server state checks cover source equality,
 concurrent-load deduplication, deferred report review, normal versus forced
