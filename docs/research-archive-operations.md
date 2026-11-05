@@ -41,7 +41,7 @@ It never restores over production. Keep exports in operator-controlled storage.
 Production Time Travel restoration is a separate operator action: it can roll
 back newer records and must not be used as a routine test.
 
-The prepared research-operations GitHub Actions workflow checks service/data every
+The active research-operations GitHub Actions workflow checks service/data every
 three hours and backs up the public evidence archive daily at 01:00 UTC. It uses
 the catalog's fixed observation cutoff and exact canonical snapshot bytes,
 verifies every checksum, and restores immutable records in isolated SQLite before
@@ -51,9 +51,9 @@ backup excludes mutable processing logs, private forecasts and notes; use an
 operator SQL export for operational tables. Failures are visible in Actions and
 the owner's existing GitHub notification settings. Scheduled jobs can be delayed
 or disabled after repository inactivity. No recovery-time or uptime SLA is promised.
-Activation remains pending the GitHub publication failure recorded in
-`docs/release-verification-20261105.md`. Local backup and isolated restoration
-have passed; no scheduled offsite run is claimed until Actions succeeds.
+The first service-check and backup jobs succeeded on 2026-11-05. The retained
+artifact and production restore verification are recorded in
+`docs/release-verification-20261105.md`.
 
 ## Failure handling and capacity
 

@@ -3,9 +3,8 @@
 The Forecast & DCF tab is public and does not require an account. Direct entry:
 https://statementiq-lb.com/?tool=dcf#workspace
 
-Publication pending as of 2026-11-05: the implementation is verified locally, but
-GitHub rejected repository updates. The direct production URL will expose this
-tool only after the source server and Cloudflare release are deployed.
+Published and verified on 2026-11-05, including the public calculation and Excel
+export routes. See the dated release-verification record for deployment evidence.
 
 ## Reported inputs
 

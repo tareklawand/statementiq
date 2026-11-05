@@ -25,7 +25,7 @@
   integrity and all payload checksums passed. Tampered backups fail tests and do
   not replace a prior completed backup.
 
-## Publication blocker
+## Publication and production verification
 
 GitHub rejected main and two separate new-branch pushes with:
 `remote: fatal error in commit_refs`. The remote main stayed at
@@ -33,10 +33,26 @@ GitHub rejected main and two separate new-branch pushes with:
 without the new workflow failed identically. No force push, repository visibility
 change, credential change or paid upgrade was attempted.
 
-The new forecast API, UI and scheduled GitHub workflow are not live yet. Existing
-production is preserved. Local source commits contain the full tested release.
+The push succeeded on retry, publishing source revision 69d6c3f. Render's
+dashboard confirmed that revision live, with automatic deployments preserved.
+The matching Cloudflare release is 622be36b-3eb2-4929-9092-095464525d0e.
 
-## Resume publication
+Public-domain checks passed: AAPL baseline ready at 2026-09-26, forecast HTTP200,
+Excel export HTTP200 with valid linked formulas and reported SEC revenue. The
+production archive contained three snapshots; every checksum and issuer record
+passed isolated SQLite restoration. The first GitHub Actions public-service and
+public-sec-backup jobs both completed successfully:
+https://github.com/tareklawand/statementiq/actions/runs/42062822047
+The retained artifact public-sec-evidence-42062822047 was 83,385 bytes and expires
+2026-11-12, confirming seven-day retention. Its job verified restoration before
+upload. The independently downloaded production backup also restored correctly.
+
+The public Forecast & DCF tab loaded the dated SEC baseline with empty future
+assumptions. Calculation and the actual browser download were verified with
+clearly labelled software-test assumptions. Financial-health actuals remained
+separate. No user models or notes were written into the public archive.
+
+## Future releases
 
 1. From the isolated release clone, fetch origin and inspect any newer work.
    Publish the complete release without pushing the original project's unrelated
@@ -50,7 +66,7 @@ production is preserved. Local source commits contain the full tested release.
    download, catalog pagination and exact canonical snapshot checksums.
 5. Verify both GitHub Actions jobs succeed and restore the resulting public SEC
    artifact in isolated SQLite before claiming scheduled backups are active.
-6. Remove the pending-publication notices only after these checks succeed.
+6. Update this verification record only after these checks succeed.
 
 No accounts were added. The repository remains public and existing free plans
 remain in use. Independent financial/model/security review, appropriate market

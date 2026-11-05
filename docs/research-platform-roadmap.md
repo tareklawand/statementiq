@@ -6,11 +6,10 @@ data contract or account permission may be changed without separate approval.
 
 ## Delivery gates
 
-Release status (2026-11-05): the forecast/download/operations code is implemented
-and locally verified, but is not deployed yet. GitHub rejected fast-forward main
-and new-branch pushes with `remote: fatal error in commit_refs`. The live site
-remains at cdba16b. Checked implementation boxes below do not mean the new release
-has been published. Resume publication and live checks before marking release done.
+Release status (2026-11-05): the forecast/download/operations release is deployed
+and verified on the public domain. A temporary GitHub push failure cleared on
+retry. The first public-service and SEC-backup Actions jobs both succeeded, and
+the retained backup artifact is available. See the dated release verification.
 
 - [x] Versioned methodology, source/input fingerprints and reproducible SEC-only snapshots.
 - [x] Persistent public filing archive with checksums, migration and restore tests.
@@ -22,7 +21,7 @@ has been published. Resume publication and live checks before marking release do
 - [x] Public, account-free research notes and JSON downloads with source context.
 - Accounts and team/reviewer access are excluded at the owner's explicit request (downloads only).
 - [x] Archive status/error telemetry, isolated backup/restore verification and release runbook.
-- [ ] Activate and verify the prepared periodic service/data checks and daily offsite backup workflow after GitHub accepts publication. Local backup and isolated restore pass.
+- [x] Activate and verify periodic service/data checks and daily offsite public-archive backups, including isolated restoration.
 
 The archive was deployed and exercised with AAPL and a non-preset ticker, DOCU.
 A production SQL export restored into isolated SQLite with both payload checksums
