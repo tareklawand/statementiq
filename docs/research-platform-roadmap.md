@@ -6,6 +6,12 @@ data contract or account permission may be changed without separate approval.
 
 ## Delivery gates
 
+Release status (2026-11-05): the forecast/download/operations code is implemented
+and locally verified, but is not deployed yet. GitHub rejected fast-forward main
+and new-branch pushes with `remote: fatal error in commit_refs`. The live site
+remains at cdba16b. Checked implementation boxes below do not mean the new release
+has been published. Resume publication and live checks before marking release done.
+
 - [x] Versioned methodology, source/input fingerprints and reproducible SEC-only snapshots.
 - [x] Persistent public filing archive with checksums, migration and restore tests.
 - [x] Bounded background filing-check queue, processing/retry history and explicit freshness scope.
@@ -16,7 +22,7 @@ data contract or account permission may be changed without separate approval.
 - [x] Public, account-free research notes and JSON downloads with source context.
 - Accounts and team/reviewer access are excluded at the owner's explicit request (downloads only).
 - [x] Archive status/error telemetry, isolated backup/restore verification and release runbook.
-- [x] Bounded periodic service/data checks and daily offsite public-archive backup with isolated restore verification.
+- [ ] Activate and verify the prepared periodic service/data checks and daily offsite backup workflow after GitHub accepts publication. Local backup and isolated restore pass.
 
 The archive was deployed and exercised with AAPL and a non-preset ticker, DOCU.
 A production SQL export restored into isolated SQLite with both payload checksums
@@ -62,7 +68,7 @@ Research notes stay in the open page and downloads. Model requests are processed
 transiently for calculation/export and are not written into the public archive.
 No accounts or private/team database were created.
 
-GitHub Actions checks the public service every three hours and creates a daily
+The prepared GitHub Actions workflow checks the public service every three hours and creates a daily
 checksum-verified archive backup, with a fresh isolated restore verification.
 Only public SEC evidence is backed up. Artifacts retain seven days and each backup
 is capped at 15 MiB before upload to bound free storage usage. A cap or failed
