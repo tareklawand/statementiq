@@ -4,6 +4,8 @@ import io
 import sys
 import threading
 import re
+import time
+from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 import pandas as pd
@@ -123,6 +125,7 @@ def read_root_asset(asset_name: str):
 
 @app.get("/api/analyze")
 def analyze_ticker(
+    response: Response,
     ticker: str = Query(..., description="Stock Ticker Symbol"),
     refresh: bool = Query(False, description="Bypass the short-lived data cache"),
     api_key: Optional[str] = Query(None),
@@ -133,10 +136,38 @@ def analyze_ticker(
     """
     symbol = normalize_ticker(ticker)
 
+    started = time.perf_counter()
     stock_data = fetch_stock_data(symbol, force_refresh=refresh)
     if stock_data.get("error"):
         raise HTTPException(status_code=400, detail=stock_data["error"])
-    return build_analysis_payload(stock_data, symbol, api_key=api_key)
+    retrieved = time.perf_counter()
+    payload = build_analysis_payload(stock_data, symbol, api_key=api_key, include_filing_review=False)
+    if ((stock_data.get("sec_filing") or {}).get("key_filings") or {}).get("annual"):
+        payload["filing_disclosure_review"] = {"status": "deferred", "reason": "The annual-report text review loads separately when you open Financial statements."}
+    response.headers["Server-Timing"] = f"sources;dur={(retrieved-started)*1000:.1f}, calculations;dur={(time.perf_counter()-retrieved)*1000:.1f}"
+    response.headers["X-StatementIQ-Cache-Until"] = analysis_cache_deadline(stock_data)
+    return payload
+
+
+def analysis_cache_deadline(stock):
+    """An edge copy must expire with its original five-minute source window."""
+    try:
+        fetched = datetime.fromisoformat(stock["fetched_at"].replace("Z", "+00:00")).timestamp()
+        now = time.time()
+        return str(int(min(fetched + 300, now + 300))) if fetched <= now else "0"
+    except (KeyError, TypeError, ValueError):
+        return "0"
+
+
+@app.get("/api/research/filing-review")
+def filing_review(ticker: str = Query(...)):
+    symbol = normalize_ticker(ticker)
+    stock = fetch_stock_data(symbol)
+    if stock.get("error"):
+        raise HTTPException(status_code=503, detail=stock["error"])
+    annual = ((stock.get("sec_filing") or {}).get("key_filings") or {}).get("annual") or {}
+    return {"symbol": symbol, "filing_url": annual.get("filing_url"),
+            "review": scan_annual_filing(annual.get("filing_url"))}
 
 
 def build_analysis_payload(stock_data, symbol, api_key=None, include_filing_review=True):
@@ -281,9 +312,9 @@ def load_model_baseline(symbol):
         raise HTTPException(status_code=503, detail=stock["error"])
     # Prefer the SEC-only source for explicit borrowing definitions and cell
     # provenance. Unsupported issuers retain the provider's explicit debt rows.
-    if (stock.get("sec_filing") or {}).get("status") == "verified":
+    if (stock.get("sec_filing") or {}).get("status") == "verified" and (stock.get("info") or {}).get("statement_data_provider") != "SEC Company Facts":
         from evidence_snapshot import capture_sec_evidence
-        official = capture_sec_evidence(symbol)
+        official = capture_sec_evidence(symbol, force_refresh=False)
         if not official.get("error"):
             stock = official
     return build_baseline(stock, compute_metrics(stock))

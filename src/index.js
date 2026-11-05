@@ -114,12 +114,13 @@ function applyPublicHeaders(response, { preventIndexing = false } = {}) {
 }
 
 import { handleResearchArchive, scheduledFilingChecks } from "./research-archive.js";
+import { readAnalysisCache, writeAnalysisCache } from "./analysis-cache.js";
 
 export default {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(scheduledFilingChecks(env));
   },
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const requestUrl = new URL(request.url);
     const isPublicHostname =
       requestUrl.hostname === CANONICAL_HOSTNAME ||
@@ -285,6 +286,9 @@ export default {
       return applyPublicHeaders(assetResponse);
     }
 
+    const publicCache = typeof caches === 'undefined' ? null : caches.default;
+    const cachedAnalysis = await readAnalysisCache(request, env, publicCache);
+    if (cachedAnalysis) return applyPublicHeaders(cachedAnalysis, {preventIndexing: true});
     const upstreamUrl = new URL(
       `${requestUrl.pathname}${requestUrl.search}`,
       env.BACKEND_ORIGIN
@@ -294,6 +298,9 @@ export default {
 
     try {
       const upstreamResponse = await fetch(new Request(upstreamUrl, request));
+      // Store only a public, successful response within its source freshness
+      // deadline. Neither forecast POSTs nor analyst notes enter this cache.
+      if (ctx?.waitUntil) ctx.waitUntil(writeAnalysisCache(request, env, upstreamResponse, publicCache));
       if (!upstreamResponse.ok) {
         console.error(JSON.stringify({
           event: "backend_response_error",

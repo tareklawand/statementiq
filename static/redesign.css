@@ -4761,3 +4761,47 @@ html.theme-color-transition .theme-icon {
 .model-value-grid strong {display:block;margin:12px 0;font-size:1.5rem;}
 @media(max-width:1100px){.dashboard-tabs-nav{grid-template-columns:repeat(2,minmax(0,1fr));}.dashboard-tabs-nav .tab-btn:last-child{grid-column:1 / -1;}.model-fields,.model-value-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
 @media(max-width:520px){.model-fields,.model-value-grid{grid-template-columns:minmax(0,1fr);}.model-actions .research-button{white-space:normal;min-height:44px;}}
+
+/* DCF working template: source, drivers, valuation and a traceable result. */
+#modelStatus {font-size:.875rem;color:var(--text-muted);line-height:1.6;}
+.model-editor-grid {display:grid;grid-template-columns:minmax(0,1.7fr) minmax(280px,1fr);gap:24px;align-items:start;}
+.model-template .research-section {margin:0;padding:24px;border:1px solid var(--card-border);border-radius:8px;background:var(--card-bg);}
+.model-template .research-eyebrow {display:block;margin-bottom:9px;}
+.model-template .research-section-heading {align-items:flex-start;gap:20px;}
+.model-template .model-year-control {flex:0 0 100px;font-size:.8rem;}
+.model-driver-group {min-width:0;border:0;border-top:1px solid var(--card-border);padding:20px 0 0;margin:24px 0 0;}
+.model-driver-group legend {padding:0 14px 0 0;color:var(--text-main);font-size:.9rem;font-weight:600;}
+.model-driver-group .model-fields {grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin:8px 0 0;}
+.model-valuation .model-fields {grid-template-columns:minmax(0,1fr);}
+.model-fields label {display:flex;flex-direction:column;justify-content:space-between;line-height:1.5;font-size:.83rem;}
+.model-fields label span {display:flex;justify-content:space-between;gap:9px;align-items:baseline;}
+.model-fields small {flex-shrink:0;white-space:nowrap;font-size:.75rem;}
+.model-fields input {font-variant-numeric:tabular-nums;background:var(--bg-main);padding:10px 12px;}
+.model-template .model-actions {gap:8px;}
+.model-template .model-actions .research-button {font-size:.78rem;padding:10px 12px;white-space:normal;}
+.model-valuation #useReportedCashBtn {width:100%;margin:22px 0 10px;white-space:normal;}
+.model-template .model-conclusion {margin-top:24px;}
+.model-conclusion label {font-weight:600;}
+.model-conclusion #runForecastBtn {background:var(--text-main);color:var(--bg-main);border-color:var(--text-main);}
+#modelResults {scroll-margin-top:180px;}
+.model-report {border:1px solid var(--card-border);border-radius:8px;padding:28px;background:var(--card-bg);margin-top:32px;}
+.model-report-heading {display:flex;justify-content:space-between;align-items:center;gap:20px;}
+.model-report-heading h3 {margin-top:9px;}
+.model-output-strip {display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:24px;padding:28px 0;margin:20px 0 28px;border-block:1px solid var(--card-border);align-items:center;}
+.model-output-strip span,.model-output-strip small {display:block;color:var(--text-muted);font-size:.8rem;line-height:1.6;}
+.model-output-strip strong {display:block;font-size:1.5rem;font-weight:600;letter-spacing:-.04em;margin:10px 0;font-variant-numeric:tabular-nums;}
+.model-output-strip .model-share-output strong {font-size:2.1rem;color:var(--accent-cyan);}
+.model-report-grid {display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:40px;}
+.model-report-grid h4 {font-size:.95rem;margin:0 0 8px;}
+.model-bridge-table {border-collapse:collapse;width:100%;font-size:.85rem;}
+.model-bridge-table th {text-align:left;font-weight:400;padding:11px 0;color:var(--text-muted);}
+.model-bridge-table td {text-align:right;font-variant-numeric:tabular-nums;padding-left:18px;white-space:nowrap;}
+.model-bridge-table .total th,.model-bridge-table .total td {border-top:1px solid var(--card-border);font-weight:600;color:var(--text-main);}
+.model-economics dl {margin:20px 0;}
+.model-economics dl div {display:flex;justify-content:space-between;gap:18px;margin:16px 0;font-size:.85rem;}
+.model-economics dt {color:var(--text-muted);}.model-economics dd {margin:0;font-variant-numeric:tabular-nums;}
+.model-result-warning {color:var(--text-main);padding:14px;border:1px solid var(--card-border);}
+.model-forecast-detail summary {font-size:1rem;font-weight:600;cursor:pointer;}
+.model-methodology {margin-top:24px;}.model-methodology summary {font-size:.875rem;font-weight:400;}
+@media(max-width:1000px){.model-editor-grid{grid-template-columns:minmax(0,1fr);}.model-valuation .model-fields{grid-template-columns:repeat(3,minmax(0,1fr));}.model-report-grid{gap:24px;}}
+@media(max-width:650px){.model-template .research-section,.model-report{padding:18px;}.model-output-strip,.model-report-grid{grid-template-columns:minmax(0,1fr);gap:16px;}.model-report-heading{display:block;}.model-valuation .model-fields,.model-driver-group .model-fields{grid-template-columns:minmax(0,1fr);}.model-output-strip strong{font-size:1.5rem;}.model-template .research-section-heading{flex-wrap:wrap;}#modelResults{scroll-margin-top:230px;}}

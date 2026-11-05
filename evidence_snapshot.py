@@ -6,8 +6,8 @@ from sec_filing_validator import get_latest_sec_filing
 from sec_statement_importer import import_latest_sec_statements
 
 
-def capture_sec_evidence(symbol):
-    filing = get_latest_sec_filing(symbol, force_refresh=True)
+def capture_sec_evidence(symbol, force_refresh=True):
+    filing = get_latest_sec_filing(symbol, force_refresh=force_refresh)
     imported = import_latest_sec_statements(filing)
     if imported.get("status") != "imported":
         return {"error": imported.get("reason") or "A complete supported SEC statement dataset was unavailable."}

@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 import re
 import time
+import threading
+from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
@@ -127,6 +129,9 @@ _CACHE: Dict[str, Dict[str, Any]] = {}
 CACHE_TTL = 300
 ERROR_CACHE_TTL = 60
 MAX_CACHE_ENTRIES = 8
+_FETCH_LOCK = threading.Lock()
+_INFLIGHT = {}
+_STATEMENT_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="statements")
 
 def normalize_statement(df: Optional[pd.DataFrame]) -> pd.DataFrame:
     """Return a numeric statement with unique periods ordered newest first."""
@@ -322,11 +327,6 @@ def _enrich_info_with_live_market_fallbacks(ticker: Any, raw_info: Any) -> Dict[
     info = dict(raw_info) if isinstance(raw_info, dict) else {}
     recovered_fields = []
 
-    try:
-        fast_info = ticker.fast_info
-    except Exception:
-        fast_info = {}
-
     fast_field_map = {
         "regularMarketPrice": ("lastPrice",),
         "currentPrice": ("lastPrice",),
@@ -339,7 +339,17 @@ def _enrich_info_with_live_market_fallbacks(ticker: Any, raw_info: Any) -> Dict[
         "fiftyTwoWeekHigh": ("yearHigh",),
         "fiftyTwoWeekLow": ("yearLow",),
     }
+    def needs_fast(key):
+        if key in ("regularMarketPrice", "currentPrice") and any(_usable_market_value(info.get(name)) for name in ("regularMarketPrice", "currentPrice")):
+            return False
+        return not _usable_market_value(info.get(key))
+    try:
+        fast_info = ticker.fast_info if any(needs_fast(key) for key in fast_field_map) else {}
+    except Exception:
+        fast_info = {}
     for destination, source_keys in fast_field_map.items():
+        if not needs_fast(destination):
+            continue
         if _set_market_value_if_missing(
             info,
             destination,
@@ -349,13 +359,15 @@ def _enrich_info_with_live_market_fallbacks(ticker: Any, raw_info: Any) -> Dict[
 
     # The chart route provides a second independent source for price/range and
     # also makes a zero dividend distinguishable from missing dividend data.
+    history_needed = any(not _usable_market_value(info.get(key)) for key in ("fiftyTwoWeekHigh", "fiftyTwoWeekLow", "dividendRate")) or not any(
+        _usable_market_value(info.get(key)) for key in ("regularMarketPrice", "currentPrice"))
     try:
         market_history = ticker.history(
             period="1y",
             auto_adjust=False,
             actions=True,
             raise_errors=False,
-        )
+        ) if history_needed else pd.DataFrame()
     except Exception:
         market_history = pd.DataFrame()
     if isinstance(market_history, pd.DataFrame) and not market_history.empty:
@@ -392,7 +404,7 @@ def _enrich_info_with_live_market_fallbacks(ticker: Any, raw_info: Any) -> Dict[
             recovered_fields.append("dividendRate")
 
     try:
-        metadata = ticker.get_history_metadata() or {}
+        metadata = (ticker.get_history_metadata() or {}) if any(not _usable_market_value(info.get(key)) for key in ("regularMarketTime", "currency", "exchange", "quoteType")) else {}
     except Exception:
         metadata = {}
     metadata_field_map = {
@@ -424,16 +436,40 @@ def _enrich_info_with_live_market_fallbacks(ticker: Any, raw_info: Any) -> Dict[
     return info
 
 def fetch_stock_data(ticker_symbol: str, force_refresh: bool = False) -> Dict[str, Any]:
+    """Share concurrent loads, including startup warming and the first visitor."""
+    symbol = ticker_symbol.strip().upper() or "AAPL"
+    key = (symbol, force_refresh)
+    with _FETCH_LOCK:
+        future = _INFLIGHT.get(key)
+        owner = future is None
+        if owner:
+            future = _INFLIGHT[key] = Future()
+    if not owner:
+        return future.result()
+    try:
+        result = _fetch_stock_data(symbol, force_refresh)
+        future.set_result(result)
+        return result
+    except BaseException as error:
+        future.set_exception(error)
+        raise
+    finally:
+        with _FETCH_LOCK:
+            _INFLIGHT.pop(key, None)
+
+
+def _fetch_stock_data(ticker_symbol: str, force_refresh: bool = False) -> Dict[str, Any]:
     symbol = ticker_symbol.strip().upper()
     if not symbol:
         symbol = "AAPL"
 
     now = time.time()
-    if not force_refresh and symbol in _CACHE:
-        cached_entry = _CACHE[symbol]
-        ttl = ERROR_CACHE_TTL if cached_entry["data"].get("error") else CACHE_TTL
-        if now - cached_entry["timestamp"] < ttl:
-            return cached_entry["data"]
+    with _FETCH_LOCK:
+        if not force_refresh and symbol in _CACHE:
+            cached_entry = _CACHE[symbol]
+            ttl = ERROR_CACHE_TTL if cached_entry["data"].get("error") else CACHE_TTL
+            if now - cached_entry["timestamp"] < ttl:
+                return cached_entry["data"]
 
     result = None
     fetch_error = None
@@ -453,14 +489,16 @@ def fetch_stock_data(ticker_symbol: str, force_refresh: bool = False) -> Dict[st
                 f"{symbol} is classified as {quote_type}, not a public-company equity. "
                 "StatementIQ analyzes operating-company financial statements rather than funds, indexes, currencies, or derivatives."
             )
-        income_stmt = _ticker_frame(ticker, "income_stmt", "financials")
-        balance_sheet = _ticker_frame(ticker, "balance_sheet", "bs")
-        cash_flow = _ticker_frame(ticker, "cashflow", "cash_flow")
-        quarterly_income_stmt = _ticker_frame(ticker, "quarterly_income_stmt", "quarterly_financials")
-        quarterly_balance_sheet = _ticker_frame(ticker, "quarterly_balance_sheet", "quarterly_bs")
-        quarterly_cash_flow = _ticker_frame(ticker, "quarterly_cashflow", "quarterly_cash_flow")
-        ttm_income_stmt = _ticker_frame(ticker, "ttm_income_stmt")
-        ttm_cash_flow = _ticker_frame(ticker, "ttm_cashflow")
+        # Independent statement requests share a bounded pool across companies.
+        # Separate ticker instances avoid concurrent mutation of provider caches.
+        aliases = [("income_stmt", "financials"), ("balance_sheet", "bs"), ("cashflow", "cash_flow"),
+                   ("quarterly_income_stmt", "quarterly_financials"), ("quarterly_balance_sheet", "quarterly_bs"),
+                   ("quarterly_cashflow", "quarterly_cash_flow"), ("ttm_income_stmt",), ("ttm_cashflow",)]
+        def read_statement(names):
+            return _ticker_frame(yf.Ticker(symbol), *names)
+        futures = [_STATEMENT_POOL.submit(read_statement, names) for names in aliases]
+        (income_stmt, balance_sheet, cash_flow, quarterly_income_stmt, quarterly_balance_sheet,
+         quarterly_cash_flow, ttm_income_stmt, ttm_cash_flow) = [future.result() for future in futures]
         # Price history is not used by the statement analysis. Avoid an extra
         # provider request so searches for arbitrary companies return faster.
         history = pd.DataFrame()
@@ -492,8 +530,11 @@ def fetch_stock_data(ticker_symbol: str, force_refresh: bool = False) -> Dict[st
 
         sec_filing = get_latest_sec_filing(
             symbol,
-            cik_hint=_provider_cik(ticker) or KNOWN_SEC_CIKS.get(symbol),
-            force_refresh=force_refresh,
+            cik_hint=KNOWN_SEC_CIKS.get(symbol) or _provider_cik(ticker),
+            # This branch only runs after the stock cache misses. Check SEC
+            # submissions now so nested five-minute caches cannot hide a new
+            # filing for a second analysis-cache window.
+            force_refresh=True,
         )
         sec_profile = _sec_sic_profile(sec_filing)
         if sec_profile:
@@ -711,9 +752,10 @@ def fetch_stock_data(ticker_symbol: str, force_refresh: bool = False) -> Dict[st
             "error": f"Live financial data for {symbol} is unavailable. {fetch_error or ''} No substitute values were used.".strip()
         }
 
-    _CACHE[symbol] = {"timestamp": now, "data": result}
-    if len(_CACHE) > MAX_CACHE_ENTRIES:
-        oldest_symbol = min(_CACHE, key=lambda key: _CACHE[key]["timestamp"])
-        if oldest_symbol != symbol:
-            _CACHE.pop(oldest_symbol, None)
+    with _FETCH_LOCK:
+        _CACHE[symbol] = {"timestamp": now, "data": result}
+        if len(_CACHE) > MAX_CACHE_ENTRIES:
+            oldest_symbol = min(_CACHE, key=lambda key: _CACHE[key]["timestamp"])
+            if oldest_symbol != symbol:
+                _CACHE.pop(oldest_symbol, None)
     return result

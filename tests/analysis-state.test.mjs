@@ -13,6 +13,7 @@ function createFrontend() {
             hidden: false, disabled: false, textContent: "", innerText: "", style: {},
             classList: { add() {}, remove() {}, toggle() {} },
             setAttribute() {}, getAttribute() {},
+            listeners: {}, addEventListener(type,fn) {this.listeners[type]=fn;},
         });
         return nodes.get(id);
     }
@@ -22,13 +23,14 @@ function createFrontend() {
             addEventListener() {}, querySelectorAll: () => [], getElementById: element,
         },
         window: {
+            location: {search:''},
             setTimeout: () => 1, clearTimeout() {}, setInterval: () => 1, clearInterval() {},
             requestAnimationFrame: fn => fn(), dispatchEvent() {},
         },
-        console: { error() {} }, Date, AbortController, DOMException, Event,
+        console: { error() {} }, Date, AbortController, DOMException, Event, URLSearchParams,
     });
     vm.runInContext(`${client}\n${app}\n globalThis.frontend = {
-        loadTickerData, getData: () => currentData, getSymbol: () => currentSymbol,
+        loadTickerData, loadFilingTextReview, setupEventListeners, getData: () => currentData, getSymbol: () => currentSymbol,
         client: StatementIQRequests,
     };`, context);
     // Isolate the request/state logic from Plotly and detailed financial rendering.
@@ -49,6 +51,16 @@ function data(symbol) {
     return { symbol, info: { price: 123.45 }, metrics: {}, data_quality: { fetched_at: "2026-11-02T16:00:00Z" } };
 }
 
+test('normal searches reuse fresh data and the explicit refresh button bypasses it',async()=>{
+    const h=createFrontend();h.frontend.setupEventListeners();
+    h.element('tickerSearchInput').value='EXAMPLE';h.element('searchBtn').listeners.click();
+    assert.match(h.pending[0].url,/refresh=false/);
+    h.pending[0].resolve(data('EXAMPLE'));await h.frontend.loadTickerData('EXAMPLE');
+    h.element('refreshDataBtn').listeners.click();
+    assert.match(h.pending[1].url,/refresh=true/);
+    h.pending[1].resolve(data('EXAMPLE'));await h.frontend.loadTickerData('EXAMPLE');
+});
+
 test("first-load failure hides the entire financial dashboard and leaves a retryable error", async () => {
     const h = createFrontend();
     const request = h.frontend.loadTickerData("AAPL");
@@ -61,6 +73,18 @@ test("first-load failure hides the entire financial dashboard and leaves a retry
     assert.equal(h.element("analysisEmptyState").hidden, false);
     assert.match(h.element("analysisEmptyMessage").textContent, /temporarily unavailable/);
     assert.equal(h.element("searchBtn").disabled, false);
+});
+
+test('annual text review is separate and an old company response cannot overwrite a new analysis',async()=>{
+    const h=createFrontend(), first=h.frontend.loadTickerData('AAPL');
+    const apple={...data('AAPL'),filing_disclosure_review:{status:'deferred'},data_quality:{sec_filing:{key_filings:{annual:{filing_url:'https://www.sec.gov/apple.htm'}}}}};
+    h.pending[0].resolve(apple);await first;
+    const review=h.frontend.loadFilingTextReview();
+    assert.match(h.pending[1].url,/filing-review/);
+    const next=h.frontend.loadTickerData('MSFT');h.pending[2].resolve(data('MSFT'));await next;
+    h.pending[1].resolve({symbol:'AAPL',filing_url:'https://www.sec.gov/apple.htm',review:{status:'analyzed'}});await review;
+    assert.equal(h.frontend.getData().symbol,'MSFT');
+    assert.equal(h.frontend.getData().filing_disclosure_review,undefined);
 });
 
 test("repeated submissions of the same running ticker share one request", async () => {

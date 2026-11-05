@@ -11,6 +11,12 @@ on:
       - 'scripts/backup_public_archive.py'
       - 'scripts/monitor_public_service.py'
       - 'src/research-archive.js'
+      - 'src/index.js'
+      - 'src/analysis-cache.js'
+      - 'main.py'
+      - 'data_fetcher.py'
+      - 'model_export.py'
+      - 'static/**'
 permissions:
   contents: read
 concurrency:

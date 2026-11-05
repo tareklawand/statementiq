@@ -328,7 +328,7 @@
         .val-positive { color: var(--accent-green); }
         .val-negative { color: var(--accent-red); }
     </style>
-    <link rel="stylesheet" href="/static/redesign.css?v=model_v34">
+    <link rel="stylesheet" href="/static/redesign.css?v=model_v35">
 </head>
 <body>
     <section class="intro-page" id="introPage" aria-labelledby="introTitle">
@@ -496,6 +496,7 @@
 
                 <!-- Export Report Action -->
                 <div class="hero-actions">
+                    <button id="refreshDataBtn" class="research-button" type="button" title="Check sources now, bypassing the five-minute cache">Refresh data</button>
                     <button id="downloadPdfBtn" class="btn-export-pdf" disabled>
                         <i data-lucide="file-down"></i> Download research report
                     </button>
@@ -594,18 +595,20 @@
             <div class="tab-content-container">
                 <div class="tab-pane" id="tab5">
                     <div class="research-heading"><div><span class="research-eyebrow">FINANCIAL MODEL</span><h2>Forecast and DCF valuation</h2></div><button class="research-button" id="loadModelBaselineBtn">Load reported baseline</button></div>
-                    <p class="research-note">Build a five-year operating-company forecast from aligned annual or trailing-twelve-month figures. You choose the assumptions. Forecasts are separate from reported results and the financial-health score.</p>
+                    <p class="research-note model-intro">Five forecast years, linked statements and a discounted cash flow valuation. Reported figures and your assumptions stay separate.</p>
                     <p id="modelStatus" role="status">Load the reported baseline to start.</p><div id="modelBaseline"></div>
-                    <form id="forecastForm" hidden>
-                        <section class="research-section"><div class="research-section-heading"><div><h3>Forecast assumptions</h3><p>Rates are percentages, working-capital days use a 365-day convention, and cash amounts are in millions of the reporting currency.</p></div><label>Forecast year <select id="modelYear"><option value="0">Year 1</option><option value="1">Year 2</option><option value="2">Year 3</option><option value="3">Year 4</option><option value="4">Year 5</option></select></label></div>
+                    <form id="forecastForm" class="model-template" hidden>
+                        <div class="model-editor-grid">
+                        <section class="research-section model-operating"><div class="research-section-heading"><div><span class="research-eyebrow">OPERATING MODEL</span><h3>Forecast assumptions</h3><p>Percentages, 365-day working capital and cash amounts in reporting-currency millions.</p></div><label class="model-year-control">Editing <select id="modelYear"><option value="0">Year 1</option><option value="1">Year 2</option><option value="2">Year 3</option><option value="3">Year 4</option><option value="4">Year 5</option></select></label></div>
                             <div class="model-actions"><button class="research-button" type="button" id="copyHistoricalBtn">Copy available historical ratios</button><button class="research-button" type="button" id="zeroFinancingBtn">Assume no financing or distributions</button><button class="research-button" type="button" id="copyModelYearBtn">Apply this year's values to all five years</button></div>
-                            <p class="research-note">Copying history is a continuation assumption, not a prediction. Missing historical inputs stay blank. Financing is zero only when you choose that assumption.</p>
-                            <div id="modelDriverFields" class="model-fields"></div>
+                            <p class="research-note">Each year has its own inputs. Copying history assumes continuation; missing reported inputs stay blank.</p>
+                            <div id="modelDriverFields"></div>
                         </section>
-                        <section class="research-section"><h3>DCF assumptions</h3><p>WACC is the discount rate for all capital providers. Terminal ROIC determines the reinvestment needed to sustain terminal growth.</p><div id="modelValuationFields" class="model-fields"></div><button class="research-button" type="button" id="useReportedCashBtn">Use all reported cash in the equity bridge</button>
-                        <p class="research-note">Cash retained for operations can be excluded. Enter other nonoperating assets and claims explicitly, including zero where appropriate. Reported borrowing balances are used in the equity bridge.</p>
+                        <section class="research-section model-valuation"><span class="research-eyebrow">VALUATION</span><h3>DCF assumptions</h3><p>Set the discount rate, terminal economics and equity bridge.</p><div id="modelValuationFields"></div><button class="research-button" type="button" id="useReportedCashBtn">Use all reported cash in the equity bridge</button>
+                        <p class="research-note">Exclude cash needed for operations. Enter other assets and claims explicitly, including zero when appropriate. The bridge subtracts reported borrowings.</p>
                         </section>
-                        <section class="research-section"><label for="modelRationale">Assumptions rationale</label><textarea id="modelRationale" maxlength="4000" rows="3" required placeholder="Explain your forecast, discount rate and equity-bridge choices."></textarea>
+                        </div>
+                        <section class="research-section model-conclusion"><label for="modelRationale">Assumptions rationale</label><textarea id="modelRationale" maxlength="4000" rows="3" required placeholder="Explain your forecast, discount rate and equity-bridge choices."></textarea>
                         <div class="model-actions"><button class="research-button" type="submit" id="runForecastBtn">Calculate forecast & DCF</button><button class="research-button" type="button" id="downloadModelExcelBtn" disabled>Download Excel model</button><button class="research-button" type="button" id="downloadModelJsonBtn" disabled>Download model JSON</button></div>
                         <p class="research-note">No account is needed. Model inputs are processed by the analysis service for calculation and export, and are not saved in the public filing archive. Download your work before closing the page.</p>
                         </section>
@@ -836,8 +839,8 @@
 
     <!-- Script Entry -->
     <script src="/static/request-client.js?v=sec_auto_v30"></script>
-    <script src="/static/app.js?v=model_v34"></script>
-    <script src="/static/research-workspace.js?v=model_v34"></script>
-    <script src="/static/forecast-workspace.js?v=model_v34"></script>
+    <script src="/static/app.js?v=model_v35"></script>
+    <script src="/static/research-workspace.js?v=model_v35"></script>
+    <script src="/static/forecast-workspace.js?v=model_v35"></script>
 </body>
 </html>

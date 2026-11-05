@@ -53,7 +53,7 @@ def export_workbook(result):
         for row in sheet.iter_rows(min_row=1,max_row=85,min_col=3,max_col=9):
             for cell in row:cell.font=Font(name='Arial',size=10,color=DARK);cell.alignment=Alignment(vertical='center')
         for row in range(1,86):sheet.row_dimensions[row].height=21
-        text(sheet['C2'],f"{base['symbol']} {name}");sheet['C2'].font=Font(name='Arial',size=15,bold=True,color=DARK)
+        text(sheet['C2'],f"{base['symbol']} {name}");sheet['C2'].font=Font(name='Arial',size=14,bold=True,color=DARK)
         sheet['C3']=f"{base['currency']} millions unless otherwise indicated"
         sheet['C3'].font=Font(name='Arial',size=10,italic=True,color=MUTED)
         sheet.print_options.horizontalCentered=True
@@ -186,9 +186,35 @@ def export_workbook(result):
     for row,(key,src) in enumerate((('Revenue',9),('Operating income',13),('Net income',17),('Operating cash flow',28),('Ending cash / funding deficit',32),('Borrowings',33),('Assets',37),('Liabilities',38),('Equity',36),('Unlevered free cash flow',41)),18):
         valuation.cell(row,3,key)
         for col in 'DEFGHI':formula(valuation,f'{col}{row}',f"'Forecast'!{col}{src}")
-    valuation['C30']='n.a. means missing/invalid inputs, a funding gap, or no positive terminal cash flow.'
-    valuation['C31']='The Checks sheet is independent and does not feed valuation calculations.'
-    valuation.print_area='C2:I31'
+    text(valuation['C2'],f"{base['symbol']} DCF valuation")
+    text(valuation['C4'],base['company_name'])
+    for cell in valuation['C2:I2'][0]:cell.border=Border(bottom=Side(style='thin',color=OLIVE))
+    for row in (8,9,10,11):
+        valuation[f'D{row}'].font=Font(name='Arial',size=14 if row==10 else 10,bold=True,color=OLIVE if row==10 else DARK)
+        valuation[f'C{row}'].font=Font(name='Arial',size=10,bold=row==10,color=DARK)
+    for col in 'FGHI':
+        valuation[f'{col}6'].fill=PatternFill('solid',fgColor=DARK)
+        valuation[f'{col}6'].font=Font(name='Arial',size=10,bold=True,color='FFFFFF')
+    valuation['F6']='Enterprise to equity'
+    bridge=[('PV of forecast cash flows',"IF(COUNT('Forecast'!E43:I43)=5,SUM('Forecast'!E43:I43),\"n.a.\")"),
+        ('PV of terminal value',"'Forecast'!D56"),('Enterprise value',"'Forecast'!D57"),
+        ('Cash included',"'Assumptions'!D33"),('Other nonoperating assets',"'Assumptions'!D34"),
+        ('Less: borrowings',"'Forecast'!D33"),('Less: other claims',"'Assumptions'!D35"),('Equity value',"'Forecast'!D58")]
+    for row,(label,expression) in enumerate(bridge,7):
+        valuation[f'F{row}']=label;formula(valuation,f'I{row}',expression)
+        if row in (9,14):
+            for col in 'FGHI':valuation[f'{col}{row}'].border=Border(top=Side(style='thin',color='B9BDAF'))
+            valuation[f'F{row}'].font=valuation[f'I{row}'].font=Font(name='Arial',size=10,bold=True,color=DARK)
+    valuation['C29']='Valuation assumptions'
+    for cell in valuation['C29:I29'][0]:cell.fill=PatternFill('solid',fgColor=CREAM)
+    for label,address,source in [('WACC','C30',"'Assumptions'!D30"),('Terminal ROIC','C31',"'Assumptions'!D32"),
+                                 ('Terminal growth','F30',"'Assumptions'!D31"),('Terminal reinvestment','F31',"'Forecast'!D53")]:
+        valuation[address]=label
+        target=('D' if address.startswith('C') else 'I')+address[1:]
+        formula(valuation,target,source);valuation[target].number_format=RATE
+    valuation['C33']='Valuation uses reported point-in-time common shares. Forecast years follow annual anniversaries of the baseline date.'
+    valuation['C35']='n.a.: missing or invalid inputs, an unfunded cash position, or no positive terminal cash flow.'
+    valuation.print_area='C2:I35'
     for row,label,ref in ((9,'Cash rollforward difference',47),(10,'Balance-sheet difference',46),(11,'Unfunded cash position',45)):
         checks.cell(row,3,label)
         for col in 'EFGHI':formula(checks,f'{col}{row}',f"'Forecast'!{col}{ref}");checks[f'{col}{row}'].number_format=DIFFERENCE
@@ -206,5 +232,31 @@ def export_workbook(result):
         'Methodology: '+result['methodology_sources'][0], 'Terminal reinvestment: '+result['methodology_sources'][1]]
     for row,note in enumerate(notes,5):text(readme.cell(row,3),note);readme.cell(row,3).alignment=Alignment(wrap_text=True,vertical='top');readme.row_dimensions[row].height=65 if len(note)>250 else 42
     readme.print_area='C2:C15'
+    # Template styling leaves all reported values and model formulas intact.
+    for sheet in sheets.values():
+        sheet.sheet_view.zoomScale=90
+        for row in sheet:
+            for cell in row:
+                if cell.row not in (6,7) and cell.value is not None and (isinstance(cell.value,(int,float,date)) or cell.data_type=='f' or cell.value=='n.a.'):
+                    cell.alignment=Alignment(horizontal='right',vertical='center',wrap_text=cell.alignment.wrap_text)
+        if sheet.title not in ('Valuation','ReadMe'):sheet.print_title_rows='7:7'
+    for row,label in [(18,'Noncash charges and reinvestment'),(22,'Working capital'),(27,'Cash flow'),(31,'Balance sheet'),(39,'Unlevered cash flow'),(44,'Reconciliation')]:
+        forecast.cell(row,3,label)
+        for cell in forecast[f'C{row}:I{row}'][0]:
+            cell.fill=PatternFill('solid',fgColor=CREAM);cell.font=Font(name='Arial',size=10,bold=True,color=DARK)
+    for sheet,rows in [(forecast,(13,17,28,32,37,38,41,43)),(valuation,(19,21,22,27))]:
+        for row in rows:
+            for cell in sheet[f'C{row}:I{row}'][0]:
+                cell.border=Border(top=Side(style='hair',color='B9BDAF'))
+                existing=copy(cell.font);existing.bold=True;cell.font=existing
+    for row in range(8,19):
+        for cell in ass[f'C{row}:I{row}'][0]:
+            existing=copy(cell.font);existing.italic=True;cell.font=existing
+    for sheet,row in [(valuation,17),(forecast,8),(ass,6)]:
+        for col in 'DEFGHI':
+            sheet[f'{col}{row}']='Reported' if col=='D' else 'Forecast'
+            sheet[f'{col}{row}'].font=Font(name='Arial',size=10,italic=True,color=MUTED)
+            sheet[f'{col}{row}'].alignment=Alignment(horizontal='center',vertical='center')
+    readme.sheet_properties.tabColor='8C9383'
     wb.calculation.fullCalcOnLoad=True;wb.calculation.forceFullCalc=True;wb.calculation.calcMode='auto'
     output=BytesIO();wb.save(output);output.seek(0);return output

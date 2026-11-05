@@ -283,7 +283,7 @@ function setAnalysisAvailability(state, symbol, detail = "") {
     document.querySelectorAll("[data-retry-analysis]").forEach(button => {
         button.hidden = loading || state === "ready";
     });
-    ["downloadPdfBtn", "exportCsvBtn"].forEach(id => {
+    ["downloadPdfBtn", "exportCsvBtn", "refreshDataBtn"].forEach(id => {
         const button = document.getElementById(id);
         if (button) button.disabled = loading || !hasData;
     });
@@ -310,6 +310,7 @@ if (document.readyState === "loading") {
 
 // Event Listeners Setup (Ultra-Defensive)
 function setupEventListeners() {
+    document.getElementById('refreshDataBtn')?.addEventListener('click',()=>loadTickerData(currentSymbol,true));
     document.querySelectorAll("[data-retry-analysis]").forEach(button => {
         button.addEventListener("click", () => loadTickerData(requestedSymbol, requestedRefresh));
     });
@@ -325,7 +326,7 @@ function setupEventListeners() {
             const inputEl = document.getElementById("tickerSearchInput");
             const inputVal = inputEl ? inputEl.value.trim() : "";
             if (inputVal) {
-                loadTickerData(inputVal, true);
+                loadTickerData(inputVal, false);
             }
         });
     }
@@ -337,7 +338,7 @@ function setupEventListeners() {
             if (e.key === "Enter") {
                 const inputVal = e.target.value.trim();
                 if (inputVal) {
-                    loadTickerData(inputVal, true);
+                    loadTickerData(inputVal, false);
                 }
             }
         });
@@ -354,6 +355,7 @@ function setupEventListeners() {
             const pane = document.getElementById(targetTab);
             if (pane) pane.classList.add("active");
             if (targetTab === 'tab5' && typeof ForecastWorkspace !== 'undefined') ForecastWorkspace.open();
+            if (targetTab === 'tab3') void loadFilingTextReview();
 
             window.dispatchEvent(new Event('resize'));
         });
@@ -422,7 +424,7 @@ async function fetchPresets() {
                 pill.addEventListener("click", () => {
                     const searchInput = document.getElementById("tickerSearchInput");
                     if (searchInput) searchInput.value = symbol;
-                    loadTickerData(symbol, true);
+                    loadTickerData(symbol, false);
                 });
                 ribbon.appendChild(pill);
             });
@@ -496,6 +498,7 @@ async function performTickerLoad(request, forceRefresh) {
         try { renderStatementAnalysis(); } catch(e){ console.error("Statement analysis render error:", e); }
         try { renderSectorAnalysis(); } catch(e){ console.error("Sector analysis render error:", e); }
         try { renderFilingReview(); } catch(e){ console.error("Filing review render error:", e); }
+        if (document.getElementById('tab3')?.classList.contains?.('active')) void loadFilingTextReview();
         try { renderFinancialStatementTable(); } catch(e){ console.error("Statement Table render error:", e); }
         try { if (typeof ResearchWorkspace !== "undefined") ResearchWorkspace.setData(currentData); } catch(e){ console.error("Research workspace render error:", e); }
         try { if (typeof ForecastWorkspace !== "undefined") ForecastWorkspace.setCompany(currentData, document.getElementById('tab5')?.classList.contains('active')); } catch(e){ console.error("Forecast workspace render error:", e); }
@@ -571,7 +574,8 @@ function renderHeroBanner() {
             basisText.push("SEC value check: unavailable or not applicable");
         }
         if (quality.verification_scope) basisText.push(quality.verification_scope);
-        if (secImport.status === "imported") basisText.push("Automatic filing checks on analysis · cache up to 5 minutes");
+        const retrievedAt = new Date(quality.fetched_at || '');
+        basisText.push(Number.isNaN(retrievedAt.getTime()) ? 'Analysis cache up to 5 minutes' : `Data retrieved ${retrievedAt.toLocaleString()} · analysis cache up to 5 minutes`);
         if (calculationCoverage.core_input_count) {
             basisText.push(
                 `Calculation inputs: ${calculationCoverage.available_core_input_count || 0}/${calculationCoverage.core_input_count} core inputs available`
@@ -1496,6 +1500,28 @@ function renderSectorAnalysis() {
         ${missing.length ? `<div class="source-gap-note"><strong>Review directly in the issuer filing</strong><p>${missing.map(item => escapeHtml(item)).join(" · ")}</p></div>` : ""}
         <p class="analysis-method-note">${escapeHtml(analysis.coverage_note || "")}</p>
     `;
+}
+
+let filingTextRequest = null;
+async function loadFilingTextReview() {
+    if (!currentData || currentData.filing_disclosure_review?.status !== 'deferred') return;
+    const analysis = currentData;
+    filingTextRequest?.abort();
+    const controller = filingTextRequest = new AbortController();
+    analysis.filing_disclosure_review = {status:'loading', reason:'Reading the annual report text. Financial figures are already available.'};
+    renderFilingReview();
+    try {
+        const payload = await StatementIQRequests.requestJson(`/api/research/filing-review?ticker=${encodeURIComponent(analysis.symbol)}`,
+            {signal:controller.signal,maxAttempts:2,maxElapsedMs:60000,attemptTimeoutMs:30000});
+        if (currentData !== analysis || controller.signal.aborted) return;
+        const expected = analysis.data_quality?.sec_filing?.key_filings?.annual?.filing_url;
+        analysis.filing_disclosure_review = payload.symbol === analysis.symbol && payload.filing_url === expected
+            ? payload.review : {status:'unavailable',reason:'The annual filing changed. Run the company analysis again to review the latest report.'};
+    } catch (error) {
+        if (currentData !== analysis || controller.signal.aborted) return;
+        analysis.filing_disclosure_review = {status:'unavailable',reason:'The annual report text review is temporarily unavailable. The reported financial figures have not been changed.'};
+    }
+    if (currentData === analysis) renderFilingReview();
 }
 
 function renderFilingReview() {

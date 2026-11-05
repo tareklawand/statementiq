@@ -27,6 +27,7 @@
     "head_sampling_rate": 1
   },
   "upload_source_maps": true,
+  "version_metadata": {"binding": "CF_VERSION_METADATA"},
   "d1_databases": [{
     "binding": "RESEARCH_DB",
     "database_name": "statementiq-research",
