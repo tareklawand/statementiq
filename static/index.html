@@ -69,11 +69,19 @@
     }
     </script>
     
+    <!-- Begin a direct workspace visit before external presentation assets. -->
+    <script src="/static/request-client.js?v=cold_v36"></script>
+    <script>
+        if (window.location.hash === "#workspace") {
+            void StatementIQRequests.beginVisit();
+        }
+    </script>
+
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter+Tight:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    
+
     <!-- Plotly.js CDN -->
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 
@@ -838,8 +846,7 @@
     </div>
 
     <!-- Script Entry -->
-    <script src="/static/request-client.js?v=sec_auto_v30"></script>
-    <script src="/static/app.js?v=model_v35"></script>
+    <script src="/static/app.js?v=cold_v36"></script>
     <script src="/static/research-workspace.js?v=model_v35"></script>
     <script src="/static/forecast-workspace.js?v=model_v35"></script>
 </body>

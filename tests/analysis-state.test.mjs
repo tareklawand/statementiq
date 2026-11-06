@@ -30,7 +30,7 @@ function createFrontend() {
         console: { error() {} }, Date, AbortController, DOMException, Event, URLSearchParams,
     });
     vm.runInContext(`${client}\n${app}\n globalThis.frontend = {
-        loadTickerData, loadFilingTextReview, setupEventListeners, getData: () => currentData, getSymbol: () => currentSymbol,
+        loadTickerData, loadFilingTextReview, setupEventListeners, initializeWorkspace, getData: () => currentData, getSymbol: () => currentSymbol,
         client: StatementIQRequests,
     };`, context);
     // Isolate the request/state logic from Plotly and detailed financial rendering.
@@ -42,7 +42,7 @@ function createFrontend() {
     const pending = [];
     context.frontend.client.requestJson = (url, options) => new Promise((resolve, reject) => {
         pending.push({ url, options, resolve, reject });
-        options.signal.addEventListener("abort", () => reject(new DOMException("Cancelled", "AbortError")), { once: true });
+        options.signal?.addEventListener("abort", () => reject(new DOMException("Cancelled", "AbortError")), { once: true });
     });
     return { frontend: context.frontend, element, pending };
 }
@@ -50,6 +50,35 @@ function createFrontend() {
 function data(symbol) {
     return { symbol, info: { price: 123.45 }, metrics: {}, data_quality: { fetched_at: "2026-11-02T16:00:00Z" } };
 }
+
+test("opening the workspace starts waking immediately without delaying the automatic Apple request", async () => {
+    const h = createFrontend();
+    let startupRequests = 0;
+    h.frontend.client.beginVisit = () => { startupRequests += 1; return new Promise(() => {}); };
+    h.frontend.initializeWorkspace();
+    h.frontend.initializeWorkspace();
+    assert.equal(startupRequests, 1);
+    assert.equal(h.pending.length, 2);
+    assert.equal(h.pending[0].url, "/api/presets");
+    assert.match(h.pending[1].url, /ticker=AAPL&refresh=false/);
+    assert.equal(h.pending[0].options.startupRecovery, true);
+    assert.equal(h.pending[1].options.startupRecovery, true);
+    h.pending[0].resolve({ presets: {} });
+    h.pending[1].resolve(data("AAPL"));
+    await h.frontend.loadTickerData("AAPL");
+    assert.equal(h.frontend.getSymbol(), "AAPL");
+});
+
+test("a direct workspace visit can start the engine before external chart downloads", () => {
+    const html = readFileSync(new URL("../static/index.html", import.meta.url), "utf8");
+    const requestScript = html.indexOf('src="/static/request-client.js?');
+    const earlyVisit = html.indexOf('void StatementIQRequests.beginVisit()');
+    const charts = html.indexOf('src="https://cdn.plot.ly/');
+    assert.ok(requestScript >= 0 && requestScript < earlyVisit && earlyVisit < charts);
+    assert.ok(earlyVisit < html.indexOf('href="https://fonts.googleapis.com/css2'));
+    assert.equal((html.match(/src="\/static\/request-client\.js\?/g) || []).length, 1);
+    assert.match(html.slice(requestScript, charts), /window.location.hash === "#workspace"/);
+});
 
 test('normal searches reuse fresh data and the explicit refresh button bypasses it',async()=>{
     const h=createFrontend();h.frontend.setupEventListeners();

@@ -89,6 +89,7 @@ function animateThemeChange(button) {
 function initializeWorkspace() {
     if (workspaceInitialized) return;
     workspaceInitialized = true;
+    void StatementIQRequests.beginVisit();
     try { fetchPresets(); } catch(e){}
     loadTickerData("AAPL", false);
 }
@@ -409,6 +410,7 @@ function setupEventListeners() {
 async function fetchPresets() {
     try {
         const data = await StatementIQRequests.requestJson("/api/presets", {
+            startupRecovery: true,
             validate: payload => payload.presets && typeof payload.presets === "object",
         });
         const ribbon = document.getElementById("tickerRibbon");
@@ -463,6 +465,7 @@ async function performTickerLoad(request, forceRefresh) {
         const url = `/api/analyze?ticker=${encodeURIComponent(targetSymbol)}&refresh=${forceRefresh ? "true" : "false"}`;
         const data = await StatementIQRequests.requestJson(url, {
             signal: controller.signal,
+            startupRecovery: true,
             validate: payload => payload.symbol === targetSymbol && payload.info && payload.metrics
                 && payload.statements && payload.charts && payload.ai_insights,
             onRetry: ({ delayMs, status }) => {

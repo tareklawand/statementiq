@@ -2,6 +2,7 @@
 const StatementIQRequests = (() => {
     const transientStatuses = new Set([408, 425, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524]);
     let startupPromise = null;
+    let visitStartupPromise = null;
 
     class RequestError extends Error {
         constructor(message, { status = 0, retryable = false, retryAfterMs = 0 } = {}) {
@@ -44,7 +45,8 @@ const StatementIQRequests = (() => {
         signal,
         onRetry = () => {},
         validate = () => true,
-        maxAttempts = 8,
+        startupRecovery = false,
+        maxAttempts = startupRecovery ? 36 : 8,
         maxElapsedMs = 180000,
         attemptTimeoutMs = 75000,
     } = {}) {
@@ -106,7 +108,13 @@ const StatementIQRequests = (() => {
 
             if (attempt === maxAttempts) break;
             const backoff = Math.min(30000, 2000 * (2 ** (attempt - 1)));
-            const delay = Math.max(lastError.retryAfterMs, Math.round(backoff * (0.9 + Math.random() * 0.2)));
+            const jitteredBackoff = Math.round(backoff * (0.9 + Math.random() * 0.2));
+            // During a visitor's startup, check again promptly rather than
+            // sleeping for 30 seconds after the origin has become ready. Rate
+            // limits and explicit provider cooldowns retain their full delay.
+            const retryGap = startupRecovery && lastError.status !== 429
+                ? Math.min(5000, jitteredBackoff) : jitteredBackoff;
+            const delay = Math.max(lastError.retryAfterMs, retryGap);
             // Respect the server's cooldown instead of retrying early or waiting forever.
             if (Date.now() + delay >= deadline) break;
             onRetry({ attempt, delayMs: delay, status: lastError.status });
@@ -144,5 +152,12 @@ const StatementIQRequests = (() => {
         return startupPromise;
     }
 
-    return { requestJson, wakeService, RequestError };
+    function beginVisit() {
+        // The early page script and workspace share one startup request. It
+        // neither blocks rendering nor runs periodically to keep a host awake.
+        if (!visitStartupPromise) visitStartupPromise = wakeService();
+        return visitStartupPromise;
+    }
+
+    return { requestJson, wakeService, beginVisit, RequestError };
 })();

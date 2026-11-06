@@ -110,6 +110,50 @@ test("persistent failures stop after the allowed attempts", async () => {
     assert.equal(h.timers.size, 0);
 });
 
+test("startup recovery stays alive through a cold start and detects readiness within five seconds", async () => {
+    const h = harness(() => h.calls.at(-1).at - h.calls[0].at < 70000
+        ? new Response("Starting", { status: 503 }) : Response.json({ symbol: "AAPL" }));
+    const result = await h.run(h.client.requestJson("/api/analyze?ticker=AAPL", { startupRecovery: true }));
+    assert.equal(result.symbol, "AAPL");
+    const elapsed = h.calls.at(-1).at - h.calls[0].at;
+    assert.ok(elapsed >= 70000 && elapsed <= 75000, `Readiness observed after ${elapsed}ms`);
+    assert.ok(h.calls.length > 8, "Startup retries must not exhaust the old eight-attempt limit");
+    for (let i = 1; i < h.calls.length; i += 1) {
+        assert.ok(h.calls[i].at - h.calls[i - 1].at <= 5000);
+    }
+    assert.equal(h.timers.size, 0);
+});
+
+test("startup recovery still respects explicit cooldowns and rate-limit backoff", async () => {
+    const h = harness(n => n === 1 ? new Response("Starting", {
+        status: 503, headers: { "Retry-After": "20" },
+    }) : n <= 5 ? new Response("Rate limited", { status: 429 }) : Response.json({ ok: true }));
+    await h.run(h.client.requestJson("/api/analyze", { startupRecovery: true }));
+    assert.ok(h.calls[1].at - h.calls[0].at >= 20000);
+    assert.ok(h.calls[5].at - h.calls[4].at >= 27000);
+    assert.equal(h.timers.size, 0);
+});
+
+test("persistent startup failures remain bounded by the recovery deadline", async () => {
+    const h = harness(() => new Response("Starting", { status: 503 }));
+    await assert.rejects(h.run(h.client.requestJson("/api/analyze", { startupRecovery: true })), /temporarily unavailable/);
+    assert.ok(h.calls.length <= 36);
+    assert.ok(h.calls.at(-1).at - h.calls[0].at < 180000);
+    assert.equal(h.timers.size, 0);
+});
+
+test("early page startup and workspace initialization share one visitor request", async () => {
+    const h = harness((n, options, url) => url === "/api/startup-config"
+        ? Response.json({ startup_url: "https://backend.example.com/health" }) : new Response(null));
+    const first = h.client.beginVisit();
+    assert.equal(h.client.beginVisit(), first);
+    await h.run(first);
+    await h.client.beginVisit();
+    assert.equal(h.calls.length, 2);
+    assert.equal(h.calls[1].url, "https://backend.example.com/health");
+    assert.equal(h.timers.size, 0);
+});
+
 test("a cooldown longer than the total budget is not ignored", async () => {
     const h = harness(() => new Response("Slow down", { status: 429, headers: { "Retry-After": "3600" } }));
     await assert.rejects(h.run(h.client.requestJson("/api/test")), /temporarily unavailable/);
