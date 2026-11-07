@@ -50,9 +50,40 @@ that a transient restriction is permanently eliminated.
 
 ## Release verification
 
-Before publishing: 121 Python checks passed including live sources. 51 Node
-checks passed before the new baseline case; that additional case also passed.
-Linux CI and production checks are verified separately after publication.
+Released origin revision: `849f4e7ebf97f7b753737c02dc5d8e0a89f19fcf`.
+Released Cloudflare Worker version: `6eb795e8-e7dd-41fe-8c4b-9a9568fbeb86`.
+The origin's public release response header confirmed the running revision.
+
+- Final local checks: 119 offline Python tests, 6 live-source Python tests and
+  52 Node tests passed. Live tests and simulated fixtures are verification, not
+  a guarantee that all providers will always be available.
+- [Main regression run 42386177078](https://github.com/tareklawand/statementiq/actions/runs/42386177078)
+  passed on Linux with Python 3.11, Python 3.14 and Node 22.
+- Render's saved Auto-Deploy setting is **After CI Checks Pass** and its saved
+  health check is `/health`. Existing free-plan billing is unchanged.
+- [Post-release operations run 42386487605](https://github.com/tareklawand/statementiq/actions/runs/42386487605)
+  passed both `public-service` and `public-sec-backup`. The public monitor
+  completed on its first attempt with the real Apple DCF baseline ready.
+- The downloaded backup artifact `public-sec-evidence-42386487605` matched its
+  SHA-256 manifest. An independent restore into isolated memory passed SQLite
+  integrity and verified all 9 saved public filing snapshots and their issuers.
+- Production HTTP checks passed for AAPL, MSFT and nonpreset DOCU. Each returned
+  all 14 core inputs. Apple DCF baseline, forecast, Excel export and PDF export
+  also returned HTTP 200 from the released origin.
+- A separate browser visit automatically completed Apple's analysis and loaded
+  the reported DCF baseline with the forecast form available, without an error
+  screen or placeholder zero values.
+- A clearly labelled simulated forecast retained the prior calculation result
+  for the same assumptions and passed balance-sheet and cash reconciliation.
+  Its Excel export contained six valid worksheets; its PDF export was valid.
+  Simulated assumptions were not installed as company actuals or saved publicly.
+- Observed warm request times were 1.085 s for Apple, 4.394 s for Microsoft,
+  4.386 s for DOCU and 0.686 s for Apple's DCF baseline. A repeated cached Apple
+  analysis took 0.111 s. These measurements exclude a sleeping Render instance
+  and are not cold-start or latency guarantees.
+
+The final documentation-only commit uses `[skip render]` to avoid an unnecessary
+second origin restart. The deployed runtime revision remains the one above.
 
 This work does not change financial formulas, introduce sample actuals, clear
 integrity holds, migrate hosting, change billing, add accounts or disable alerts.
