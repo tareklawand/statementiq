@@ -19,6 +19,11 @@ that a transient restriction is permanently eliminated.
   headers. Unsupported security types and invalid syntax stay permanent errors.
 - Source failure cooldowns begin when the failed attempt completes. Explicit
   refresh cannot repeatedly bypass a recent failure and hammer the provider.
+- At most two companies download sources at once, on top of the existing
+  four-statement request pool. Excess work receives retryable busy responses.
+  Duplicate waiters release HTTP workers after a bounded wait and rejoin the
+  existing load on retry, keeping health checks from being trapped behind many
+  copies of a stalled provider request. Busy results are never financial data.
 - PDF generation reuses the normal fresh source window instead of forcing a
   complete additional provider download. No financial inputs come from clients.
 - DCF baseline reads use bounded startup recovery and validate issuer/shape.
@@ -27,6 +32,9 @@ that a transient restriction is permanently eliminated.
   amended filings must be checked again. Unavailable checks retry after one
   minute instead of remaining cached for fifteen minutes. The cache is bounded.
 - Standard HEAD health probes succeed without retrieving market data.
+- Startup warming reports its actual outcome. Origin and edge share a request
+  ID; error/slow-request records contain only path, status and timing. The health
+  response exposes the public deployed Git revision for release verification.
 - The Yahoo client is pinned to tested version 1.2.0 instead of changing silently
   on a future deployment. Other dependency updates still need regression review.
 - The monitor records the exact failed stage, HTTP status, public machine code

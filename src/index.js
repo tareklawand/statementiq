@@ -297,7 +297,9 @@ export default {
     const startedAt = Date.now();
 
     try {
-      const upstreamResponse = await fetch(new Request(upstreamUrl, request));
+      const upstreamRequest = new Request(upstreamUrl, request);
+      upstreamRequest.headers.set("x-statementiq-request-id", requestId);
+      const upstreamResponse = await fetch(upstreamRequest);
       // Store only a public, successful response within its source freshness
       // deadline. Neither forecast POSTs nor analyst notes enter this cache.
       if (ctx?.waitUntil) ctx.waitUntil(writeAnalysisCache(request, env, upstreamResponse, publicCache));

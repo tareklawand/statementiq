@@ -5,7 +5,7 @@ import re
 import math
 import time
 import threading
-from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError as FutureTimeout
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
@@ -133,10 +133,18 @@ MAX_CACHE_ENTRIES = 8
 _FETCH_LOCK = threading.Lock()
 _INFLIGHT = {}
 _STATEMENT_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="statements")
+_ACTIVE_SOURCE_LOADS = threading.BoundedSemaphore(2)
+SOURCE_WAIT_SECONDS = 20
 
 
 class UnsupportedSecurity(ValueError):
     pass
+
+
+def _source_busy(symbol):
+    return {"symbol": symbol, "error": "Financial sources are still processing another request. Retrying shortly is safe.",
+            "error_code": "source_busy", "retryable": True, "retry_after_seconds": 5,
+            "info": {"symbol": symbol, "data_source": "unavailable"}}
 
 def normalize_statement(df: Optional[pd.DataFrame]) -> pd.DataFrame:
     """Return a numeric statement with unique periods ordered newest first."""
@@ -463,7 +471,12 @@ def fetch_stock_data(ticker_symbol: str, force_refresh: bool = False) -> Dict[st
         if owner:
             future = _INFLIGHT[key] = Future()
     if not owner:
-        return future.result()
+        try:
+            return future.result(timeout=SOURCE_WAIT_SECONDS)
+        except FutureTimeout:
+            # Release this HTTP worker while the shared source load continues.
+            # A retry rejoins it rather than starting a duplicate download.
+            return _source_busy(symbol)
     try:
         result = _fetch_stock_data(symbol, force_refresh)
         future.set_result(result)
@@ -494,6 +507,15 @@ def _fetch_stock_data(ticker_symbol: str, force_refresh: bool = False) -> Dict[s
                     return {**cached_entry["data"], "retry_after_seconds": max(1, math.ceil(ttl-age))}
                 return cached_entry["data"]
 
+    if not _ACTIVE_SOURCE_LOADS.acquire(blocking=False):
+        return _source_busy(symbol)
+    try:
+        return _retrieve_stock_data(symbol)
+    finally:
+        _ACTIVE_SOURCE_LOADS.release()
+
+
+def _retrieve_stock_data(symbol):
     result = None
     fetch_error = None
     error_kind = "source_temporarily_unavailable"

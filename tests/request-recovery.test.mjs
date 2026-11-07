@@ -182,11 +182,12 @@ test("an already cancelled request never fetches", async () => {
 
 test("edge proxy returns retryable JSON and a traceable request ID for an upstream 429", async t => {
     const logs = [];
+    let originTrace;
     t.mock.method(console, "error", value => logs.push(JSON.parse(value)));
-    t.mock.method(globalThis, "fetch", async () => new Response("Too Many Requests", {
+    t.mock.method(globalThis, "fetch", async request => { originTrace = request.headers.get('x-statementiq-request-id'); return new Response("Too Many Requests", {
         status: 429, headers: { "retry-after": "12", "rndr-id": "origin-test-id" },
-    }));
-    const response = await worker.fetch(new Request("https://statementiq-lb.com/api/analyze?ticker=AAPL"), {
+    }); });
+    const response = await worker.fetch(new Request("https://statementiq-lb.com/api/analyze?ticker=AAPL", {headers:{'x-statementiq-request-id':'untrusted-client-trace'}}), {
         BACKEND_ORIGIN: "https://backend.example.com",
     });
     assert.equal(response.status, 429);
@@ -195,6 +196,8 @@ test("edge proxy returns retryable JSON and a traceable request ID for an upstre
     const data = await response.json();
     assert.equal(data.code, "upstream_temporarily_unavailable");
     assert.equal(response.headers.get("x-statementiq-request-id"), data.request_id);
+    assert.equal(originTrace, data.request_id);
+    assert.notEqual(originTrace, 'untrusted-client-trace');
     assert.equal(logs[0].status, 429);
     assert.equal(logs[0].upstream_request_id, "origin-test-id");
 });

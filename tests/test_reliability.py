@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from email.message import Message
 
 import pandas as pd
@@ -92,6 +94,49 @@ def test_hosting_head_probes_work_without_financial_provider_calls(monkeypatch):
     for path in ('/','/health'):
         response=client.head(path)
         assert response.status_code==200 and response.content==b''
+
+
+def test_health_exposes_only_public_release_and_request_ids(monkeypatch):
+    monkeypatch.setenv('RENDER_GIT_COMMIT','a'*40)
+    response=TestClient(main.app).get('/health',headers={'x-statementiq-request-id':'b'*36})
+    assert response.headers['x-statementiq-release']=='a'*40
+    assert response.headers['x-statementiq-request-id']=='b'*36
+    assert response.headers['cache-control']=='no-store'
+    assert response.json()=={'status':'healthy','service':'StatementIQ Engine'}
+
+
+def test_failed_startup_warming_is_not_logged_as_success(monkeypatch,capsys):
+    monkeypatch.setattr(main,'fetch_stock_data',lambda *args,**kwargs:{'error':'Source failure','error_code':'source_temporarily_unavailable'})
+    main.prewarm_cache()
+    records=[json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert records[-1]['status']=='unavailable' and all(record['status']!='ready' for record in records)
+
+
+def test_source_capacity_returns_retryable_busy_without_more_provider_downloads(monkeypatch):
+    semaphore=threading.BoundedSemaphore(1);semaphore.acquire()
+    monkeypatch.setattr(data_fetcher,'_ACTIVE_SOURCE_LOADS',semaphore)
+    monkeypatch.setattr(data_fetcher,'_CACHE',{})
+    monkeypatch.setattr(data_fetcher.yf,'Ticker',lambda symbol:pytest.fail('Busy service must not start another provider request'))
+    result=data_fetcher.fetch_stock_data('BUSY',force_refresh=True)
+    assert result['error_code']=='source_busy' and result['retryable']
+    assert result['retry_after_seconds']==5 and 'BUSY' not in data_fetcher._CACHE
+
+
+def test_duplicate_waiters_release_http_workers_and_rejoin_the_same_source_load(monkeypatch):
+    started=threading.Event();release=threading.Event();calls=[]
+    expected={'symbol':'SLOW','error':None}
+    def fetch(symbol,force_refresh):
+        calls.append(symbol);started.set();assert release.wait(2);return expected
+    monkeypatch.setattr(data_fetcher,'_fetch_stock_data',fetch)
+    monkeypatch.setattr(data_fetcher,'SOURCE_WAIT_SECONDS',.02)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        first=pool.submit(data_fetcher.fetch_stock_data,'SLOW')
+        try:
+            assert started.wait(1)
+            second=data_fetcher.fetch_stock_data('SLOW')
+            assert second['error_code']=='source_busy' and calls==['SLOW']
+        finally:release.set()
+        assert first.result()==expected
 
 
 def test_same_period_changed_provider_values_and_new_filings_invalidate_sec_matches(monkeypatch):

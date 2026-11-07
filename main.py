@@ -5,6 +5,8 @@ import sys
 import threading
 import re
 import time
+import uuid
+import logging
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
@@ -13,7 +15,7 @@ import numpy as np
 
 sys.path.append('/Users/tareklawand/Library/Python/3.9/lib/python/site-packages')
 
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI, Query, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
@@ -40,6 +42,30 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="StatementIQ Financial API", lifespan=lifespan)
 app.add_middleware(ModelRequestLimit)
+
+
+@app.middleware("http")
+async def request_diagnostics(request: Request, call_next):
+    supplied = request.headers.get("x-statementiq-request-id", "")
+    request_id = supplied if re.fullmatch(r"[a-f0-9-]{36}", supplied) else str(uuid.uuid4())
+    started = time.perf_counter()
+    response = await call_next(request)
+    response.headers["X-StatementIQ-Request-ID"] = request_id
+    release = os.environ.get("RENDER_GIT_COMMIT", "")
+    if re.fullmatch(r"[a-f0-9]{40}", release):
+        response.headers["X-StatementIQ-Release"] = release
+    if request.url.path.startswith("/api/") or request.url.path == "/health":
+        response.headers["Cache-Control"] = "no-store"
+    elapsed = time.perf_counter() - started
+    if response.status_code >= 500 or elapsed >= 15:
+        # Trace only path/status/timing; no user inputs, query strings, IPs,
+        # model assumptions, cookies or financial data enter this record.
+        logging.getLogger("uvicorn.error").warning(json.dumps({
+            "event": "origin_request", "request_id": request_id,
+            "path": request.url.path, "http_status": response.status_code,
+            "duration_ms": round(elapsed * 1000),
+        }))
+    return response
 
 # Mount static files directory
 os.makedirs("static", exist_ok=True)
@@ -88,12 +114,13 @@ def calculate_dividend_yield(info: Dict[str, Any], share_price: Optional[float])
 
 def prewarm_cache():
     """Warm only the default company without loading every statement into RAM."""
-    print("⚡ Pre-warming default financial data...")
+    print(json.dumps({"event": "default_warmup", "status": "running"}), flush=True)
     try:
-        fetch_stock_data("AAPL")
+        data = fetch_stock_data("AAPL")
+        print(json.dumps({"event": "default_warmup", "status": "unavailable" if data.get("error") else "ready",
+                          "source_error_code": data.get("error_code")}), flush=True)
     except Exception:
-        pass
-    print("✅ Default pre-warm complete!")
+        print(json.dumps({"event": "default_warmup", "status": "unavailable"}), flush=True)
 
 @app.get("/", response_class=HTMLResponse)
 def read_root():
