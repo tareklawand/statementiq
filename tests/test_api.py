@@ -29,6 +29,7 @@ def test_presets_endpoint():
     assert "presets" in data
     assert "Apple Inc. (AAPL)" in data["presets"]
 
+@pytest.mark.live
 def test_analyze_endpoint_aapl():
     response = client.get("/api/analyze?ticker=AAPL")
     assert response.status_code == 200
@@ -49,6 +50,7 @@ def test_analyze_endpoint_rejects_malformed_ticker():
     assert response.status_code == 400
     assert "valid public-company ticker" in response.json()["detail"]
 
+@pytest.mark.live
 def test_analyze_endpoint_jpm_financial_sector():
     response = client.get("/api/analyze?ticker=JPM")
     assert response.status_code == 200
@@ -58,6 +60,7 @@ def test_analyze_endpoint_jpm_financial_sector():
     evals = data["metrics"]["ratio_evaluations"]
     assert evals["current_ratio"]["status"] == "N/A"
 
+@pytest.mark.live
 def test_download_pdf_endpoint():
     payload = {"symbol": "MSFT"}
     

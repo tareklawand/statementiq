@@ -35,7 +35,7 @@ def diagnose():
                         value = json.loads(body)
                         record['response'] = {key: value[key] for key in ('status', 'code', 'request_id') if key in value}
                     except (ValueError, TypeError):
-                        record['body_format'] = 'incomplete_json'
+                        record['body_format'] = 'large_json_prefix_not_logged' if len(body)==65536 else 'invalid_json'
                 elif 'html' in response.headers.get('content-type', ''):
                     record['body_format'] = 'html'
         except (URLError, TimeoutError, OSError) as error:

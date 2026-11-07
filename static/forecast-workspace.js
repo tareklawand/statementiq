@@ -39,6 +39,7 @@ const ForecastWorkspace = (() => {
     }
     async function loadBaseline() {
         if (!symbol) return;
+        const requestedSymbol = symbol;
         const token = ++revision;
         controller?.abort(); controller = new AbortController();
         baseline = null; invalidate(); $('forecastForm').hidden = true;
@@ -46,7 +47,11 @@ const ForecastWorkspace = (() => {
         $('modelBaseline').innerHTML = ''; $('modelStatus').textContent = 'Retrieving aligned latest reported statements…';
         $('loadModelBaselineBtn').disabled = true;
         try {
-            const response = await StatementIQRequests.requestJson(`/api/research/model-baseline?ticker=${encodeURIComponent(symbol)}`, {signal:controller.signal,maxAttempts:2,maxElapsedMs:120000,attemptTimeoutMs:90000});
+            const response = await StatementIQRequests.requestJson(`/api/research/model-baseline?ticker=${encodeURIComponent(requestedSymbol)}`, {
+                signal:controller.signal,startupRecovery:true,maxElapsedMs:120000,attemptTimeoutMs:75000,
+                validate:value=>value.symbol===requestedSymbol && ['ready','unavailable'].includes(value.status)
+                    && value.provenance && value.values && Array.isArray(value.missing),
+            });
             if (token !== revision) return;
             baseline = response;
             $('modelBaseline').innerHTML = `<div class="model-source"><strong>${esc(baseline.company_name)} · ${esc(baseline.currency || 'Currency unavailable')}</strong><p>Reported baseline and valuation date: ${esc(baseline.period || 'Unavailable')}. Income basis: ${esc(baseline.flow_basis?.replaceAll('_',' ') || 'Unavailable')}. Balance sheet: ${esc(baseline.balance_sheet_basis?.replaceAll('_',' ') || 'Unavailable')}. The five forecast periods use annual anniversaries of this date, not confirmed future fiscal closing dates.</p><details><summary>Source inputs and model scope</summary><p>${esc(baseline.scope)}</p><p>Other claims and cash treated as nonoperating are analyst assumptions. This model uses reported book borrowings in the equity bridge.</p><ul>${Object.entries(baseline.provenance).map(([key,p]) => `<li>${esc(key.replaceAll('_',' '))}: ${esc(p.row || 'Unavailable')} · ${esc(p.provider || 'Source unavailable')} · ${esc(p.period || '')}</li>`).join('')}</ul></details></div>`;

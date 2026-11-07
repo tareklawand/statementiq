@@ -1,0 +1,42 @@
+name: Financial and recovery regression
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, codex/reliability-20261107]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  financial-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11', '3.14']
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install and verify the backend dependencies
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pip check
+      - name: Verify financial calculations and failure recovery independently of providers
+        run: python -m pytest -q -m 'not live' tests
+  browser-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Verify browser recovery, stale-response handling and archive integrity
+        run: node --test tests/*.test.mjs

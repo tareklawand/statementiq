@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import math
+import hashlib
+import json
 import os
+import threading
 import time
 from datetime import date
 from typing import Any, Dict, Iterable, Optional
@@ -14,6 +17,8 @@ import requests
 
 _CACHE: Dict[str, Dict[str, Any]] = {}
 _CACHE_TTL = 15 * 60
+_FAILURE_CACHE_TTL = 60
+_CACHE_LOCK = threading.Lock()
 _PERIODIC_FORMS = {"10-K", "10-Q", "10-K/A", "10-Q/A", "20-F", "20-F/A", "40-F", "40-F/A"}
 
 
@@ -107,6 +112,7 @@ def validate_core_sec_facts(
     quarterly_income: pd.DataFrame,
     quarterly_balance: pd.DataFrame,
     statement_currency: Optional[str],
+    latest_accession: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Compare latest-quarter core rows with official structured filing facts."""
     if not cik:
@@ -120,11 +126,6 @@ def validate_core_sec_facts(
         return {"status": "unavailable", "checked": 0, "matched": 0, "mismatches": [], "reason": "Provider period dates were invalid."}
 
     currency = str(statement_currency or "USD").upper()
-    cache_key = f"{str(cik).zfill(10)}:{income_end.isoformat()}:{balance_end.isoformat()}:{currency}"
-    cached = _CACHE.get(cache_key)
-    if cached and time.time() - cached["timestamp"] < _CACHE_TTL:
-        return cached["data"]
-
     definitions = [
         ("revenue", quarterly_income, ["Total Revenue", "Operating Revenue", "Revenue"], ["RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues", "SalesRevenueNet"], False, income_end),
         ("gross_profit", quarterly_income, ["Gross Profit"], ["GrossProfit"], False, income_end),
@@ -136,6 +137,17 @@ def validate_core_sec_facts(
         ("stockholders_equity", quarterly_balance, ["Stockholders Equity", "Total Stockholder Equity", "Common Stock Equity"], ["StockholdersEquity", "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"], True, balance_end),
         ("cash_and_equivalents", quarterly_balance, ["Cash And Cash Equivalents", "Cash Financial"], ["CashAndCashEquivalentsAtCarryingValue", "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents"], True, balance_end),
     ]
+
+    # A previous match is valid only for the same provider values and filing.
+    # Restatements and changed rows can share a reporting date.
+    input_values = [(name, _row_value(frame, aliases)) for name, frame, aliases, *_ in definitions]
+    fingerprint = hashlib.sha256(json.dumps(input_values, allow_nan=False).encode()).hexdigest()
+    cache_key = f"{str(cik).zfill(10)}:{income_end.isoformat()}:{balance_end.isoformat()}:{currency}:{latest_accession or ''}:{fingerprint}"
+    with _CACHE_LOCK:
+        cached = _CACHE.get(cache_key)
+        ttl = _FAILURE_CACHE_TTL if cached and cached["data"].get("status") == "unavailable" else _CACHE_TTL
+        if cached and time.time() - cached["timestamp"] < ttl:
+            return cached["data"]
 
     try:
         response = requests.get(
@@ -193,5 +205,8 @@ def validate_core_sec_facts(
             "reason": f"SEC numeric cross-check was unavailable: {exc}",
         }
 
-    _CACHE[cache_key] = {"timestamp": time.time(), "data": result}
+    with _CACHE_LOCK:
+        _CACHE[cache_key] = {"timestamp": time.time(), "data": result}
+        while len(_CACHE) > 32:
+            _CACHE.pop(min(_CACHE, key=lambda key: _CACHE[key]["timestamp"]))
     return result

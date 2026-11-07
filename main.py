@@ -58,6 +58,16 @@ def normalize_ticker(value: str) -> str:
     return symbol
 
 
+def require_source_data(stock):
+    if not stock.get("error"):
+        return
+    retryable = stock.get("retryable", True)
+    headers = {"Cache-Control": "no-store", "X-StatementIQ-Error-Code": stock.get("error_code", "source_temporarily_unavailable")}
+    if retryable:
+        headers["Retry-After"] = str(max(1, int(stock.get("retry_after_seconds", 60))))
+    raise HTTPException(status_code=503 if retryable else 400, detail=stock["error"], headers=headers)
+
+
 def calculate_dividend_yield(info: Dict[str, Any], share_price: Optional[float]) -> Optional[float]:
     """Return forward annualized dividend yield from rate and current price.
 
@@ -96,7 +106,12 @@ def read_root():
     return "<h1>StatementIQ UI loading...</h1>"
 
 
-@app.get("/health")
+@app.head("/")
+def root_head():
+    return Response(headers={"Cache-Control": "no-store"})
+
+
+@app.api_route("/health", methods=["GET", "HEAD"])
 def health_check():
     """Uptime health check endpoint for monitoring and Render deployment."""
     return {"status": "healthy", "service": "StatementIQ Engine"}
@@ -138,8 +153,7 @@ def analyze_ticker(
 
     started = time.perf_counter()
     stock_data = fetch_stock_data(symbol, force_refresh=refresh)
-    if stock_data.get("error"):
-        raise HTTPException(status_code=400, detail=stock_data["error"])
+    require_source_data(stock_data)
     retrieved = time.perf_counter()
     payload = build_analysis_payload(stock_data, symbol, api_key=api_key, include_filing_review=False)
     if ((stock_data.get("sec_filing") or {}).get("key_filings") or {}).get("annual"):
@@ -163,8 +177,7 @@ def analysis_cache_deadline(stock):
 def filing_review(ticker: str = Query(...)):
     symbol = normalize_ticker(ticker)
     stock = fetch_stock_data(symbol)
-    if stock.get("error"):
-        raise HTTPException(status_code=503, detail=stock["error"])
+    require_source_data(stock)
     annual = ((stock.get("sec_filing") or {}).get("key_filings") or {}).get("annual") or {}
     return {"symbol": symbol, "filing_url": annual.get("filing_url"),
             "review": scan_annual_filing(annual.get("filing_url"))}
@@ -308,8 +321,7 @@ def research_peers(tickers: str = Query(...), universe: str = Query("industry", 
 
 def load_model_baseline(symbol):
     stock = fetch_stock_data(symbol)
-    if stock.get("error"):
-        raise HTTPException(status_code=503, detail=stock["error"])
+    require_source_data(stock)
     # Prefer the SEC-only source for explicit borrowing definitions and cell
     # provenance. Unsupported issuers retain the provider's explicit debt rows.
     if (stock.get("sec_filing") or {}).get("status") == "verified" and (stock.get("info") or {}).get("statement_data_provider") != "SEC Company Facts":
@@ -367,9 +379,8 @@ def download_pdf(payload: PDFRequest):
     """Generate a report exclusively from server-fetched, server-calculated data."""
     try:
         symbol = normalize_ticker(payload.symbol)
-        stock_data = fetch_stock_data(symbol, force_refresh=True)
-        if stock_data.get("error"):
-            raise HTTPException(status_code=400, detail=stock_data["error"])
+        stock_data = fetch_stock_data(symbol)
+        require_source_data(stock_data)
         info = stock_data.get("info") or {}
         company_name = info.get("longName") or info.get("shortName") or symbol
         metrics = compute_metrics(stock_data)

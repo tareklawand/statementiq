@@ -1,6 +1,8 @@
 fastapi>=0.109.0
 uvicorn>=0.27.0
-yfinance>=0.2.35
+# Pin the tested provider client: redeploying must not silently change its
+# authentication, quote fields or retry behaviour. Upgrade with source checks.
+yfinance==1.2.0
 plotly>=5.18.0
 reportlab>=4.0.8
 google-genai>=0.1.1

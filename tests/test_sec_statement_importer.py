@@ -226,7 +226,7 @@ def test_failed_import_keeps_recency_hold_instead_of_publishing_old_score(monkey
     monkeypatch.setattr(data_fetcher, "_enrich_info_with_live_market_fallbacks", lambda t, i: dict(i))
     monkeypatch.setattr(data_fetcher, "get_latest_sec_filing", lambda *a, **k: filing)
     monkeypatch.setattr(data_fetcher, "import_latest_sec_statements", lambda *a: {"status": "unavailable", "reason": "XBRL not ready"})
-    monkeypatch.setattr(data_fetcher, "validate_core_sec_facts", lambda *a: {"status": "unavailable"})
+    monkeypatch.setattr(data_fetcher, "validate_core_sec_facts", lambda *a, **k: {"status": "unavailable"})
     data = data_fetcher.fetch_stock_data("WAITING", force_refresh=True)
     assert data["provider_lags_latest_filing"] is True
     assert "newest SEC filing" in data["integrity_hold_reason"]
@@ -271,7 +271,7 @@ def test_current_provider_dataset_is_preserved_not_replaced_by_a_sparser_import(
     def must_not_import(*args):
         raise AssertionError("Current statements must not be degraded")
     monkeypatch.setattr(data_fetcher, "import_latest_sec_statements", must_not_import)
-    monkeypatch.setattr(data_fetcher, "validate_core_sec_facts", lambda *a: {"status": "unavailable"})
+    monkeypatch.setattr(data_fetcher, "validate_core_sec_facts", lambda *a, **k: {"status": "unavailable"})
     data = data_fetcher.fetch_stock_data("CURRENT", force_refresh=True)
     assert data["error"] is None
     assert data["sec_statement_import"]["status"] == "not_needed"

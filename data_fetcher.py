@@ -2,6 +2,7 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import re
+import math
 import time
 import threading
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -132,6 +133,10 @@ MAX_CACHE_ENTRIES = 8
 _FETCH_LOCK = threading.Lock()
 _INFLIGHT = {}
 _STATEMENT_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="statements")
+
+
+class UnsupportedSecurity(ValueError):
+    pass
 
 def normalize_statement(df: Optional[pd.DataFrame]) -> pd.DataFrame:
     """Return a numeric statement with unique periods ordered newest first."""
@@ -478,14 +483,20 @@ def _fetch_stock_data(ticker_symbol: str, force_refresh: bool = False) -> Dict[s
 
     now = time.time()
     with _FETCH_LOCK:
-        if not force_refresh and symbol in _CACHE:
+        if symbol in _CACHE:
             cached_entry = _CACHE[symbol]
             ttl = ERROR_CACHE_TTL if cached_entry["data"].get("error") else CACHE_TTL
-            if now - cached_entry["timestamp"] < ttl:
+            age = now - cached_entry["timestamp"]
+            # A forced source refresh still respects a recent failure cooldown.
+            # Otherwise repeated clicks can repeatedly hit an unavailable feed.
+            if age < ttl and (cached_entry["data"].get("error") or not force_refresh):
+                if cached_entry["data"].get("error"):
+                    return {**cached_entry["data"], "retry_after_seconds": max(1, math.ceil(ttl-age))}
                 return cached_entry["data"]
 
     result = None
     fetch_error = None
+    error_kind = "source_temporarily_unavailable"
 
     # Every production request uses the live provider. Missing live fields remain
     # missing; the application never falls back to static estimates or snapshots.
@@ -498,7 +509,7 @@ def _fetch_stock_data(ticker_symbol: str, force_refresh: bool = False) -> Dict[s
         info = _enrich_info_with_live_market_fallbacks(ticker, raw_info)
         quote_type = str(info.get("quoteType") or "").strip().upper()
         if quote_type and quote_type != "EQUITY":
-            raise ValueError(
+            raise UnsupportedSecurity(
                 f"{symbol} is classified as {quote_type}, not a public-company equity. "
                 "StatementIQ analyzes operating-company financial statements rather than funds, indexes, currencies, or derivatives."
             )
@@ -627,6 +638,7 @@ def _fetch_stock_data(ticker_symbol: str, force_refresh: bool = False) -> Dict[s
                 quarterly_income_stmt,
                 quarterly_balance_sheet,
                 info.get("financialCurrency") or info.get("currency"),
+                latest_accession=sec_filing.get("accession_number"),
             )
 
         quality_warnings = []
@@ -737,6 +749,9 @@ def _fetch_stock_data(ticker_symbol: str, force_refresh: bool = False) -> Dict[s
             }
         else:
             fetch_error = "The live provider did not return complete income-statement and balance-sheet data."
+    except UnsupportedSecurity as exc:
+        error_kind = "unsupported_security"
+        fetch_error = str(exc)
     except Exception as exc:
         fetch_error = f"The live provider request failed: {exc}"
 
@@ -762,11 +777,17 @@ def _fetch_stock_data(ticker_symbol: str, force_refresh: bool = False) -> Dict[s
             "verification_scope": "No filing validation was possible because live statement data was unavailable.",
             "quality_warnings": [],
             "history": pd.DataFrame(),
-            "error": f"Live financial data for {symbol} is unavailable. {fetch_error or ''} No substitute values were used.".strip()
+            "error": (fetch_error if error_kind == "unsupported_security" else
+                f"Live financial data for {symbol} is temporarily unavailable. Check the ticker or try again after the source cooldown. No substitute values were used."),
+            "error_code": error_kind,
+            "retryable": error_kind != "unsupported_security",
+            "retry_after_seconds": ERROR_CACHE_TTL,
         }
 
     with _FETCH_LOCK:
-        _CACHE[symbol] = {"timestamp": now, "data": result}
+        # The cooldown starts after the attempt finishes, even if the failed
+        # provider request itself took longer than the cooldown period.
+        _CACHE[symbol] = {"timestamp": time.time(), "data": result}
         if len(_CACHE) > MAX_CACHE_ENTRIES:
             oldest_symbol = min(_CACHE, key=lambda key: _CACHE[key]["timestamp"])
             if oldest_symbol != symbol:
