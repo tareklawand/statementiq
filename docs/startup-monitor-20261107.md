@@ -38,5 +38,27 @@ formula, missing filing or a proved Yahoo restriction.
 
 ## Verification
 
-Automated checks and actual cold-start verification are recorded after the
-correction is published. A recovered warm endpoint alone is insufficient proof.
+- Correction revision: `ff877417f7b0eccfccb21b62983f8e73cca10871`.
+- All 127 offline Python checks passed locally. The merged original project
+  also passed its 21 focused monitoring/recovery checks, preserving existing
+  unpublished sector-classification work.
+- [Linux regression run 42402949791](https://github.com/tareklawand/statementiq/actions/runs/42402949791)
+  passed on Python 3.11 and 3.14; all 52 Node checks passed too.
+- After more than 15 minutes without analysis/origin requests, a single public
+  `/health` check at 18:58:34 UTC reproduced HTTP429 with no application release
+  header, trace `cf5bd605-0321-4c61-8665-e00816a43889`.
+- [Cold-start operations run 42403931098](https://github.com/tareklawand/statementiq/actions/runs/42403931098)
+  started its monitor at 18:58:55 UTC. Its direct `origin_health` stage returned
+  startup HTTP503 on attempts 1–4. It respected cooldowns and completed both
+  real analysis and DCF checks on attempt 5 at 19:00:05 UTC: approximately
+  **70 seconds from monitor start**. No manual restart or concurrent manual
+  origin wake-up was used during this test. This is one observed cold start,
+  not a latency guarantee.
+- Both availability and independent public-backup jobs completed successfully.
+  The new backup artifact is `public-sec-evidence-42403931098`. Its downloaded
+  archive matched the SHA-256 manifest, and an independent isolated restoration
+  verified all 10 snapshots and passed SQLite integrity checks.
+
+The earlier warm-only success did not verify this case. Future availability
+checks now exercise the direct wake-up path and still alert if real analysis
+cannot complete within their bounded recovery budget.
