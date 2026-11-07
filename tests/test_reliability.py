@@ -19,9 +19,68 @@ from monitor_public_service import EndpointError, monitor, retry_after_seconds
 def available(url):
     if url.endswith('/'): return b'StatementIQ data-tab="tab5"'
     if '/status' in url: return b'{"status":"ready"}'
+    if '/startup-config' in url:return b'{"startup_url":"https://statementiq-sacc.onrender.com/health"}'
+    if url=='https://statementiq-sacc.onrender.com/health':return b'{"status":"healthy","service":"StatementIQ Engine"}'
     if '/model-baseline' in url: return b'{"symbol":"AAPL","status":"ready","period":"2026-09-26"}'
     return json.dumps({'symbol':'AAPL','metrics':{'raw_financials':{'revenue':100,'total_assets':200}},
                        'data_quality':{'statement_provider':'SEC'}}).encode()
+
+
+def test_monitor_wakes_a_sleeping_origin_before_testing_real_analysis():
+    clock=[0];calls=[];records=[];health_attempts=[0];awake=[False]
+    def get(url):
+        calls.append(url)
+        if url=='https://statementiq-sacc.onrender.com/health':
+            health_attempts[0]+=1
+            if health_attempts[0]==1:raise EndpointError(503,{'Retry-After':'5'})
+            awake[0]=True
+        if '/api/analyze' in url or '/model-baseline' in url:
+            assert awake[0],'Sleeping origin rejects proxy-only retries before Python starts'
+        return available(url)
+    result=monitor(120,get,clock=lambda:clock[0],sleeper=lambda seconds:clock.__setitem__(0,clock[0]+seconds),reporter=records.append)
+    assert result['status']=='ready' and health_attempts[0]==2
+    assert records[0]['stage']=='origin_health' and records[0]['http_status']==503
+    assert records[-1]['stage']=='complete'
+    assert sum('/api/analyze' in url for url in calls)==1
+    assert sum('/model-baseline' in url for url in calls)==1
+
+
+def test_monitor_still_fails_when_the_origin_never_recovers():
+    clock=[0];records=[]
+    def get(url):
+        if url=='https://statementiq-sacc.onrender.com/health':raise EndpointError(503,{'Retry-After':'5'})
+        assert '/api/analyze' not in url and '/model-baseline' not in url
+        return available(url)
+    with pytest.raises(EndpointError):
+        monitor(12,get,clock=lambda:clock[0],sleeper=lambda seconds:clock.__setitem__(0,clock[0]+seconds),reporter=records.append)
+    assert records and all(record['stage']=='origin_health' for record in records)
+
+
+@pytest.mark.parametrize('url',[
+    'https://unrelated.example/health','http://statementiq-sacc.onrender.com/health',
+    'https://statementiq-sacc.onrender.com/api/analyze?ticker=AAPL',
+    'https://statementiq-sacc.onrender.com/health?extra=1',
+    'https://someone@statementiq-sacc.onrender.com/health',
+])
+def test_monitor_refuses_an_unexpected_startup_target(url):
+    calls=[]
+    def get(target):
+        calls.append(target)
+        if '/startup-config' in target:return json.dumps({'startup_url':url}).encode()
+        return available(target)
+    with pytest.raises(ValueError,match='expected analysis service'):monitor(reader=get)
+    assert calls[-1].endswith('/api/startup-config')
+
+
+def test_waking_the_origin_does_not_clear_a_financial_hold():
+    records=[]
+    def get(url):
+        if '/api/analyze' in url:
+            data=json.loads(available(url));data['data_quality']['integrity_hold_reason']='SEC facts require review'
+            return json.dumps(data).encode()
+        return available(url)
+    with pytest.raises(ValueError,match='Financial integrity requires review'):monitor(reader=get,reporter=records.append)
+    assert records[-1]['stage']=='company_analysis'
 
 
 def test_monitor_respects_rate_limits_and_identifies_the_failing_stage():

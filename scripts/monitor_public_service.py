@@ -7,10 +7,23 @@ import math
 import re
 import time
 from urllib.error import HTTPError
+from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 ORIGIN='https://statementiq-lb.com'
 TRANSIENT={408,425,429,500,502,503,504,520,521,522,523,524}
+
+
+def startup_health_url(config):
+    """Use this service's published wake-up URL, never an arbitrary target."""
+    value=config.get('startup_url') if isinstance(config,dict) else None
+    if not isinstance(value,str):raise ValueError('Published startup configuration is missing')
+    target=urlsplit(value)
+    if (target.scheme!='https' or target.hostname!='statementiq-sacc.onrender.com'
+        or target.netloc!='statementiq-sacc.onrender.com' or target.path!='/health'
+        or target.query or target.fragment):
+        raise ValueError('Published startup health URL is not the expected analysis service')
+    return value
 
 
 def retry_after_seconds(value, now=None):
@@ -54,15 +67,26 @@ def monitor(wait_seconds=0,reader=read,*,clock=time.monotonic,sleeper=time.sleep
     while True:
         attempt+=1;stage='published_page'
         try:
-            def get(path):
+            def get_url(url):
                 # Actual network calls share the total recovery deadline;
                 # injected readers preserve their simple one-argument API.
-                timeout=min(90,max(.1,deadline-clock())) if wait_seconds else 90
-                return reader(ORIGIN+path,timeout=timeout) if reader is read else reader(ORIGIN+path)
+                remaining=deadline-clock()
+                if wait_seconds and remaining<=0:raise TimeoutError('Public check recovery budget exhausted')
+                timeout=min(90,max(.1,remaining)) if wait_seconds else 90
+                return reader(url,timeout=timeout) if reader is read else reader(url)
+            def get(path):return get_url(ORIGIN+path)
             html=get('/').decode()
             if 'StatementIQ' not in html or 'data-tab="tab5"' not in html:raise ValueError('Published DCF page is not available')
             stage='public_archive';status=json.loads(get('/api/research/status'))
             if status.get('status')!='ready':raise ValueError('Filing archive is not ready')
+            # A sleeping free origin can reject Worker subrequests with HTTP429
+            # before Python starts. Mirror the visitor's direct health wake-up;
+            # retries through the proxy alone cannot reliably start it. Readiness
+            # and every real financial check remain mandatory after waking.
+            stage='startup_config';startup_url=startup_health_url(json.loads(get('/api/startup-config')))
+            stage='origin_health';health=json.loads(get_url(startup_url))
+            if health!={'status':'healthy','service':'StatementIQ Engine'}:
+                raise ValueError('Analysis service has not completed startup')
             stage='company_analysis';analysis=json.loads(get('/api/analyze?ticker=AAPL'))
             raw=analysis.get('metrics',{}).get('raw_financials',{})
             if analysis.get('symbol')!='AAPL' or any(type(raw.get(key)) not in (int,float) or not math.isfinite(raw[key]) or raw[key]<=0 for key in ('revenue','total_assets')):

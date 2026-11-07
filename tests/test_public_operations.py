@@ -34,6 +34,8 @@ def test_monitor_requires_real_inputs_and_never_clears_a_hold():
     def get(url):
         if url.endswith('/'):return b'StatementIQ data-tab="tab5"'
         if '/status' in url:return b'{"status":"ready"}'
+        if '/startup-config' in url:return b'{"startup_url":"https://statementiq-sacc.onrender.com/health"}'
+        if url=='https://statementiq-sacc.onrender.com/health':return b'{"status":"healthy","service":"StatementIQ Engine"}'
         if '/model-baseline' in url:return b'{"symbol":"AAPL","status":"ready","period":"2026-09-26"}'
         return json.dumps({'symbol':'AAPL','metrics':{'raw_financials':{'revenue':100,'total_assets':200}},'data_quality':{'statement_provider':'SEC'}}).encode()
     assert monitor(reader=get)['status']=='ready'
