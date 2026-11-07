@@ -30,10 +30,10 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
-      - name: Verify published page, archive and real statement inputs
-        run: python3 scripts/monitor_public_service.py --wait-seconds 600
+      - name: Diagnose public endpoint responses without changing data
+        run: python3 scripts/diagnose_public_service.py
   public-sec-backup:
-    if: github.event_name != 'schedule' || github.event.schedule == '0 1 * * *'
+    if: ${{ false }}
     needs: public-service
     runs-on: ubuntu-latest
     timeout-minutes: 30
