@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Discounted Cash Flow (DCF) Valuation Model | StatementIQ</title>
+<meta name="description" content="Build a five-year DCF in StatementIQ using explicit forecasts, free cash flow to the firm, WACC, terminal reinvestment and an enterprise-to-equity bridge.">
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+<link rel="canonical" href="https://statementiq-lb.com/guides/dcf-valuation">
+<link rel="icon" type="image/png" sizes="96x96" href="/statementiq-favicon-96.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<meta name="theme-color" content="#171c18">
+<meta property="og:site_name" content="StatementIQ">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Discounted Cash Flow (DCF) Valuation Model | StatementIQ">
+<meta property="og:description" content="Build a five-year DCF in StatementIQ using explicit forecasts, free cash flow to the firm, WACC, terminal reinvestment and an enterprise-to-equity bridge.">
+<meta property="og:url" content="https://statementiq-lb.com/guides/dcf-valuation">
+<meta property="og:image" content="https://statementiq-lb.com/favicon-512.png">
+<meta property="og:image:alt" content="StatementIQ logo">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Discounted Cash Flow (DCF) Valuation Model | StatementIQ">
+<meta name="twitter:description" content="Build a five-year DCF in StatementIQ using explicit forecasts, free cash flow to the firm, WACC, terminal reinvestment and an enterprise-to-equity bridge.">
+<meta name="twitter:image" content="https://statementiq-lb.com/favicon-512.png">
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Article","@id":"https://statementiq-lb.com/guides/dcf-valuation#page","url":"https://statementiq-lb.com/guides/dcf-valuation","name":"Discounted cash flow valuation","headline":"Discounted cash flow valuation","description":"Build a five-year DCF in StatementIQ using explicit forecasts, free cash flow to the firm, WACC, terminal reinvestment and an enterprise-to-equity bridge.","inLanguage":"en","isPartOf":{"@id":"https://statementiq-lb.com/#website"},"publisher":{"@id":"https://statementiq-lb.com/#organization"},"breadcrumb":{"@id":"https://statementiq-lb.com/guides/dcf-valuation#breadcrumb"},"author":{"@id":"https://statementiq-lb.com/#organization"}},{"@type":"BreadcrumbList","@id":"https://statementiq-lb.com/guides/dcf-valuation#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"StatementIQ","item":"https://statementiq-lb.com/"},{"@type":"ListItem","position":2,"name":"Discounted cash flow valuation","item":"https://statementiq-lb.com/guides/dcf-valuation"}]},{"@type":"Organization","@id":"https://statementiq-lb.com/#organization","name":"StatementIQ","url":"https://statementiq-lb.com/","logo":"https://statementiq-lb.com/favicon-512.png","founder":{"@type":"Person","@id":"https://statementiq-lb.com/about#founder","name":"Tarek Lawand"}},{"@type":"WebSite","@id":"https://statementiq-lb.com/#website","name":"StatementIQ","url":"https://statementiq-lb.com/"}]}</script>
+<script src="/static/public-pages.js?v=seo_v1"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter+Tight:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/redesign.css?v=model_v35">
+<link rel="stylesheet" href="/static/public-pages.css?v=seo_v1">
+</head>
+<body class="public-page">
+<a class="public-skip" href="#main">Skip to content</a>
+<div class="public-shell">
+<header class="intro-nav">
+<a class="intro-brand public-brand" href="/" aria-label="StatementIQ home"><img src="/favicon.svg" alt="" width="42" height="42"><div><div class="intro-brand-name">StatementIQ</div><div class="intro-brand-subtitle">FUNDAMENTALS &amp; VALUATION</div></div></a>
+<div class="intro-nav-actions"><button class="btn-theme-toggle intro-theme-toggle" type="button" data-public-theme aria-label="Switch to dark mode"><span class="theme-icon-stage" aria-hidden="true"><svg class="theme-icon theme-icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg><svg class="theme-icon theme-icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20.9 13.3A9 9 0 0 1 10.7 3.1 9 9 0 1 0 20.9 13.3Z"/></svg></span></button><a class="intro-nav-cta" href="/#workspace">Open workspace <span aria-hidden="true">↗</span></a></div>
+</header>
+<main id="main" class="public-main">
+<nav class="public-breadcrumb" aria-label="Breadcrumb"><a href="/">StatementIQ</a><span aria-hidden="true">/</span><span>DCF valuation</span></nav>
+<div class="public-layout"><article>
+<header class="public-heading"><p class="public-eyebrow">RESEARCH GUIDE</p><h1>Discounted cash flow valuation</h1><p class="public-lead">A discounted cash flow (DCF) model estimates value from future cash generation and a discount rate. In StatementIQ, those future figures are your assumptions, kept separate from the reported historical baseline.</p></header>
+<section aria-labelledby="section-1"><h2 id="section-1">Build from reported figures</h2><p>Open the company workspace and find the forecast and DCF section. A model needs a coherent baseline and sufficient supported statement inputs. Enter the five annual forecast periods and explicit discount-rate, terminal-growth, reinvestment, and equity-bridge assumptions. No forecast is an observed company result.</p><p>The model links forecast statements, checks funding needs, and provides downloads for reviewing the assumptions outside the website. Availability depends on the company's data and model applicability.</p></section><section aria-labelledby="section-2"><h2 id="section-2">From operations to enterprise value</h2><p>The model discounts annual free cash flow to the firm (FCFF) at the weighted average cost of capital (WACC), using end-of-year discounting.</p><div class="public-formula">FCFF = after-tax operating profit + depreciation and amortization − capital expenditure − increase in operating working capital</div><p>It adds the present value of the explicit forecasts to the present value of the terminal business. In the terminal period, reinvestment is linked to growth and return on invested capital (ROIC):</p><div class="public-formula">Terminal reinvestment rate = terminal growth ÷ terminal ROIC<br>Terminal value = next-year normalized FCFF ÷ (WACC − terminal growth)</div><p>WACC must exceed terminal growth. For positive terminal growth, terminal ROIC must also exceed that growth rate. Unsupported inputs or unresolved funding gaps can prevent a usable valuation.</p></section><section aria-labelledby="section-3"><h2 id="section-3">From enterprise value to equity value</h2><p>The equity bridge adds the explicitly entered eligible cash and non-operating assets, then deducts reported debt and other entered claims. A per-share result uses the supported reported point-in-time common share count at the baseline date; weighted-average EPS shares are not substituted.</p><p>Choose bridge items carefully so cash, debt, or other claims are not counted twice. Check whether the available baseline and claims actually fit the company's capital structure.</p></section><section aria-labelledby="section-4"><h2 id="section-4">Use scenarios, not a single promised price</h2><p>Small changes in WACC, sustainable margins, growth, and reinvestment can change the result substantially. Compare conservative and optimistic assumptions, and inspect how much of the valuation comes from the terminal period.</p><p>A DCF is conditional on its assumptions. It is not a guaranteed share price, and an operating-company FCFF model is not automatically suitable for a bank, insurer, or REIT. See <a href="/methodology">model scope and limitations</a>. For background on sustainable terminal reinvestment, see <a href="https://pages.stern.nyu.edu/~adamodar/New_Home_Page/littlebook/terminalvalue.htm">Aswath Damodaran’s valuation notes at NYU Stern</a>.</p></section>
+<div class="public-next"><a class="intro-primary-cta" href="/#workspace">Analyze a company <span aria-hidden="true">↗</span></a><p>No account required.</p></div>
+</article><aside class="public-sidebar"><nav aria-label="Research resources"><p>EXPLORE</p><a href="/about">About</a><a href="/methodology">Data &amp; methodology</a><a href="/guides/financial-statement-analysis">Financial statements</a><a href="/guides/financial-ratios">Financial ratios</a><a href="/guides/dcf-valuation">DCF valuation</a></nav><p class="public-sidebar-note">Reported facts. Explicit formulas. Assumptions you can review.</p></aside></div>
+</main>
+<footer class="public-footer"><span>© 2026 StatementIQ · Founded by <a href="/about">Tarek Lawand</a></span><p>Research screening only. Not investment advice or a substitute for full filings.</p><a href="mailto:tareklawand06@hotmail.com">Contact &amp; support</a></footer>
+</div>
+</body>
+</html>

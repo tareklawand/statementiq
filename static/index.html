@@ -13,8 +13,8 @@
             window.location.replace("http://127.0.0.1:8888/");
         }
     </script>
-    <title>StatementIQ | Financial Statement Analysis &amp; Company Fundamentals</title>
-    <meta name="description" content="StatementIQ is a financial statement analyzer for researching company fundamentals, financial health, valuation ratios, performance trends, and reported financial statements.">
+    <title>StatementIQ | Financial Statement Analyzer &amp; DCF Valuation</title>
+    <meta name="description" content="Analyze public-company income statements, balance sheets and cash flows with StatementIQ. Explore financial ratios, health screening and DCF valuation.">
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
     <link rel="canonical" href="https://statementiq-lb.com/">
     <link rel="icon" type="image/png" sizes="96x96" href="/statementiq-favicon-96.png">
@@ -25,48 +25,73 @@
     <meta property="og:url" content="https://statementiq-lb.com/">
     <meta property="og:site_name" content="StatementIQ">
     <meta property="og:title" content="StatementIQ | Financial Statement Analysis">
-    <meta property="og:description" content="Research company fundamentals, financial health, valuation ratios, performance trends, and reported financial statements.">
+    <meta property="og:description" content="Analyze public-company financial statements, financial ratios and cash flows. Build forecasts and discounted cash flow valuations with explicit assumptions.">
     <meta property="og:image" content="https://statementiq-lb.com/favicon-512.png">
     <meta property="og:image:alt" content="StatementIQ logo">
 
     <meta name="twitter:card" content="summary">
     <meta name="twitter:title" content="StatementIQ | Financial Statement Analysis">
-    <meta name="twitter:description" content="Research company fundamentals, financial health, valuation ratios, performance trends, and reported financial statements.">
+    <meta name="twitter:description" content="Analyze public-company financial statements, financial ratios and cash flows. Build forecasts and discounted cash flow valuations with explicit assumptions.">
     <meta name="twitter:image" content="https://statementiq-lb.com/favicon-512.png">
 
     <script type="application/ld+json">
-    {
-        "@context": "https://schema.org",
-        "@graph": [
-            {
-                "@type": "WebSite",
-                "@id": "https://statementiq-lb.com/#website",
-                "name": "StatementIQ",
-                "alternateName": ["Statement IQ", "StatementIQ Financial Analyzer"],
-                "url": "https://statementiq-lb.com/",
-                "description": "Financial statement analysis for company fundamentals, financial health, valuation ratios, performance trends, and reported financial statements.",
-                "publisher": { "@id": "https://statementiq-lb.com/#organization" }
-            },
-            {
-                "@type": "Organization",
-                "@id": "https://statementiq-lb.com/#organization",
-                "name": "StatementIQ",
-                "url": "https://statementiq-lb.com/",
-                "email": "tareklawand06@hotmail.com",
-                "contactPoint": {
-                    "@type": "ContactPoint",
-                    "email": "tareklawand06@hotmail.com",
-                    "contactType": "customer support"
-                },
-                "logo": {
-                    "@type": "ImageObject",
-                    "url": "https://statementiq-lb.com/favicon-512.png",
-                    "width": 512,
-                    "height": 512
-                }
+{
+    "@context": "https://schema.org",
+    "@graph": [
+        {
+            "@type": "WebSite",
+            "@id": "https://statementiq-lb.com/#website",
+            "name": "StatementIQ",
+            "alternateName": [
+                "Statement IQ",
+                "StatementIQ Financial Analyzer"
+            ],
+            "url": "https://statementiq-lb.com/",
+            "description": "Public-company financial statement analysis, financial-health screening and DCF valuation.",
+            "publisher": {
+                "@id": "https://statementiq-lb.com/#organization"
             }
-        ]
-    }
+        },
+        {
+            "@type": "Organization",
+            "@id": "https://statementiq-lb.com/#organization",
+            "name": "StatementIQ",
+            "url": "https://statementiq-lb.com/",
+            "email": "tareklawand06@hotmail.com",
+            "contactPoint": {
+                "@type": "ContactPoint",
+                "email": "tareklawand06@hotmail.com",
+                "contactType": "customer support"
+            },
+            "logo": {
+                "@type": "ImageObject",
+                "url": "https://statementiq-lb.com/favicon-512.png",
+                "width": 512,
+                "height": 512
+            },
+            "founder": {
+                "@type": "Person",
+                "@id": "https://statementiq-lb.com/about#founder",
+                "name": "Tarek Lawand"
+            },
+            "description": "Public-company financial statement analysis, financial-health screening and DCF valuation."
+        },
+        {
+            "@type": "WebPage",
+            "@id": "https://statementiq-lb.com/#webpage",
+            "url": "https://statementiq-lb.com/",
+            "name": "StatementIQ | Financial Statement Analyzer & DCF Valuation",
+            "description": "Analyze company income statements, balance sheets, cash flows, financial ratios and discounted cash flow valuations.",
+            "isPartOf": {
+                "@id": "https://statementiq-lb.com/#website"
+            },
+            "about": {
+                "@id": "https://statementiq-lb.com/#organization"
+            },
+            "inLanguage": "en"
+        }
+    ]
+}
     </script>
     
     <!-- Begin a direct workspace visit before external presentation assets. -->
@@ -337,6 +362,7 @@
         .val-negative { color: var(--accent-red); }
     </style>
     <link rel="stylesheet" href="/static/redesign.css?v=model_v35">
+    <link rel="stylesheet" href="/static/public-pages.css?v=seo_v1">
 </head>
 <body>
     <section class="intro-page" id="introPage" aria-labelledby="introTitle">
@@ -349,6 +375,10 @@
                         <div class="intro-brand-subtitle">FUNDAMENTALS &amp; VALUATION</div>
                     </div>
                 </div>
+                <nav class="intro-info-nav" aria-label="About StatementIQ">
+                    <a href="/about">About</a>
+                    <a href="/methodology">Data &amp; methodology</a>
+                </nav>
                 <div class="intro-nav-actions">
                     <button class="btn-theme-toggle intro-theme-toggle" type="button" data-theme-toggle aria-label="Switch to dark mode" title="Switch to dark mode">
                         <span class="theme-icon-stage" aria-hidden="true">
@@ -367,8 +397,9 @@
                     <div class="intro-kicker"><span></span> COMPANY FUNDAMENTALS</div>
                     <h1 id="introTitle">Financial statement analysis for public companies.</h1>
                     <p>
-                        Enter a ticker to review reported financials, ratios, performance trends,
-                        and a rules-based financial health assessment.
+                        StatementIQ brings income statements, balance sheets, and cash flows into one workspace.
+                        Search a stock ticker to review financial ratios, financial-health screening,
+                        and discounted cash flow (DCF) valuation.
                     </p>
                     <div class="intro-actions">
                         <button class="intro-primary-cta" type="button" data-open-workspace>
@@ -399,8 +430,16 @@
                 </aside>
             </main>
 
+            <section class="intro-resources" aria-labelledby="researchGuidesTitle">
+                <h2 id="researchGuidesTitle">Research guides</h2>
+                <div class="intro-resource-links">
+                    <a href="/guides/financial-statement-analysis"><strong>Reading financial statements ↗</strong><span>Connect the income statement, balance sheet, and cash flow statement.</span></a>
+                    <a href="/guides/financial-ratios"><strong>Financial ratios ↗</strong><span>Understand the formulas, reporting periods, and company-type differences.</span></a>
+                    <a href="/guides/dcf-valuation"><strong>DCF valuation ↗</strong><span>Build a forecast and see how cash flows and assumptions affect value.</span></a>
+                </div>
+            </section>
             <footer class="intro-footer">
-                <span>&copy; 2026 StatementIQ</span>
+                <span>&copy; 2026 StatementIQ<a class="intro-about-link" href="/about">Founded by Tarek Lawand</a></span>
                 <span class="footer-disclaimer">Research screening only. Not investment advice or a substitute for full filings.</span>
                 <a href="mailto:tareklawand06@hotmail.com">Contact &amp; support <strong>tareklawand06@hotmail.com</strong></a>
             </footer>
@@ -839,7 +878,7 @@
         </main>
 
         <footer class="workspace-footer">
-            <span>&copy; 2026 StatementIQ</span>
+            <span>&copy; 2026 StatementIQ · <a href="/about">About</a> · <a href="/methodology">Methodology</a></span>
             <span class="footer-disclaimer">Research screening only. Verify the full filings before making an investment decision.</span>
             <a href="mailto:tareklawand06@hotmail.com">Contact &amp; support</a>
         </footer>

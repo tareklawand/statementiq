@@ -152,6 +152,12 @@ export default {
     const isApiRequest =
       requestUrl.pathname.startsWith("/api/") ||
       requestUrl.pathname === "/health";
+
+    // The old local-preview address is not a second public homepage.
+    if (requestUrl.pathname === "/static/index.html") {
+      requestUrl.pathname = "/";
+      return Response.redirect(requestUrl.toString(), 301);
+    }
     const archiveResponse = await handleResearchArchive(request, env);
     if (archiveResponse) return applyPublicHeaders(archiveResponse, {preventIndexing: true});
 
