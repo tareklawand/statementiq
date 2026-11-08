@@ -96,7 +96,38 @@ Regression CI now covers `codex/**` branches before main publication.
 
 ## Verification and release
 
-Final test, deployment and live-check records are appended after verification.
+Published Python revision: `f80ecc988aa2646cc49971e977c115a5bf7e78c8`.
+Published edge/source revision: `0d68650d57a1192ee7d9bafd6d88252334cd6e69`.
+Cloudflare Worker version: `a72f675f-b92a-4638-808a-dbbbcf79ad90`.
+The edge-only and documentation commits use `[skip render]` to avoid additional
+Python restarts; the origin's public release header verified the Python revision.
+
+- 147 Python checks passed locally (141 offline and 6 live-source checks).
+- 61 JavaScript checks passed, including bounded SEC streaming and cancellation.
+- [Backend Linux regression run 42500681445](https://github.com/tareklawand/statementiq/actions/runs/42500681445)
+  and [final release run 42501295833](https://github.com/tareklawand/statementiq/actions/runs/42501295833)
+  passed on Python 3.11, Python 3.14 and Node 22.
+- Production analysis passed again for AAPL, MSFT, AMZN, NVDA, TSLA, DOCU and JPM,
+  each carrying the released origin revision. Warm requests took 3.814–5.923 s;
+  cached Apple took 0.071 s. This is not evidence of a lower cold-start time.
+- Apple DCF baseline loaded in 0.543 s. Explicit simulated assumptions preserved
+  the prior calculation result, and cash/balance-sheet reconciliations passed.
+  The six-sheet Excel export and real-statement PDF export were valid.
+- A three-company sector peer request returned 200 in 9.410 s. Apple's annual
+  filing phrase review returned `analyzed` in 4.095 s, through the hardened path.
+- Local chart assets returned 200 and matched their recorded SHA-256 hashes.
+  A separate live browser visit rendered all four charts with no console errors
+  and no document overflow. No externally hosted chart/icon script was requested.
+- The live PDF endpoint rejected a correctly identified oversized test request
+  with HTTP413 from the audited origin. A default Python-urllib user agent was
+  separately rejected by Cloudflare's existing browser check (1010/403); the
+  actual browser, identified operational checks and ordinary export all passed.
+  This security check was not disabled to make the test pass.
+- [Post-release availability and backup run 42501572920](https://github.com/tareklawand/statementiq/actions/runs/42501572920)
+  passed both jobs. Downloaded artifact `public-sec-evidence-42501572920` matched
+  its SHA-256 manifest; an independent in-memory restore verified all 10 saved
+  filing snapshots and passed SQLite integrity checks.
+
 The existing provider validation, source freshness, integrity holds, formulas,
 public-archive scope, private-download behavior and free billing plans remain.
 
