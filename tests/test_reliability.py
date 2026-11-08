@@ -188,14 +188,14 @@ def test_duplicate_waiters_release_http_workers_and_rejoin_the_same_source_load(
         calls.append(symbol);started.set();assert release.wait(2);return expected
     monkeypatch.setattr(data_fetcher,'_fetch_stock_data',fetch)
     monkeypatch.setattr(data_fetcher,'SOURCE_WAIT_SECONDS',.02)
-    with ThreadPoolExecutor(max_workers=1) as pool:
-        first=pool.submit(data_fetcher.fetch_stock_data,'SLOW')
-        try:
-            assert started.wait(1)
-            second=data_fetcher.fetch_stock_data('SLOW')
-            assert second['error_code']=='source_busy' and calls==['SLOW']
-        finally:release.set()
-        assert first.result()==expected
+    try:
+        first=data_fetcher.fetch_stock_data('SLOW')
+        assert started.is_set() and first['error_code']=='source_busy'
+        with data_fetcher._FETCH_LOCK:source=data_fetcher._INFLIGHT['SLOW']
+        second=data_fetcher.fetch_stock_data('SLOW',force_refresh=True)
+        assert second['error_code']=='source_busy' and calls==['SLOW']
+    finally:release.set()
+    assert source.result(timeout=1)==expected
 
 
 def test_same_period_changed_provider_values_and_new_filings_invalidate_sec_matches(monkeypatch):
@@ -206,8 +206,11 @@ def test_same_period_changed_provider_values_and_new_filings_invalidate_sec_matc
     balance=pd.DataFrame({date:[200]},index=['Total Assets'])
     payload={'facts':{'us-gaap':{'Assets':{'units':{'USD':[{'val':200,'end':'2026-06-30','form':'10-Q','accn':'first'}]}}}}}
     class Response:
+        headers={}
         def raise_for_status(self):pass
         def json(self):return payload
+        def iter_content(self,chunk_size):yield json.dumps(payload).encode()
+        def close(self):pass
     monkeypatch.setattr(sec_facts_validator,'_CACHE',{})
     monkeypatch.setattr(requests,'get',lambda *args,**kwargs:(requests_seen.append(1) or Response()))
     first=sec_facts_validator.validate_core_sec_facts('123',income,balance,'USD','first')

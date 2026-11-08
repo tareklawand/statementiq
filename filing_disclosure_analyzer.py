@@ -11,12 +11,14 @@ from typing import Any, Dict
 from urllib.parse import urlencode
 
 import requests
+from source_limits import read_bounded, MAX_FILING_BYTES
 
 
 _CACHE: Dict[str, Dict[str, Any]] = {}
 _LOCK = threading.Lock()
 _CACHE_TTL = 6 * 60 * 60
 _UNAVAILABLE_CACHE_TTL = 60
+_MAX_CACHE_ENTRIES = 32
 
 _TOPICS = (
     (
@@ -111,8 +113,10 @@ def scan_annual_filing(filing_url: str) -> Dict[str, Any]:
             filing_url,
             headers=request_headers,
             timeout=10,
+            stream=True,
         )
         if response.status_code in {403, 429}:
+            response.close()
             proxy_base = os.environ.get(
                 "SEC_ARCHIVE_PROXY",
                 "https://statementiq-lb.com/api/sec-filing-text",
@@ -121,11 +125,10 @@ def scan_annual_filing(filing_url: str) -> Dict[str, Any]:
                 f"{proxy_base}?{urlencode({'url': filing_url})}",
                 headers={"Accept": "text/html,application/xhtml+xml"},
                 timeout=15,
+                stream=True,
             )
-        response.raise_for_status()
-        if len(response.content) > 50 * 1024 * 1024:
-            raise ValueError("Annual filing exceeded the automated review size limit.")
-        result = analyze_filing_text(response.text)
+        document = read_bounded(response, MAX_FILING_BYTES)
+        result = analyze_filing_text(document.decode(response.encoding or "utf-8", errors="replace"))
         result["filing_url"] = filing_url
     except Exception as exc:
         result = {
@@ -134,5 +137,7 @@ def scan_annual_filing(filing_url: str) -> Dict[str, Any]:
             "filing_url": filing_url,
         }
     with _LOCK:
-        _CACHE[filing_url] = {"timestamp": now, "data": result}
+        _CACHE[filing_url] = {"timestamp": time.time(), "data": result}
+        while len(_CACHE) > _MAX_CACHE_ENTRIES:
+            _CACHE.pop(min(_CACHE, key=lambda key: _CACHE[key]["timestamp"]))
     return result

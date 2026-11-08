@@ -6,7 +6,10 @@ yfinance==1.2.0
 plotly>=5.18.0
 reportlab>=4.0.8
 google-genai>=0.1.1
-pandas>=2.0.0
+# The pinned Yahoo client still uses APIs scheduled for removal in pandas 4.
+pandas>=2.0.0,<4.0
+numpy>=1.24,<3.0
+requests>=2.31.0,<3.0
 pytest>=8.0.0
 httpx>=0.27.0
 

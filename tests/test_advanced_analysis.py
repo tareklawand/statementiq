@@ -163,6 +163,14 @@ def test_filing_review_uses_locked_edge_fallback_after_sec_rate_limit(monkeypatc
             self.status_code = status_code
             self.text = text
             self.content = text.encode()
+            self.headers = {}
+            self.encoding = "utf-8"
+
+        def iter_content(self, chunk_size):
+            yield self.content
+
+        def close(self):
+            pass
 
         def raise_for_status(self):
             if self.status_code >= 400:

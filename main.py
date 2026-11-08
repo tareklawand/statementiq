@@ -1,7 +1,6 @@
 import os
 import json
 import io
-import sys
 import threading
 import re
 import time
@@ -12,8 +11,6 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 import pandas as pd
 import numpy as np
-
-sys.path.append('/Users/tareklawand/Library/Python/3.9/lib/python/site-packages')
 
 from fastapi import FastAPI, Query, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse, Response
@@ -32,6 +29,7 @@ from research_review import build_research_review, input_fingerprint, methodolog
 from peer_comparison import compare_peers
 from forecast_model import build_baseline, run_model, ModelUnavailable
 from model_requests import ModelRequestLimit
+from resource_limits import ExpensiveRequestLimit
 
 
 @asynccontextmanager
@@ -42,6 +40,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="StatementIQ Financial API", lifespan=lifespan)
 app.add_middleware(ModelRequestLimit)
+app.add_middleware(ExpensiveRequestLimit)
 
 
 @app.middleware("http")
@@ -117,7 +116,8 @@ def prewarm_cache():
     print(json.dumps({"event": "default_warmup", "status": "running"}), flush=True)
     try:
         data = fetch_stock_data("AAPL")
-        print(json.dumps({"event": "default_warmup", "status": "unavailable" if data.get("error") else "ready",
+        status = "pending" if data.get("error_code") == "source_busy" else "unavailable" if data.get("error") else "ready"
+        print(json.dumps({"event": "default_warmup", "status": status,
                           "source_error_code": data.get("error_code")}), flush=True)
     except Exception:
         print(json.dumps({"event": "default_warmup", "status": "unavailable"}), flush=True)
@@ -139,12 +139,12 @@ def root_head():
 
 
 @app.api_route("/health", methods=["GET", "HEAD"])
-def health_check():
+async def health_check():
     """Uptime health check endpoint for monitoring and Render deployment."""
     return {"status": "healthy", "service": "StatementIQ Engine"}
 
 @app.get("/api/presets")
-def get_presets():
+async def get_presets():
     """Returns preset tickers list."""
     return {"presets": PRESET_TICKERS}
 

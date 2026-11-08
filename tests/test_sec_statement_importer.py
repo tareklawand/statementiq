@@ -1,5 +1,6 @@
 """Synthetic accounting examples, never production financial snapshots."""
 from copy import deepcopy
+import json
 from datetime import date, timedelta
 
 import pandas as pd
@@ -183,8 +184,11 @@ def test_future_period_is_rejected():
 def test_company_facts_cache_is_invalidated_by_new_accession(monkeypatch):
     payload, _, _ = fixture()
     class Response:
+        headers = {}
         def raise_for_status(self): pass
         def json(self): return payload
+        def iter_content(self, chunk_size): yield json.dumps(payload).encode()
+        def close(self): pass
     calls = []
     monkeypatch.setattr(importer.requests, "get", lambda *a, **k: calls.append(a[0]) or Response())
     monkeypatch.setattr(importer.time, "sleep", lambda n: None)

@@ -13,7 +13,8 @@ VERSION = "2026.11.04-research-2"
 _ROOT = Path(__file__).resolve().parent
 _MODEL_FILES = ("main.py", "data_fetcher.py", "metrics_calculator.py", "sec_filing_validator.py",
                 "sec_facts_validator.py", "sec_statement_importer.py", "statement_analysis.py",
-                "sector_analysis.py", "deterministic_analyst.py", "evidence_snapshot.py", "research_review.py", "peer_comparison.py")
+                "sector_analysis.py", "deterministic_analyst.py", "evidence_snapshot.py", "research_review.py", "peer_comparison.py",
+                "source_limits.py", "resource_limits.py")
 
 
 def methodology():

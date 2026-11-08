@@ -13,6 +13,7 @@ from typing import Any, Dict, Iterable, Optional
 
 import pandas as pd
 import requests
+from source_limits import read_json
 
 
 _CACHE: Dict[str, Dict[str, Any]] = {}
@@ -154,9 +155,9 @@ def validate_core_sec_facts(
             f"https://data.sec.gov/api/xbrl/companyfacts/CIK{str(cik).zfill(10)}.json",
             headers=_headers(),
             timeout=12,
+            stream=True,
         )
-        response.raise_for_status()
-        payload = response.json()
+        payload = read_json(response)
         facts = payload.get("facts") or {}
 
         checks = []

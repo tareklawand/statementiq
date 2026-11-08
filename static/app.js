@@ -9,6 +9,7 @@ let analysisProgressTimers = [];
 let analysisProgressClock = null;
 let analysisProgressStartedAt = 0;
 let workspaceInitialized = false;
+let appInitialized = false;
 let themeTransitionActive = false;
 let activeAnalysisRequest = null;
 let requestedSymbol = "AAPL";
@@ -32,7 +33,7 @@ function renderThemeDependentContent() {
 function applyTheme(nextTheme) {
     currentTheme = nextTheme;
     document.documentElement.setAttribute("data-theme", currentTheme);
-    localStorage.setItem("statementiq-theme", currentTheme);
+    try { localStorage.setItem("statementiq-theme", currentTheme); } catch (_) { /* Storage is optional. */ }
     const themeColorMeta = document.querySelector('meta[name="theme-color"]');
     if (themeColorMeta) {
         themeColorMeta.setAttribute("content", currentTheme === "dark" ? "#171c18" : "#efede4");
@@ -292,7 +293,10 @@ function setAnalysisAvailability(state, symbol, detail = "") {
 
 // Initialize Application
 function initApp() {
-    const storedTheme = localStorage.getItem("statementiq-theme");
+    if (appInitialized) return;
+    appInitialized = true;
+    let storedTheme = null;
+    try { storedTheme = localStorage.getItem("statementiq-theme"); } catch (_) { /* Private/restricted browsers can still analyze. */ }
     if (storedTheme === "light" || storedTheme === "dark") {
         currentTheme = storedTheme;
         document.documentElement.setAttribute("data-theme", currentTheme);
@@ -302,6 +306,23 @@ function initApp() {
     setupEventListeners();
     setupExperienceGate();
 }
+
+// Core navigation and analysis need not wait for optional presentation assets.
+document.getElementById("chartLibrary")?.addEventListener("load", renderThemeDependentContent);
+function showUnavailableCharts() {
+    for (const id of ["healthGaugeChart", "chartRevenueNetIncome", "chartCashVsDebt", "chartMargins"]) {
+        const chart = document.getElementById(id);
+        if (chart) chart.textContent = "Charts are unavailable right now. Reported figures remain available in the tables.";
+    }
+}
+document.getElementById("chartLibrary")?.addEventListener("error", showUnavailableCharts);
+document.addEventListener("DOMContentLoaded", () => {
+    // Also cover a download failure that happened before this bottom script ran.
+    if (typeof Plotly === "undefined") showUnavailableCharts();
+});
+document.getElementById("iconLibrary")?.addEventListener("load", () => {
+    try { lucide.createIcons(); } catch (_) { /* Button labels remain usable. */ }
+});
 
 if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", initApp);

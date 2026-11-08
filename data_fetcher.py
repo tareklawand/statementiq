@@ -133,7 +133,9 @@ MAX_CACHE_ENTRIES = 8
 _FETCH_LOCK = threading.Lock()
 _INFLIGHT = {}
 _STATEMENT_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="statements")
-_ACTIVE_SOURCE_LOADS = threading.BoundedSemaphore(2)
+MAX_SOURCE_LOADS = 2
+_SOURCE_POOL = ThreadPoolExecutor(max_workers=MAX_SOURCE_LOADS, thread_name_prefix="company-sources")
+_ACTIVE_SOURCE_LOADS = threading.BoundedSemaphore(MAX_SOURCE_LOADS)
 SOURCE_WAIT_SECONDS = 20
 
 
@@ -462,31 +464,56 @@ def _enrich_info_with_live_market_fallbacks(ticker: Any, raw_info: Any) -> Dict[
     return info
 
 def fetch_stock_data(ticker_symbol: str, force_refresh: bool = False) -> Dict[str, Any]:
-    """Share concurrent loads, including startup warming and the first visitor."""
+    """Bound every caller's wait; a timed-out read never duplicates source work."""
     symbol = ticker_symbol.strip().upper() or "AAPL"
-    key = (symbol, force_refresh)
     with _FETCH_LOCK:
-        future = _INFLIGHT.get(key)
+        cached = _cached_stock_data(symbol, force_refresh)
+        if cached is not None:
+            return cached
+        # Refresh and ordinary requests for the same company share a load.
+        future = _INFLIGHT.get(symbol)
         owner = future is None
         if owner:
-            future = _INFLIGHT[key] = Future()
-    if not owner:
+            if len(_INFLIGHT) >= MAX_SOURCE_LOADS:
+                return _source_busy(symbol)
+            future = _INFLIGHT[symbol] = Future()
+    if owner:
         try:
-            return future.result(timeout=SOURCE_WAIT_SECONDS)
-        except FutureTimeout:
-            # Release this HTTP worker while the shared source load continues.
-            # A retry rejoins it rather than starting a duplicate download.
-            return _source_busy(symbol)
+            _SOURCE_POOL.submit(_complete_source_load, symbol, force_refresh, future)
+        except BaseException as error:
+            with _FETCH_LOCK:
+                if _INFLIGHT.get(symbol) is future:
+                    _INFLIGHT.pop(symbol)
+            future.set_exception(error)
     try:
-        result = _fetch_stock_data(symbol, force_refresh)
-        future.set_result(result)
-        return result
+        return future.result(timeout=SOURCE_WAIT_SECONDS)
+    except FutureTimeout:
+        return _source_busy(symbol)
+
+
+def _complete_source_load(symbol, force_refresh, future):
+    try:
+        future.set_result(_fetch_stock_data(symbol, force_refresh))
     except BaseException as error:
         future.set_exception(error)
-        raise
     finally:
         with _FETCH_LOCK:
-            _INFLIGHT.pop(key, None)
+            if _INFLIGHT.get(symbol) is future:
+                _INFLIGHT.pop(symbol)
+
+
+def _cached_stock_data(symbol, force_refresh):
+    """Called with _FETCH_LOCK held; source freshness and failure TTL are unchanged."""
+    entry = _CACHE.get(symbol)
+    if entry is not None:
+        failed = bool(entry["data"].get("error"))
+        ttl = ERROR_CACHE_TTL if failed else CACHE_TTL
+        age = time.time() - entry["timestamp"]
+        if age < ttl and (failed or not force_refresh):
+            if failed:
+                return {**entry["data"], "retry_after_seconds": max(1, math.ceil(ttl-age))}
+            return entry["data"]
+    return None
 
 
 def _fetch_stock_data(ticker_symbol: str, force_refresh: bool = False) -> Dict[str, Any]:
@@ -494,18 +521,10 @@ def _fetch_stock_data(ticker_symbol: str, force_refresh: bool = False) -> Dict[s
     if not symbol:
         symbol = "AAPL"
 
-    now = time.time()
     with _FETCH_LOCK:
-        if symbol in _CACHE:
-            cached_entry = _CACHE[symbol]
-            ttl = ERROR_CACHE_TTL if cached_entry["data"].get("error") else CACHE_TTL
-            age = now - cached_entry["timestamp"]
-            # A forced source refresh still respects a recent failure cooldown.
-            # Otherwise repeated clicks can repeatedly hit an unavailable feed.
-            if age < ttl and (cached_entry["data"].get("error") or not force_refresh):
-                if cached_entry["data"].get("error"):
-                    return {**cached_entry["data"], "retry_after_seconds": max(1, math.ceil(ttl-age))}
-                return cached_entry["data"]
+        cached = _cached_stock_data(symbol, force_refresh)
+        if cached is not None:
+            return cached
 
     if not _ACTIVE_SOURCE_LOADS.acquire(blocking=False):
         return _source_busy(symbol)

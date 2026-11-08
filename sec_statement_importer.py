@@ -19,6 +19,7 @@ import pandas as pd
 import requests
 
 from sec_filing_validator import _headers
+from source_limits import read_json
 
 FORMS = {"10-K", "10-K/A", "10-Q", "10-Q/A", "20-F", "20-F/A", "40-F", "40-F/A"}
 ANNUAL_FORMS = {"10-K", "10-K/A", "20-F", "20-F/A", "40-F", "40-F/A"}
@@ -112,10 +113,9 @@ def get_company_facts(cik: str, accession: str) -> Dict[str, Any]:
         _LAST_REQUEST = time.monotonic()
         response = requests.get(
             f"https://data.sec.gov/api/xbrl/companyfacts/CIK{key}.json",
-            headers=_headers(), timeout=(5, 15),
+            headers=_headers(), timeout=(5, 15), stream=True,
         )
-        response.raise_for_status()
-        payload = response.json()
+        payload = read_json(response)
         if str(payload.get("cik", "")).zfill(10) != key:
             raise ImportUnavailable("SEC facts did not identify the requested registrant.")
         # Company Facts also contains thousands of unrelated footnote tags.

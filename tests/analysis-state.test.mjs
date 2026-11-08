@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import vm from "node:vm";
+import {createHash} from "node:crypto";
 
 const client = readFileSync(new URL("../static/request-client.js", import.meta.url), "utf8");
 const app = readFileSync(new URL("../static/app.js", import.meta.url), "utf8");
@@ -30,7 +31,7 @@ function createFrontend() {
         console: { error() {} }, Date, AbortController, DOMException, Event, URLSearchParams,
     });
     vm.runInContext(`${client}\n${app}\n globalThis.frontend = {
-        loadTickerData, loadFilingTextReview, setupEventListeners, initializeWorkspace, getData: () => currentData, getSymbol: () => currentSymbol,
+        loadTickerData, loadFilingTextReview, setupEventListeners, initializeWorkspace, initApp, applyTheme, getData: () => currentData, getSymbol: () => currentSymbol,
         client: StatementIQRequests,
     };`, context);
     // Isolate the request/state logic from Plotly and detailed financial rendering.
@@ -44,8 +45,48 @@ function createFrontend() {
         pending.push({ url, options, resolve, reject });
         options.signal?.addEventListener("abort", () => reject(new DOMException("Cancelled", "AbortError")), { once: true });
     });
-    return { frontend: context.frontend, element, pending };
+    return { frontend: context.frontend, element, pending, context };
 }
+
+test('blocked browser storage cannot stop initialization or theme changes, and initialization runs once',()=>{
+    const h=createFrontend();
+    vm.runInContext(`
+        globalThis.localStorage={getItem(){throw new Error('Storage blocked');},setItem(){throw new Error('Storage blocked');}};
+        globalThis.initializations=0;
+        document.documentElement.setAttribute=()=>{};
+        document.querySelector=()=>null;
+        setupExperienceGate=()=>{initializations++;};
+    `,h.context);
+    assert.doesNotThrow(()=>h.frontend.initApp());
+    assert.doesNotThrow(()=>h.frontend.applyTheme('dark'));
+    h.frontend.initApp();
+    assert.equal(vm.runInContext('initializations',h.context),1);
+});
+
+test('optional chart and icon downloads do not gate analysis initialization',()=>{
+    const html=readFileSync(new URL('../static/index.html',import.meta.url),'utf8');
+    assert.match(html,/<script id="chartLibrary" defer src=/);
+    assert.match(html,/<script id="iconLibrary" defer src="\/static\/vendor\/lucide-[\d.]+\.min\.js"/);
+    assert.ok(html.indexOf('<script>initApp();</script>')>html.indexOf('/static/forecast-workspace.js'));
+});
+
+test('visual libraries are local versioned assets with verified package hashes and licenses',()=>{
+    const sources=JSON.parse(readFileSync(new URL('../static/vendor/sources.json',import.meta.url),'utf8'));
+    const html=readFileSync(new URL('../static/index.html',import.meta.url),'utf8');
+    for(const source of sources){
+        const content=readFileSync(new URL('../static/vendor/'+source.file,import.meta.url));
+        assert.equal(createHash('sha256').update(content).digest('hex'),source.sha256);
+        assert.match(source.package_integrity,/^sha512-/);
+        if(source.file.endsWith('.js'))assert.ok(html.includes('/static/vendor/'+source.file));
+    }
+    assert.ok(!html.includes('src="https://cdn.plot.ly/')&&!html.includes('src="https://unpkg.com/'));
+});
+
+test('a missing chart library leaves a clear message instead of stopping analysis',()=>{
+    const h=createFrontend();h.element('chartLibrary').listeners.error();
+    assert.match(h.element('chartRevenueNetIncome').textContent,/Reported figures remain available/);
+    assert.equal(h.frontend.getData(),null);
+});
 
 function data(symbol) {
     return { symbol, info: { price: 123.45 }, metrics: {}, data_quality: { fetched_at: "2026-11-02T16:00:00Z" } };
@@ -73,7 +114,7 @@ test("a direct workspace visit can start the engine before external chart downlo
     const html = readFileSync(new URL("../static/index.html", import.meta.url), "utf8");
     const requestScript = html.indexOf('src="/static/request-client.js?');
     const earlyVisit = html.indexOf('void StatementIQRequests.beginVisit()');
-    const charts = html.indexOf('src="https://cdn.plot.ly/');
+    const charts = html.indexOf('src="/static/vendor/plotly-');
     assert.ok(requestScript >= 0 && requestScript < earlyVisit && earlyVisit < charts);
     assert.ok(earlyVisit < html.indexOf('href="https://fonts.googleapis.com/css2'));
     assert.equal((html.match(/src="\/static\/request-client\.js\?/g) || []).length, 1);

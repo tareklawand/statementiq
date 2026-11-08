@@ -1,9 +1,11 @@
+import json
 import pandas as pd
 
 import sec_facts_validator
 
 
 class FakeResponse:
+    headers = {}
     def __init__(self, payload):
         self.payload = payload
 
@@ -12,6 +14,12 @@ class FakeResponse:
 
     def json(self):
         return self.payload
+
+    def iter_content(self, chunk_size):
+        yield json.dumps(self.payload).encode()
+
+    def close(self):
+        pass
 
 
 def test_latest_quarter_core_facts_match_official_values(monkeypatch):

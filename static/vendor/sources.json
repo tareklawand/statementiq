@@ -1,0 +1,38 @@
+[
+  {
+    "file": "plotly-2.27.0.min.js",
+    "package": "plotly.js-dist-min",
+    "version": "2.27.0",
+    "source": "https://registry.npmjs.org/plotly.js-dist-min/-/plotly.js-dist-min-2.27.0.tgz",
+    "package_integrity": "sha512-mbO7Mh1GlNEMSwqtdG1SjxVt/aAO47WBpzbkY5/YQyEa1n3MOX92AfhhIBq6xZ/dfJ82RHq92dQDm7WBahQ7DQ==",
+    "bytes": 3598158,
+    "sha256": "7f4930eba8f8541dbec28dca5bd5f787f8eef1cde0369ac9657b70bed230b3e0"
+  },
+  {
+    "file": "plotly-LICENSE.txt",
+    "package": "plotly.js-dist-min",
+    "version": "2.27.0",
+    "source": "https://registry.npmjs.org/plotly.js-dist-min/-/plotly.js-dist-min-2.27.0.tgz",
+    "package_integrity": "sha512-mbO7Mh1GlNEMSwqtdG1SjxVt/aAO47WBpzbkY5/YQyEa1n3MOX92AfhhIBq6xZ/dfJ82RHq92dQDm7WBahQ7DQ==",
+    "bytes": 1078,
+    "sha256": "67a26cf80f03ff388f26945dfc1f6caed1a0746ff43871190339b3aee49b94bb"
+  },
+  {
+    "file": "lucide-1.70.0.min.js",
+    "package": "lucide",
+    "version": "1.70.0",
+    "source": "https://registry.npmjs.org/lucide/-/lucide-1.70.0.tgz",
+    "package_integrity": "sha512-LxPqUjt8e5PT7JuvmnKc8ECAqgkbnLG3hIi/FV2JpqWdPWLbLCoI5P3jje/Lq84uNU2kCpe2webgyFFJJ9zPAA==",
+    "bytes": 481206,
+    "sha256": "d2e6483c0256fdb7bc4feb41b040717632641beacff7e79791ebcbb31e363344"
+  },
+  {
+    "file": "lucide-LICENSE.txt",
+    "package": "lucide",
+    "version": "1.70.0",
+    "source": "https://registry.npmjs.org/lucide/-/lucide-1.70.0.tgz",
+    "package_integrity": "sha512-LxPqUjt8e5PT7JuvmnKc8ECAqgkbnLG3hIi/FV2JpqWdPWLbLCoI5P3jje/Lq84uNU2kCpe2webgyFFJJ9zPAA==",
+    "bytes": 3208,
+    "sha256": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57"
+  }
+]

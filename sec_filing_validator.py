@@ -20,6 +20,8 @@ _TICKER_MAP: Dict[str, Dict[str, Any]] = {}
 _TICKER_MAP_FETCHED_AT = 0.0
 _FILING_CACHE: Dict[str, Dict[str, Any]] = {}
 _LOCK = threading.Lock()
+_FILING_LOCK = threading.Lock()
+MAX_FILING_CACHE_ENTRIES = 64
 
 TICKER_MAP_TTL = 24 * 60 * 60
 FILING_CACHE_TTL = 5 * 60
@@ -157,14 +159,15 @@ def get_latest_sec_filing(symbol: str, cik_hint: Optional[str] = None, force_ref
 
     normalized = symbol.strip().upper().replace("-", ".")
     now = time.time()
-    cached = _FILING_CACHE.get(normalized)
-    if (
-        cached
-        and not force_refresh
-        and now - cached["timestamp"] < FILING_CACHE_TTL
-        and not (cik_hint and cached["data"].get("status") != "verified")
-    ):
-        return cached["data"]
+    with _FILING_LOCK:
+        cached = _FILING_CACHE.get(normalized)
+        if (
+            cached
+            and not force_refresh
+            and now - cached["timestamp"] < FILING_CACHE_TTL
+            and not (cik_hint and cached["data"].get("status") != "verified")
+        ):
+            return cached["data"]
 
     try:
         entry = None
@@ -244,5 +247,8 @@ def get_latest_sec_filing(symbol: str, cik_hint: Optional[str] = None, force_ref
             "reason": f"SEC recency validation was unavailable: {exc}",
         }
 
-    _FILING_CACHE[normalized] = {"timestamp": now, "data": result}
+    with _FILING_LOCK:
+        _FILING_CACHE[normalized] = {"timestamp": time.time(), "data": result}
+        while len(_FILING_CACHE) > MAX_FILING_CACHE_ENTRIES:
+            _FILING_CACHE.pop(min(_FILING_CACHE, key=lambda key: _FILING_CACHE[key]["timestamp"]))
     return result
