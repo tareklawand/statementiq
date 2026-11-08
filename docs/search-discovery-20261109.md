@@ -45,3 +45,15 @@ References:
 - https://pages.stern.nyu.edu/~adamodar/New_Home_Page/littlebook/terminalvalue.htm
 
 The methodology copy was checked against `data_fetcher.py`, `metrics_calculator.py`, and `forecast_model.py`; it describes supported behavior and does not claim universal sector coverage or independently audited financial data.
+
+## Release verification
+
+Published code: `ac83961`. Cloudflare Worker version: `5e05d102-9258-4bc9-8139-2f7bdece6ba7`.
+
+All three repository checks passed before publication (Python 3.11, Python 3.14, browser regression): https://github.com/tareklawand/statementiq/actions/runs/42531891869
+
+Live checks returned 200 for all six sitemap pages and their expected canonical metadata. `.html`, trailing-slash, and old local-homepage variants resolved to the canonical addresses. An unknown page and asset returned 404. `/api/startup-config` retained `noindex, nofollow`. Public robots responses returned 200 for requests using Googlebot and OAI-SearchBot user-agent strings; this does not establish access from their actual crawler IPs. No Search Console recrawl request or sitemap submission was made in this change; the public sitemap URL is unchanged and contains the expanded page list.
+
+The published homepage was also verified in the browser. A screenshot was saved locally to the SEO task's output folder. No hosting plan or billing change was made, and the publication did not require restarting the Python backend.
+
+For the Cloudflare page-routing preview, run `wrangler dev --host 127.0.0.1`; the API-only Python server is not the public-page router for these added paths.
