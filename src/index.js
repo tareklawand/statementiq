@@ -1,6 +1,8 @@
 const CANONICAL_HOSTNAME = "statementiq-lb.com";
 const PERIODIC_FILING_FORMS = new Set(["10-K", "10-K/A", "20-F", "20-F/A", "40-F", "40-F/A"]);
-const MAX_EXTRACTED_FILING_CHARS = 45 * 1024 * 1024;
+const MAX_EXTRACTED_FILING_CHARS = 16 * 1024 * 1024;
+const MAX_DOCUMENT_HEADER_CHARS = 64 * 1024;
+let activeFilingReviews = 0;
 const TRANSIENT_UPSTREAM_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524]);
 
 // SEC full-submission files may contain hundreds of exhibits and can be much
@@ -23,77 +25,87 @@ export async function extractPeriodicDocument(response) {
     extracted += value;
   };
 
-  while (true) {
-    const { value, done } = await reader.read();
-    pending += decoder.decode(value || new Uint8Array(), { stream: !done });
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      pending += decoder.decode(value || new Uint8Array(), { stream: !done });
 
-    let needsMoreData = false;
-    while (!needsMoreData) {
-      if (mode === "search") {
-        const documentStart = pending.search(/<DOCUMENT>/i);
-        if (documentStart < 0) {
+      let needsMoreData = false;
+      while (!needsMoreData) {
+        if (mode === "search") {
+          const documentStart = pending.search(/<DOCUMENT>/i);
+          if (documentStart < 0) {
+            pending = pending.slice(-32);
+            needsMoreData = true;
+            continue;
+          }
+          pending = pending.slice(documentStart);
+          const typeMatch = pending.match(/<TYPE>\s*([^\r\n<]+)/i);
+          if (!typeMatch) {
+            if (pending.length > MAX_DOCUMENT_HEADER_CHARS) throw new RangeError("SEC document header exceeds review size limit");
+            needsMoreData = true;
+            continue;
+          }
+          const form = typeMatch[1].trim().toUpperCase();
+          if (typeMatch.index > MAX_DOCUMENT_HEADER_CHARS) throw new RangeError("SEC document header exceeds review size limit");
+          mode = PERIODIC_FILING_FORMS.has(form) ? "await_text" : "skip";
+          continue;
+        }
+
+        if (mode === "await_text") {
+          const textStart = pending.search(/<TEXT>/i);
+          const documentEnd = pending.search(/<\/DOCUMENT>/i);
+          if (textStart >= 0 && (documentEnd < 0 || textStart < documentEnd)) {
+            if (textStart > MAX_DOCUMENT_HEADER_CHARS) throw new RangeError("SEC document header exceeds review size limit");
+            pending = pending.slice(textStart + "<TEXT>".length);
+            mode = "capture";
+            continue;
+          }
+          if (documentEnd >= 0) return null;
+          if (pending.length > MAX_DOCUMENT_HEADER_CHARS) throw new RangeError("SEC document header exceeds review size limit");
+          needsMoreData = true;
+          continue;
+        }
+
+        if (mode === "skip") {
+          const documentEnd = pending.search(/<\/DOCUMENT>/i);
+          if (documentEnd >= 0) {
+            pending = pending.slice(documentEnd + "</DOCUMENT>".length);
+            mode = "search";
+            continue;
+          }
           pending = pending.slice(-32);
           needsMoreData = true;
           continue;
         }
-        pending = pending.slice(documentStart);
-        const typeMatch = pending.match(/<TYPE>\s*([^\r\n<]+)/i);
-        if (!typeMatch) {
-          needsMoreData = true;
-          continue;
-        }
-        const form = typeMatch[1].trim().toUpperCase();
-        mode = PERIODIC_FILING_FORMS.has(form) ? "await_text" : "skip";
-        continue;
-      }
 
-      if (mode === "await_text") {
-        const textStart = pending.search(/<TEXT>/i);
+        const textEnd = pending.search(/<\/TEXT>/i);
         const documentEnd = pending.search(/<\/DOCUMENT>/i);
-        if (textStart >= 0 && (documentEnd < 0 || textStart < documentEnd)) {
-          pending = pending.slice(textStart + "<TEXT>".length);
-          mode = "capture";
-          continue;
+        const closingIndexes = [textEnd, documentEnd].filter((index) => index >= 0);
+        if (closingIndexes.length) {
+          appendExtracted(pending.slice(0, Math.min(...closingIndexes)));
+          return extracted;
         }
-        if (documentEnd >= 0) return null;
+        if (pending.length > 64) {
+          appendExtracted(pending.slice(0, -64));
+          pending = pending.slice(-64);
+        }
         needsMoreData = true;
-        continue;
       }
 
-      if (mode === "skip") {
-        const documentEnd = pending.search(/<\/DOCUMENT>/i);
-        if (documentEnd >= 0) {
-          pending = pending.slice(documentEnd + "</DOCUMENT>".length);
-          mode = "search";
-          continue;
-        }
-        pending = pending.slice(-32);
-        needsMoreData = true;
-        continue;
-      }
-
-      const textEnd = pending.search(/<\/TEXT>/i);
-      const documentEnd = pending.search(/<\/DOCUMENT>/i);
-      const closingIndexes = [textEnd, documentEnd].filter((index) => index >= 0);
-      if (closingIndexes.length) {
-        appendExtracted(pending.slice(0, Math.min(...closingIndexes)));
-        return extracted;
-      }
-      if (pending.length > 64) {
-        appendExtracted(pending.slice(0, -64));
-        pending = pending.slice(-64);
-      }
-      needsMoreData = true;
+      if (done) break;
     }
 
-    if (done) break;
+    if (mode === "capture" && pending) {
+      throw new Error("Annual report submission ended before its closing marker.");
+    }
+    return null;
+  } finally {
+    // Stop the original submission stream as soon as the periodic report ends,
+    // including failure paths. Unrelated exhibits must not keep downloading.
+    try { await reader.cancel(); } catch { /* An errored stream is already closed. */ }
+    reader.releaseLock();
   }
-
-  if (mode === "capture" && pending) {
-    appendExtracted(pending);
-    return extracted;
-  }
-  return null;
 }
 
 function applyPublicHeaders(response, { preventIndexing = false } = {}) {
@@ -170,6 +182,7 @@ export default {
         cf: { cacheEverything: true, cacheTtl: 86400 }
       });
       if (mapResponse.status === 403 || mapResponse.status === 429) {
+        await mapResponse.body?.cancel();
         const textResponse = await fetch("https://www.sec.gov/include/ticker.txt", {
           headers: secHeaders,
           cf: { cacheEverything: true, cacheTtl: 86400 }
@@ -217,59 +230,76 @@ export default {
       ) {
         return applyPublicHeaders(Response.json({ detail: "Only official SEC filing documents are allowed" }, { status: 400 }), { preventIndexing: true });
       }
-      const secHeaders = {
-        "user-agent": "StatementIQ/1.0 statementiq-lb.com",
-        "accept": "text/html,text/plain;q=0.9",
-        "accept-language": "en-US,en;q=0.9"
-      };
-      let secResponse = await fetch(sourceUrl.toString(), {
-        headers: secHeaders,
-        cf: { cacheEverything: true, cacheTtl: 21600 }
-      });
-      let usedFullSubmissionFallback = false;
-      // The SEC archive sometimes blocks primary HTML for data-center IPs but
-      // serves the official full-submission text. Derive that URL only from a
-      // validated EDGAR accession directory.
-      if (secResponse.status === 403 || secResponse.status === 429) {
-        const pathParts = sourceUrl.pathname.split("/").filter(Boolean);
-        const accessionCompact = pathParts[4] || "";
-        if (/^\d{18}$/.test(accessionCompact)) {
-          const accessionDashed = `${accessionCompact.slice(0, 10)}-${accessionCompact.slice(10, 12)}-${accessionCompact.slice(12)}`;
-          const textUrl = new URL(sourceUrl.toString());
-          textUrl.pathname = `/Archives/edgar/data/${pathParts[3]}/${accessionCompact}/${accessionDashed}.txt`;
-          textUrl.search = "";
-          secResponse = await fetch(textUrl.toString(), {
-            headers: secHeaders,
-            cf: { cacheEverything: true, cacheTtl: 21600 }
-          });
-          usedFullSubmissionFallback = secResponse.ok;
-        }
+      if (activeFilingReviews >= 1) {
+        return applyPublicHeaders(Response.json({detail: "Annual report review is busy. Please try again shortly."}, {
+          status: 503, headers: {"cache-control": "no-store", "retry-after": "5"}
+        }), {preventIndexing: true});
       }
-      if (usedFullSubmissionFallback) {
-        try {
-          const periodicDocument = await extractPeriodicDocument(secResponse);
-          if (!periodicDocument) {
-            return applyPublicHeaders(Response.json({ detail: "Annual report document was not found in SEC submission" }, { status: 422 }), { preventIndexing: true });
+      activeFilingReviews += 1;
+      try {
+        const secHeaders = {
+          "user-agent": "StatementIQ/1.0 statementiq-lb.com",
+          "accept": "text/html,text/plain;q=0.9",
+          "accept-language": "en-US,en;q=0.9"
+        };
+        let secResponse = await fetch(sourceUrl.toString(), {
+          headers: secHeaders,
+          cf: { cacheEverything: true, cacheTtl: 21600 }
+        });
+        let usedFullSubmissionFallback = false;
+        // The SEC archive sometimes blocks primary HTML for data-center IPs but
+        // serves the official full-submission text. Derive that URL only from a
+        // validated EDGAR accession directory.
+        if (secResponse.status === 403 || secResponse.status === 429) {
+          const pathParts = sourceUrl.pathname.split("/").filter(Boolean);
+          const accessionCompact = pathParts[4] || "";
+          if (/^\d{18}$/.test(accessionCompact)) {
+            await secResponse.body?.cancel();
+            const accessionDashed = `${accessionCompact.slice(0, 10)}-${accessionCompact.slice(10, 12)}-${accessionCompact.slice(12)}`;
+            const textUrl = new URL(sourceUrl.toString());
+            textUrl.pathname = `/Archives/edgar/data/${pathParts[3]}/${accessionCompact}/${accessionDashed}.txt`;
+            textUrl.search = "";
+            secResponse = await fetch(textUrl.toString(), {
+              headers: secHeaders,
+              cf: { cacheEverything: true, cacheTtl: 21600 }
+            });
+            usedFullSubmissionFallback = secResponse.ok;
           }
-          const headers = new Headers({
-            "content-type": "text/html; charset=utf-8",
-            "cache-control": "public, max-age=21600"
-          });
-          return applyPublicHeaders(new Response(periodicDocument, { status: 200, headers }), { preventIndexing: true });
-        } catch (error) {
-          const status = error instanceof RangeError ? 413 : 502;
-          return applyPublicHeaders(Response.json({ detail: error instanceof Error ? error.message : "SEC filing extraction failed" }, { status }), { preventIndexing: true });
         }
+        if (usedFullSubmissionFallback) {
+          try {
+            const periodicDocument = await extractPeriodicDocument(secResponse);
+            if (!periodicDocument) {
+              return applyPublicHeaders(Response.json({ detail: "Annual report document was not found in SEC submission" }, { status: 422 }), { preventIndexing: true });
+            }
+            const headers = new Headers({
+              "content-type": "text/html; charset=utf-8",
+              "cache-control": "public, max-age=21600"
+            });
+            return applyPublicHeaders(new Response(periodicDocument, { status: 200, headers }), { preventIndexing: true });
+          } catch (error) {
+            const status = error instanceof RangeError ? 413 : 502;
+            return applyPublicHeaders(Response.json({ detail: error instanceof Error ? error.message : "SEC filing extraction failed" }, { status }), { preventIndexing: true });
+          }
+        }
+        const contentLength = Number(secResponse.headers.get("content-length") || 0);
+        if (contentLength > 50 * 1024 * 1024) {
+          await secResponse.body?.cancel();
+          return applyPublicHeaders(Response.json({ detail: "SEC filing exceeds review size limit" }, { status: 413 }), { preventIndexing: true });
+        }
+        const headers = new Headers({
+          "content-type": secResponse.headers.get("content-type") || "text/html; charset=utf-8",
+          "cache-control": "public, max-age=21600"
+        });
+        return applyPublicHeaders(new Response(secResponse.body, { status: secResponse.status, headers }), { preventIndexing: true });
+      } catch (error) {
+        console.error(JSON.stringify({event: "sec_text_fetch_error", error_type: error instanceof Error ? error.name : "Unknown"}));
+        return applyPublicHeaders(Response.json({detail: "Annual report text is temporarily unavailable.", code: "sec_text_temporarily_unavailable"}, {
+          status: 502, headers: {"cache-control": "no-store", "retry-after": "5"}
+        }), {preventIndexing: true});
+      } finally {
+        activeFilingReviews -= 1;
       }
-      const contentLength = Number(secResponse.headers.get("content-length") || 0);
-      if (contentLength > 50 * 1024 * 1024) {
-        return applyPublicHeaders(Response.json({ detail: "SEC filing exceeds review size limit" }, { status: 413 }), { preventIndexing: true });
-      }
-      const headers = new Headers({
-        "content-type": secResponse.headers.get("content-type") || "text/html; charset=utf-8",
-        "cache-control": "public, max-age=21600"
-      });
-      return applyPublicHeaders(new Response(secResponse.body, { status: secResponse.status, headers }), { preventIndexing: true });
     }
 
     // FastAPI serves browser files from /static locally. Cloudflare Assets

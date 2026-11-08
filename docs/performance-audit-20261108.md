@@ -82,6 +82,14 @@ remain disclosed; no unsupported financial values are inferred to fill them.
    on another package to install them. This is not a complete transitive lockfile;
    deployment regression checks still validate the resolved environment.
 
+9. **Edge submission streams were not explicitly closed on extraction.** The
+   SEC fallback now cancels a full-submission stream once its annual report is
+   extracted, rather than leaving unrelated exhibits unread on an open stream.
+   Malformed headers are capped at 64 Ki characters and extracted annual text at
+   16 Mi characters, below the Worker's isolate-memory budget. One such review
+   runs per isolate; excess work and connection failures return retryable JSON.
+   These limits apply to optional phrase review, not structured financial rows.
+
 The developer-specific local Python path was removed from the production entry
 point. New source/resource handling files are included in methodology fingerprints.
 Regression CI now covers `codex/**` branches before main publication.
