@@ -2835,10 +2835,10 @@ body.intro-active {
     margin: 0;
     color: var(--text-main);
     font-family: "Inter Tight", "Manrope", sans-serif;
-    font-size: clamp(3.8rem, 6.4vw, 6.5rem);
+    font-size: clamp(2.5rem, 4.4vw, 4.5rem);
     font-weight: 600;
-    letter-spacing: -0.072em;
-    line-height: 0.92;
+    letter-spacing: -0.036em;
+    line-height: 1.07;
 }
 
 .intro-copy h1 em {
@@ -3030,7 +3030,7 @@ body.intro-active {
     }
 
     .intro-copy h1 {
-        font-size: clamp(3.25rem, 15.5vw, 4.75rem);
+        font-size: clamp(2.05rem, 8.7vw, 3rem);
     }
 
     .intro-copy > p {
@@ -3134,12 +3134,6 @@ html[data-theme="dark"] .theme-icon-moon {
     48% { transform: rotate(70deg) scale(.78); }
 }
 
-.intro-copy h1 {
-    font-size: clamp(3.2rem, 5.4vw, 5.65rem);
-    letter-spacing: -0.058em;
-    line-height: .96;
-}
-
 .intro-footer a,
 .workspace-footer a {
     color: inherit;
@@ -3233,11 +3227,6 @@ html.theme-color-transition .theme-icon {
 
     .intro-nav-cta {
         min-width: 38px;
-    }
-
-    .intro-copy h1 {
-        font-size: clamp(2.9rem, 13.8vw, 4.25rem);
-        line-height: .98;
     }
 
     .intro-footer a {
@@ -4326,13 +4315,6 @@ html.theme-color-transition .theme-icon {
         max-width: 100%;
     }
 
-    .intro-copy h1 {
-        font-size: clamp(2.55rem, 12.8vw, 3.45rem);
-        letter-spacing: -0.055em;
-        line-height: 1;
-        overflow-wrap: normal;
-    }
-
     .intro-copy > p {
         margin-top: 22px;
         font-size: .98rem;
@@ -4698,10 +4680,6 @@ html.theme-color-transition .theme-icon {
     .intro-brand-name,
     .brand-title {
         font-size: 1.02rem;
-    }
-
-    .intro-copy h1 {
-        font-size: 2.35rem;
     }
 
     .btn-search {
